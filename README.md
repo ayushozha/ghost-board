@@ -57,7 +57,8 @@ flowchart TD
 git clone https://github.com/ayushozha/ghost-board.git
 cd ghost-board
 pip install -r requirements.txt
-cp .env.example .env  # Add your OpenAI API key
+cp .env.example .env
+# Edit .env with your OpenAI API key
 python main.py "Your startup idea here"
 ```
 
@@ -73,6 +74,23 @@ python main.py --personas 15 --rounds 5
 # Skip simulation (build only)
 python main.py --skip-simulation
 ```
+
+## Screenshots
+
+### Mission Control
+![Mission Control](demo/screenshots/01_mission_control.png)
+
+### The Boardroom
+![Boardroom](demo/screenshots/02_boardroom.png)
+
+### Market Arena
+![Market Arena](demo/screenshots/03_market_arena.png)
+
+### Pivot Timeline
+![Pivot Timeline](demo/screenshots/04_pivot_timeline.png)
+
+### Sprint Report
+![Sprint Report](demo/screenshots/05_sprint_report.png)
 
 ## Running the Server
 
@@ -94,6 +112,61 @@ cd dashboard-react && npm run dev
 ```bash
 docker compose up --build
 ```
+
+## Deployment (VPS)
+
+Ghost Board deploys to a VPS behind nginx with a systemd-managed FastAPI service.
+
+### Prerequisites
+
+- SSH key at `~/.ssh/id_ed25519` with root access to the VPS (72.62.82.57)
+- `rsync` installed locally
+- A `.env` file on the VPS at `/opt/ghost-board/.env` containing at minimum:
+  ```
+  OPENAI_API_KEY=sk-...
+  DATABASE_URL=postgresql+asyncpg://admin:PASSWORD@localhost:5433/ghost_board
+  ```
+
+### Deploy Commands
+
+```bash
+# Full deployment (sync code, install deps, configure systemd + nginx)
+./scripts/deploy.sh
+
+# Sync code only (fast redeploy)
+./scripts/deploy.sh sync
+
+# Restart the ghost-board service
+./scripts/deploy.sh restart
+
+# Check service and port status
+./scripts/deploy.sh status
+
+# Tail live server logs
+./scripts/deploy.sh logs
+```
+
+### What the deploy script does
+
+1. **Syncs code** to `/opt/ghost-board/` via rsync (excludes vendor/, node_modules/, .git/, outputs/, .env)
+2. **Builds the React dashboard** locally before syncing (if npm is available)
+3. **Creates a Python virtualenv** and installs dependencies at `/opt/ghost-board/.venv`
+4. **Creates a systemd service** (`ghost-board.service`) running uvicorn on 127.0.0.1:8000 with 2 workers
+5. **Configures nginx** as a reverse proxy on port 80 with WebSocket upgrade support
+
+### Endpoints after deployment
+
+| URL | Description |
+|-----|-------------|
+| `http://72.62.82.57/` | API root (FastAPI) |
+| `http://72.62.82.57/docs` | Interactive API documentation |
+| `http://72.62.82.57/dashboard/` | React dashboard |
+| `http://72.62.82.57/ws/live/{run_id}` | WebSocket live event stream |
+| `http://72.62.82.57/outputs/` | Browsable output artifacts |
+
+### PostgreSQL
+
+The VPS runs a shared PostgreSQL 17.7 instance in a Docker container (`projects-db`) on port 5433, bound to localhost. The Ghost Board service connects via the `DATABASE_URL` in `.env`. See `VPS.md` for full database connection details.
 
 ## Output
 

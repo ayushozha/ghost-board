@@ -1,8 +1,39 @@
 [project]
 name = "ghost-board"
-version = "1.0.0"
+version = "0.1.0"
 description = "Autonomous AI executive team that builds and validates a startup in a single sprint"
+readme = "README.md"
 requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Ghost Board Team"},
+]
+keywords = ["ai", "agents", "startup", "simulation", "llm"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "click",
+    "python-dotenv",
+    "openai",
+    "pydantic",
+    "rich",
+    "numpy",
+    "sqlalchemy",
+    "aiosqlite",
+]
+
+[project.optional-dependencies]
+server = ["fastapi", "uvicorn[standard]", "websockets", "httpx"]
+wandb = ["wandb"]
+dev = ["pytest", "pytest-asyncio"]
+
+[project.scripts]
+ghost-board = "main:cli"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

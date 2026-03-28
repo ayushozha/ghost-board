@@ -271,3 +271,56 @@ async def test_websocket_connection():
                 pytest.skip("WebSocket testing not available (httpx_ws not installed or WS not implemented)")
     except ImportError:
         pytest.skip("httpx_ws not installed, skipping WebSocket test")
+
+
+def test_websocket_connect_and_receive():
+    """Test WebSocket connection lifecycle: connect, send ping, receive pong, disconnect.
+
+    Uses Starlette's synchronous TestClient which handles WebSocket upgrade
+    correctly via the ASGI interface (httpx_ws + ASGITransport does not).
+    """
+    if not HAS_SERVER:
+        pytest.skip("Server not built yet")
+
+    try:
+        from starlette.testclient import TestClient
+    except ImportError:
+        pytest.skip("starlette not installed")
+
+    sync_client = TestClient(app)
+    with sync_client.websocket_connect("/ws/live/test-run") as ws:
+        # 1. Connection succeeded — server sends an initial status/state message
+        initial_msg = ws.receive_json()
+        assert isinstance(initial_msg, dict)
+        assert initial_msg.get("type") in ("initial_state", "status")
+
+        # 2. Send a ping and verify we get a pong back
+        ws.send_text("ping")
+        pong_msg = ws.receive_json()
+        assert isinstance(pong_msg, dict)
+        assert pong_msg.get("type") == "pong"
+
+        # 3. Send an arbitrary message — should not crash the server
+        ws.send_text("hello")
+
+    # 4. Context manager exit = clean disconnect (no exception = success)
+
+
+@pytest.mark.asyncio
+async def test_websocket_endpoint_exists():
+    """Verify the WebSocket endpoint path is registered in the FastAPI app."""
+    if not HAS_SERVER:
+        pytest.skip("Server not built yet")
+
+    routes = []
+    for route in app.routes:
+        path = getattr(route, "path", None)
+        if path:
+            routes.append(path)
+
+    # The server defines @app.websocket("/ws/live/{run_id}")
+    ws_routes = [r for r in routes if "/ws/live/" in r]
+    assert len(ws_routes) >= 1, (
+        f"Expected at least one /ws/live/ route but found none. "
+        f"All routes: {routes}"
+    )

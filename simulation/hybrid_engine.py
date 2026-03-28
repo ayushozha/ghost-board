@@ -22,7 +22,7 @@ from simulation.engine import (
     run_simulation, SimulationResult, SimulationRound, SimulationMessage,
     _persona_turn, _shift_stance,
 )
-from simulation.analyzer import analyze_simulation, MarketSignal
+from simulation.analyzer import analyze_simulation, MarketSignal, categorize_sentiment
 from simulation.lightweight_agents import (
     LightweightSwarm, spawn_swarm, update_stances, collect_votes, get_swarm_summary,
 )
@@ -218,11 +218,15 @@ def _save_hybrid_outputs(
         sentiment_by_archetype: dict[str, list[float]] = {}
         posts = []
         for m in rd.messages:
+            cat = categorize_sentiment(m.content)
             posts.append({
                 "persona": m.persona_name,
                 "archetype": m.archetype,
                 "content": m.content,
                 "sentiment": m.sentiment,
+                "sentiment_category": cat["category"],
+                "sentiment_score": cat["sentiment"],
+                "key_phrases": cat["key_phrases"],
                 "references": m.references,
             })
             if m.archetype not in sentiment_by_archetype:

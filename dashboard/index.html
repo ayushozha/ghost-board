@@ -204,6 +204,208 @@
   .overflow-x-auto::-webkit-scrollbar { height: 4px; }
   .overflow-x-auto::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 2px; }
   .overflow-x-auto::-webkit-scrollbar-track { background: transparent; }
+
+  /* ── Agent Status Indicator Animations ── */
+
+  /* Idle: gray pulsing dot */
+  @keyframes status-idle-pulse {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.15); }
+  }
+  .status-dot-idle {
+    background-color: #475569;
+    animation: status-idle-pulse 2.5s ease-in-out infinite;
+  }
+
+  /* Thinking: blue spinning ring */
+  @keyframes status-thinking-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  .status-dot-thinking {
+    background-color: transparent;
+    border: 2px solid transparent;
+    border-top-color: #3b82f6;
+    border-right-color: #3b82f6;
+    animation: status-thinking-spin 0.8s linear infinite;
+  }
+
+  /* Working: green pulsing glow */
+  @keyframes status-working-pulse {
+    0%, 100% { box-shadow: 0 0 4px 1px rgba(34, 197, 94, 0.3); opacity: 0.8; }
+    50% { box-shadow: 0 0 10px 4px rgba(34, 197, 94, 0.5); opacity: 1; }
+  }
+  .status-dot-working {
+    background-color: #22c55e;
+    animation: status-working-pulse 1.5s ease-in-out infinite;
+  }
+
+  /* Done: solid green (no animation, steady) */
+  .status-dot-done {
+    background-color: #22c55e;
+    box-shadow: 0 0 6px 2px rgba(34, 197, 94, 0.35);
+  }
+  .status-dot-done::after {
+    content: '';
+    display: block;
+    width: 5px;
+    height: 8px;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg) translate(-1px, -1px);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    margin-top: -5px;
+    margin-left: -2px;
+  }
+
+  /* Blocked: red flashing */
+  @keyframes status-blocked-flash {
+    0%, 100% { background-color: #ef4444; box-shadow: 0 0 4px 1px rgba(239, 68, 68, 0.4); }
+    50% { background-color: #7f1d1d; box-shadow: 0 0 12px 4px rgba(239, 68, 68, 0.7); }
+  }
+  .status-dot-blocked {
+    background-color: #ef4444;
+    animation: status-blocked-flash 0.6s ease-in-out infinite;
+  }
+
+  /* ── Connection Line Animations ── */
+
+  /* Base connection line between agents */
+  .agent-connection-line {
+    position: absolute;
+    height: 2px;
+    background: rgba(71, 85, 105, 0.3);
+    transform-origin: 0 50%;
+    z-index: 0;
+    pointer-events: none;
+    transition: background 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  /* Data flowing: blue pulse */
+  @keyframes conn-pulse-blue {
+    0% { background: rgba(99, 102, 241, 0.2); box-shadow: none; }
+    50% { background: rgba(99, 102, 241, 0.8); box-shadow: 0 0 8px rgba(99, 102, 241, 0.5); }
+    100% { background: rgba(99, 102, 241, 0.2); box-shadow: none; }
+  }
+  .conn-active {
+    animation: conn-pulse-blue 1.5s ease-in-out infinite;
+  }
+
+  /* Blocker flowing: red flash */
+  @keyframes conn-flash-red {
+    0%, 100% { background: rgba(239, 68, 68, 0.3); box-shadow: none; }
+    25% { background: rgba(239, 68, 68, 1); box-shadow: 0 0 12px rgba(239, 68, 68, 0.7); }
+    50% { background: rgba(239, 68, 68, 0.3); box-shadow: none; }
+    75% { background: rgba(239, 68, 68, 1); box-shadow: 0 0 12px rgba(239, 68, 68, 0.7); }
+  }
+  .conn-blocker {
+    height: 3px;
+    animation: conn-flash-red 1s ease-in-out infinite;
+  }
+
+  /* Pivot flowing: yellow flash */
+  @keyframes conn-flash-yellow {
+    0%, 100% { background: rgba(234, 179, 8, 0.2); box-shadow: none; }
+    30% { background: rgba(234, 179, 8, 1); box-shadow: 0 0 10px rgba(234, 179, 8, 0.6); }
+    60% { background: rgba(234, 179, 8, 0.2); box-shadow: none; }
+  }
+  .conn-pivot {
+    height: 3px;
+    animation: conn-flash-yellow 1.2s ease-in-out infinite;
+  }
+
+  /* Dot traveling along connection line */
+  @keyframes conn-dot-travel {
+    0% { left: 0%; opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { left: 100%; opacity: 0; }
+  }
+  .conn-dot {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    top: -1px;
+    animation: conn-dot-travel 1.5s linear infinite;
+  }
+
+  /* ── Screen Transition Animations ── */
+
+  @keyframes screen-fade-out {
+    from { opacity: 1; transform: translateX(0); }
+    to { opacity: 0; transform: translateX(-30px); }
+  }
+  @keyframes screen-slide-in {
+    from { opacity: 0; transform: translateX(40px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  .screen-enter {
+    animation: screen-slide-in 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  }
+  .screen-exit {
+    animation: screen-fade-out 0.25s ease-in forwards;
+    pointer-events: none;
+  }
+
+  /* ── Timeline Node Hover Effects ── */
+
+  /* Timeline dots scale on hover */
+  .timeline-dot {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    cursor: pointer;
+  }
+  .timeline-dot:hover {
+    transform: scale(1.4);
+    box-shadow: 0 0 12px currentColor;
+  }
+
+  /* Timeline items expand on hover */
+  .timeline-item-hover {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    cursor: pointer;
+  }
+  .timeline-item-hover:hover {
+    transform: scale(1.02) translateX(4px);
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.15);
+  }
+
+  /* Pivot nodes: continuous subtle glow */
+  @keyframes pivot-glow {
+    0%, 100% { box-shadow: 0 0 8px 2px rgba(239, 68, 68, 0.2); }
+    50% { box-shadow: 0 0 20px 6px rgba(239, 68, 68, 0.35); }
+  }
+  .pivot-node-glow {
+    animation: pivot-glow 2.5s ease-in-out infinite;
+  }
+
+  /* Detail panel slides in from bottom on hover */
+  @keyframes detail-slide-up {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .detail-panel-enter {
+    animation: detail-slide-up 0.25s ease-out forwards;
+  }
+
+  /* Pivot flow step card hover glow */
+  .pivot-trail-node {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .pivot-trail-node:hover {
+    transform: scale(1.12);
+    box-shadow: 0 0 16px rgba(99, 102, 241, 0.3);
+  }
+
+  /* Agent card in boardroom: hover lift */
+  .agent-card-boardroom {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+  .agent-card-boardroom:hover {
+    transform: scale(1.08);
+  }
 </style>
 <script>
 tailwind.config = {
@@ -958,12 +1160,33 @@ function BoardroomView({ events }) {
   };
 
   const getState = (agent) => {
-    if (!current || current.agent !== agent) return 'idle';
+    if (!current) return 'idle';
+    if (current.agent === agent) {
+      const et = (current.event_type || '').toLowerCase();
+      if (et.includes('blocker')) return 'blocked';
+      if (et.includes('pivot')) return 'pivot';
+      return 'working';
+    }
+    // Check if this agent has completed at any prior step
+    const agentEntries = discussion.slice(0, playIndex + 1).filter(d => d.agent === agent);
+    if (agentEntries.length > 0) {
+      const lastEntry = agentEntries[agentEntries.length - 1];
+      const lastIdx = discussion.indexOf(lastEntry);
+      if (lastIdx < playIndex) return 'done';
+    }
+    return 'idle';
+  };
+
+  // Determine connection line state based on current discussion step
+  const getConnectionState = () => {
+    if (!current) return 'idle';
     const et = (current.event_type || '').toLowerCase();
     if (et.includes('blocker')) return 'blocker';
     if (et.includes('pivot')) return 'pivot';
-    return 'speaking';
+    return 'active';
   };
+
+  const connectionState = getConnectionState();
 
   return (
     <div>
