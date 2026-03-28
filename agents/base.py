@@ -1,0 +1,150 @@
+"""Base agent class with LLM calls, logging, and event bus integration."""
+
+from __future__ import annotations
+
+import os
+from typing import Any
+
+from dotenv import load_dotenv
+from openai import AsyncOpenAI
+from pydantic import BaseModel
+
+from coordination.events import AgentEvent, EventType
+from coordination.state import StateBus
+from coordination.trace import TraceLogger
+
+load_dotenv()
+
+# Cost estimates per 1M tokens (gpt-4o / gpt-4o-mini)
+MODEL_COSTS = {
+    "gpt-4o": {"input": 2.50, "output": 10.00},
+    "gpt-4o-mini": {"input": 0.15, "output": 0.60},
+}
+
+
+class BaseAgent:
+    """Base class for all Ghost Board agents.
+
+    Provides:
+    - Async LLM calls via OpenAI API
+    - Event bus publishing and subscription
+    - W&B / JSON trace logging
+    - Cost tracking
+    """
+
+    name: str = "BaseAgent"
+    model: str = "gpt-4o"
+
+    def __init__(self, bus: StateBus, logger: TraceLogger) -> None:
+        self.bus = bus
+        self.logger = logger
+        self.client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+        self.total_tokens = 0
+        self.estimated_cost = 0.0
+        self._current_iteration = 1
+
+    async def call_llm(
+        self,
+        messages: list[dict[str, str]],
+        model: str | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+        response_format: type[BaseModel] | None = None,
+    ) -> str:
+        """Make an async LLM call and track usage."""
+        use_model = model or self.model
+        self.log(f"Calling {use_model}", action="llm_call")
+
+        kwargs: dict[str, Any] = {
+            "model": use_model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        if response_format:
+            kwargs["response_format"] = response_format
+
+        response = await self.client.chat.completions.create(**kwargs)
+
+        content = response.choices[0].message.content or ""
+        usage = response.usage
+        if usage:
+            self.total_tokens += usage.total_tokens
+            costs = MODEL_COSTS.get(use_model, MODEL_COSTS["gpt-4o"])
+            self.estimated_cost += (
+                usage.prompt_tokens * costs["input"] / 1_000_000
+                + usage.completion_tokens * costs["output"] / 1_000_000
+            )
+
+        return content
+
+    async def call_llm_with_tools(
+        self,
+        messages: list[dict[str, str]],
+        tools: list[dict[str, Any]],
+        model: str | None = None,
+        temperature: float = 0.7,
+    ) -> Any:
+        """Make an LLM call with tool/function definitions."""
+        use_model = model or self.model
+        self.log(f"Calling {use_model} with tools", action="llm_tool_call")
+
+        response = await self.client.chat.completions.create(
+            model=use_model,
+            messages=messages,
+            tools=tools,
+            temperature=temperature,
+        )
+
+        usage = response.usage
+        if usage:
+            self.total_tokens += usage.total_tokens
+            costs = MODEL_COSTS.get(use_model, MODEL_COSTS["gpt-4o"])
+            self.estimated_cost += (
+                usage.prompt_tokens * costs["input"] / 1_000_000
+                + usage.completion_tokens * costs["output"] / 1_000_000
+            )
+
+        return response
+
+    def log(self, message: str, action: str = "info") -> None:
+        """Log an action to the trace logger."""
+        from coordination.events import UpdatePayload
+
+        event = AgentEvent(
+            type=EventType.UPDATE,
+            source=self.name,
+            payload=UpdatePayload(
+                agent=self.name,
+                action=action,
+                details=message,
+            ),
+            iteration=self._current_iteration,
+        )
+        self.logger.log_event(event)
+
+    async def publish(self, event: AgentEvent) -> None:
+        """Publish an event to the bus and log it."""
+        self.logger.log_event(event)
+        await self.bus.publish(event)
+
+    async def handle_event(self, event: AgentEvent) -> None:
+        """Handle an incoming event. Override in subclasses."""
+        pass
+
+    def subscribe(self, *event_types: EventType) -> None:
+        """Subscribe this agent to specific event types on the bus."""
+        for et in event_types:
+            self.bus.subscribe(et, self.handle_event)
+
+    async def run(self, context: dict[str, Any] | None = None) -> None:
+        """Main agent execution. Override in subclasses."""
+        raise NotImplementedError(f"{self.name}.run() not implemented")
+
+    def get_cost_summary(self) -> dict[str, Any]:
+        """Return cost tracking summary."""
+        return {
+            "agent": self.name,
+            "total_tokens": self.total_tokens,
+            "estimated_cost_usd": round(self.estimated_cost, 4),
+        }

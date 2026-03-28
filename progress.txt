@@ -1,18 +1,31 @@
 ## Ghost Board - Build Progress
 
-[ ] PRD-01: Project skeleton, requirements.txt, .env loading, empty main.py with click CLI and --help
-[ ] PRD-02: coordination/events.py - EventType enum, AgentEvent model, typed payload models (StrategyPayload, BlockerPayload, PivotPayload, SimulationResultPayload, UpdatePayload)
-[ ] PRD-03: coordination/state.py - StateBus async pub/sub with subscribe/publish/get_trace/get_state + tests/test_events.py
-[ ] PRD-04: coordination/trace.py - TraceLogger that writes to W&B if available, falls back to outputs/trace.json
-[ ] PRD-05: agents/base.py - BaseAgent class with async call_llm(), log(), publish(), handle_event() + cost estimation
-[ ] PRD-06: agents/ceo.py - CEOAgent: set_strategy(), process_blockers(), process_simulation_result(), pivot logic with real reasoning
-[ ] PRD-07: agents/cto.py - CTOAgent: use OpenAI API to generate prototype code, save to outputs/prototype/, handle PIVOT by modifying code
-[ ] PRD-08: agents/legal.py - LegalAgent: analyze regulatory risks, use web search for real citations, publish BLOCKER events with citations field
-[ ] PRD-09: agents/cfo.py - CFOAgent: generate financial model JSON + markdown, sanity checks, handle PIVOT by adjusting numbers
-[ ] PRD-10: agents/cmo.py - CMOAgent: generate positioning, taglines, landing page copy, handle PIVOT by rewriting
-[ ] PRD-11: simulation/personas.py - MarketPersona model, generate_personas() with archetype distribution, gpt-4o-mini
-[ ] PRD-12: simulation/engine.py - run_simulation() turn-based, agents reference each other, shared feed, stance tracking
-[ ] PRD-13: simulation/analyzer.py - MarketSignal model, analyze_simulation() structured output
-[ ] PRD-14: main.py - Full orchestration: Phase 1 (strategy+build) -> Phase 2 (simulate) -> Phase 3 (pivot+rebuild) + W&B logging
-[ ] PRD-15: tests/test_e2e.py - End-to-end test with mocked LLM calls verifying the full cascade
-[ ] PRD-16: README.md with architecture diagram, quick start, credits (Ralph Loop, MiroFish, W&B, oh-my-opencode, oh-my-claude-code, OpenClaw) + demo/anchrix_concept.txt + --demo flag
+[x] PRD-00: Clone vendor/MiroFish from github.com/666ghj/MiroFish and vendor/BettaFish from github.com/666ghj/BettaFish. Install their deps. If any external dependency fails (Zep Cloud, KuzuDB, OASIS, playwright, chromium, or any third-party service), replace it with our own local equivalent (SQLite for database, local JSON for memory, our own async simulation loop for OASIS, our own sentiment functions for BettaFish crawlers). Do NOT remove features, replace their infrastructure with ours. Keep all the simulation logic, persona generation, sentiment analysis, and report generation intact. Create simulation/mirofish_bridge.py with automatic fallback. Mark done and move on.
+[x] PRD-02: coordination/events.py - EventType enum, AgentEvent model, typed payload models (StrategyPayload, BlockerPayload, PivotPayload, SimulationResultPayload, UpdatePayload)
+[x] PRD-03: coordination/state.py - StateBus async pub/sub with subscribe/publish/get_trace/get_state + tests/test_events.py
+[x] PRD-04: coordination/trace.py - TraceLogger that writes to W&B if available, falls back to outputs/trace.json
+[x] PRD-05: agents/base.py - BaseAgent class with async call_llm(), log(), publish(), handle_event() + cost estimation
+[x] PRD-06: agents/ceo.py - CEOAgent: set_strategy(), process_blockers(), process_simulation_result(), pivot logic with real reasoning
+[x] PRD-07: agents/cto.py - CTOAgent: use OpenAI API to generate prototype code, save to outputs/prototype/, handle PIVOT by modifying code
+[x] PRD-08: agents/legal.py - LegalAgent: analyze regulatory risks, use web search for real citations, publish BLOCKER events with citations field
+[x] PRD-09: agents/cfo.py - CFOAgent: generate financial model JSON + markdown, sanity checks, handle PIVOT by adjusting numbers
+[x] PRD-10: agents/cmo.py - CMOAgent: generate positioning, taglines, landing page copy, handle PIVOT by rewriting
+[x] PRD-11: simulation/personas.py - MarketPersona model, generate_personas() with archetype distribution, gpt-4o-mini
+[x] PRD-12: simulation/engine.py - run_simulation() turn-based, agents reference each other, shared feed, stance tracking
+[x] PRD-13: simulation/analyzer.py - MarketSignal model, analyze_simulation() structured output
+[x] PRD-14: main.py - Full orchestration: Phase 1 (strategy+build) -> Phase 2 (simulate) -> Phase 3 (pivot+rebuild) + W&B logging
+[x] PRD-15: tests/test_e2e.py - End-to-end test with mocked LLM calls verifying the full cascade
+[x] PRD-16: README.md with architecture diagram, quick start, credits (Ralph Loop, MiroFish, W&B, oh-my-opencode, oh-my-claude-code, OpenClaw) + demo/anchrix_concept.txt + --demo flag
+PostgreSQL on our VPS for database (see VPS.md for connection details)
+[ ] PRD-17: Run a full demo with Anchrix concept which wil be in anchrix.com, also check for altrixy project which is in the folder called portfolio-generator, you can also test this for other projects we have here. Execute: python main.py "Launch Anchrix, a stablecoin payout platform for US fintechs". Fix ANY errors that come up. Re-run until the full pipeline completes end to end. Save all output artifacts.
+[ ] PRD-18: Run the demo AGAIN and capture the W&B dashboard URL. Save it to demo/wandb_url.txt. Save the execution trace to demo/cached_trace.json. Save all artifacts to demo/cached_artifacts/.
+[ ] PRD-19: Create a 1-minute demo script at demo/DEMO_SCRIPT.md covering all 6 demo beats: one-liner intro, Legal blocker with citation, CEO pivot event, prototype diff, market signal and second pivot, final artifact bundle with cost summary.
+[ ] PRD-20: Add --demo flag to main.py that loads cached results from demo/ for instant playback without API calls.
+[ ] PRD-21: Create ARCHITECTURE.md with full system diagram, event flow, agent descriptions, and MiroFish integration explanation.
+[ ] PRD-22: Add error recovery to all agents. If any LLM call fails, retry 3 times with exponential backoff. If still failing, log the error, publish a degraded result, and continue. No agent failure should crash the full sprint.
+[ ] PRD-23: Add cost tracking summary. At the end of every sprint, print total API cost by agent, total tokens used, and cost comparison vs human equivalent (e.g. "$12.47 API cost vs estimated $15,000 consulting engagement").
+[ ] PRD-24: Add a second demo scenario. Create demo/saas_concept.txt with a different startup idea (non-fintech). Run the full pipeline on it. Prove Ghost Board works for any startup, not just Anchrix.
+[ ] PRD-25: Harden all tests. Run python -m pytest tests/ -v. Every test must pass. Add missing edge case tests for event bus, agent pivots, simulation persona generation, and analyzer output.
+[ ] PRD-26: Polish README.md with badges, architecture diagram, quick start, credits (Ralph Loop by Geoffrey Huntley, MiroFish by Guo Hangjiang, W&B, oh-my-opencode by Q, oh-my-claude-code by Yeachan Heo, OpenClaw by George Zhang), MIT license, and "Built at Ralphthon SF 2026".
+[ ] PRD-27: If all above tasks are done, keep improving. Add more agent depth: make Legal cite more regulations, make CFO model more detailed with monthly projections, make CMO generate competitive positioning matrix, make CTO generate better test coverage. Run the demo after each improvement to verify nothing breaks.
+[ ] PRD-28: You can keep on interating and improving, do not stop till I stop, but make sure you are not breaking anything, keep on adding.
