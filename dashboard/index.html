@@ -1065,11 +1065,93 @@ function SentimentDashboard({ events }) {
   );
 }
 
+// ── Mission Control (Screen 1) ──
+function MissionControl({ onLaunch }) {
+  const [concept, setConcept] = useState('');
+  const [launching, setLaunching] = useState(false);
+
+  const handleLaunch = () => {
+    setLaunching(true);
+    setTimeout(() => onLaunch(concept), 1200);
+  };
+
+  return (
+    <div className={`min-h-screen flex flex-col items-center justify-center relative overflow-hidden ${launching ? 'scale-110 opacity-0' : ''}`}
+      style={{ transition: 'all 1.2s cubic-bezier(0.4, 0, 0.2, 1)' }}>
+      {/* Particle grid background */}
+      <div className="absolute inset-0 opacity-10" style={{
+        backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(99,102,241,0.4) 1px, transparent 0)',
+        backgroundSize: '40px 40px',
+      }}></div>
+
+      {/* Logo */}
+      <div className="relative z-10 text-center mb-10 fade-in">
+        <div className="inline-flex items-center gap-3 mb-4">
+          <div className="w-14 h-14 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
+            <span className="text-3xl">&#9763;</span>
+          </div>
+          <h1 className="text-5xl font-black tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text" style={{WebkitTextFillColor: 'transparent'}}>
+            GHOST BOARD
+          </h1>
+        </div>
+        <p className="text-slate-400 text-lg">Autonomous AI Executive Team</p>
+      </div>
+
+      {/* Input */}
+      <div className="relative z-10 w-full max-w-xl px-6 fade-in fade-in-delay-1">
+        <div className="relative">
+          <input
+            type="text"
+            value={concept}
+            onChange={e => setConcept(e.target.value)}
+            placeholder="Enter your startup concept..."
+            onKeyDown={e => e.key === 'Enter' && handleLaunch()}
+            className="w-full px-6 py-4 rounded-xl bg-slate-900/80 border border-slate-600/30 text-white text-lg placeholder-slate-500 focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 backdrop-blur-sm mono"
+            style={{ caretColor: '#6366f1' }}
+          />
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-indigo-500 animate-pulse"></div>
+        </div>
+      </div>
+
+      {/* Launch button */}
+      <div className="relative z-10 mt-8 fade-in fade-in-delay-2">
+        <button onClick={handleLaunch}
+          className="group relative px-10 py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-lg transition-all hover:scale-105 hover:shadow-[0_0_40px_rgba(99,102,241,0.3)]">
+          <span className="relative z-10 flex items-center gap-2">
+            <span className="text-xl">&#9673;</span>
+            LAUNCH SPRINT
+          </span>
+        </button>
+      </div>
+
+      {/* Tagline */}
+      <div className="relative z-10 mt-10 text-center fade-in fade-in-delay-3">
+        <p className="text-slate-500 text-sm">
+          Powered by <span className="text-indigo-400">5 AI Executives</span> &nbsp;|&nbsp;
+          <span className="text-cyan-400">MiroFish Market Simulation</span> &nbsp;|&nbsp;
+          <span className="text-purple-400">1,000,000+ Agent Simulations</span>
+        </p>
+      </div>
+
+      {/* Warp effect overlay */}
+      {launching && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/90 animate-pulse">
+          <div className="text-center">
+            <div className="mono text-indigo-400 text-sm mb-2">$ ghost-board sprint --launch</div>
+            <div className="mono text-green-400 text-xs animate-pulse">Initializing agents...</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main App ──
 function App() {
   const [events, setEvents] = useState([]);
   const [activeTab, setActiveTab] = useState('timeline');
   const [loading, setLoading] = useState(true);
+  const [screen, setScreen] = useState('mission-control');
 
   useEffect(() => {
     // Try multiple paths for trace data
@@ -1095,6 +1177,10 @@ function App() {
 
   const pivotCount = events.filter(e => e.event_type === 'PIVOT').length;
   const totalCost = 0.15; // Estimate from cached run
+
+  if (screen === 'mission-control') {
+    return <MissionControl onLaunch={() => setScreen('dashboard')} />;
+  }
 
   if (loading) return (
     <div className="flex items-center justify-center min-h-screen">
