@@ -10,6 +10,12 @@ from pathlib import Path
 
 import click
 from dotenv import load_dotenv
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
+
+console = Console()
 
 load_dotenv()
 
@@ -54,64 +60,65 @@ async def run_sprint(
 
     agents = [ceo, cto, cfo, cmo, legal]
 
-    print("=" * 60)
-    print("  GHOST BOARD - Autonomous AI Executive Team")
-    print("=" * 60)
+    console.print(Panel.fit(
+        "[bold white]GHOST BOARD[/bold white]\n[dim]Autonomous AI Executive Team[/dim]",
+        border_style="bright_blue",
+    ))
 
     # ── Phase 1: Strategy + Build ──
-    print("\n[Phase 1] Strategy + Build")
-    print("-" * 40)
+    console.print("\n[bold cyan]Phase 1: Strategy + Build[/bold cyan]")
+    console.print("[dim]" + "-" * 50 + "[/dim]")
 
     # CEO sets strategy
-    print("  CEO: Setting initial strategy...")
-    strategy = await ceo.set_strategy(startup_idea)
-    print(f"  CEO: Strategy set - {strategy.business_model} targeting {strategy.target_market}")
+    with console.status("[bold green]CEO setting initial strategy..."):
+        strategy = await ceo.set_strategy(startup_idea)
+    console.print(f"  [bold yellow]CEO[/bold yellow]: {strategy.business_model} targeting {strategy.target_market}")
 
     # All other agents receive strategy via event bus and build concurrently
-    print("  Building artifacts concurrently...")
     cto.current_strategy = strategy
     cfo.current_strategy = strategy
     cmo.current_strategy = strategy
     legal.current_strategy = strategy
 
-    build_results = await asyncio.gather(
-        cto.generate_prototype(strategy),
-        cfo.generate_financial_model(strategy),
-        cmo.generate_gtm(strategy),
-        legal.analyze_compliance(strategy),
-        return_exceptions=True,
-    )
+    with console.status("[bold green]All agents building concurrently..."):
+        build_results = await asyncio.gather(
+            cto.generate_prototype(strategy),
+            cfo.generate_financial_model(strategy),
+            cmo.generate_gtm(strategy),
+            legal.analyze_compliance(strategy),
+            return_exceptions=True,
+        )
 
+    agent_names = ["CTO", "CFO", "CMO", "Legal"]
+    agent_colors = ["blue", "green", "magenta", "red"]
     for i, result in enumerate(build_results):
-        agent_name = ["CTO", "CFO", "CMO", "Legal"][i]
         if isinstance(result, Exception):
-            print(f"  {agent_name}: ERROR - {result}")
+            console.print(f"  [{agent_colors[i]}]{agent_names[i]}[/{agent_colors[i]}]: [red]ERROR[/red] - {result}")
         else:
-            print(f"  {agent_name}: Done")
+            console.print(f"  [{agent_colors[i]}]{agent_names[i]}[/{agent_colors[i]}]: [green]Done[/green]")
 
     # Check if Legal published blockers
     blockers = bus.get_events_by_type(EventType.BLOCKER)
     if blockers:
-        print(f"\n  ! Legal found {len(blockers)} blocker(s)")
+        console.print(f"\n  [bold red]! Legal found {len(blockers)} blocker(s)[/bold red]")
         # CEO processes blockers (which may trigger pivots)
         for blocker in blockers:
             await ceo.process_blocker(blocker)
 
         if ceo.pivot_count > 0:
-            print(f"  CEO: Pivoted strategy ({ceo.pivot_count} pivot(s))")
-            # Rebuild after pivot
-            print("  Rebuilding after pivot...")
-            await asyncio.gather(
-                cto.run(),
-                cfo.run(),
-                cmo.run(),
-                return_exceptions=True,
-            )
+            console.print(f"  [bold yellow]CEO[/bold yellow]: Pivoted strategy ({ceo.pivot_count} pivot(s))")
+            with console.status("[bold green]Rebuilding after pivot..."):
+                await asyncio.gather(
+                    cto.run(),
+                    cfo.run(),
+                    cmo.run(),
+                    return_exceptions=True,
+                )
 
     # ── Phase 2: Market Simulation ──
     if not skip_simulation:
-        print(f"\n[Phase 2] Market Simulation ({num_personas} personas, {num_rounds} rounds)")
-        print("-" * 40)
+        console.print(f"\n[bold cyan]Phase 2: Market Simulation[/bold cyan] ({num_personas} personas, {num_rounds} rounds)")
+        console.print("[dim]" + "-" * 50 + "[/dim]")
 
         bridge = MiroFishBridge(client=ceo.client)
         strategy_summary = (
@@ -119,18 +126,20 @@ async def run_sprint(
             f"targeting {strategy.target_market}"
         )
 
-        sim_result, market_signal = await bridge.run_full_simulation(
-            startup_idea=startup_idea,
-            strategy_summary=strategy_summary,
-            num_personas=num_personas,
-            num_rounds=num_rounds,
-        )
+        with console.status("[bold green]Running market simulation..."):
+            sim_result, market_signal = await bridge.run_full_simulation(
+                startup_idea=startup_idea,
+                strategy_summary=strategy_summary,
+                num_personas=num_personas,
+                num_rounds=num_rounds,
+            )
 
-        print(f"  Sentiment: {market_signal.overall_sentiment:.2f}")
-        print(f"  Confidence: {market_signal.confidence:.2f}")
-        print(f"  Pivot recommended: {market_signal.pivot_recommended}")
+        sentiment_color = "green" if market_signal.overall_sentiment > 0.3 else ("yellow" if market_signal.overall_sentiment > -0.3 else "red")
+        console.print(f"  Sentiment: [{sentiment_color}]{market_signal.overall_sentiment:.2f}[/{sentiment_color}]")
+        console.print(f"  Confidence: {market_signal.confidence:.2f}")
+        console.print(f"  Pivot recommended: {'[red]Yes[/red]' if market_signal.pivot_recommended else '[green]No[/green]'}")
         if market_signal.key_concerns:
-            print(f"  Top concerns: {', '.join(market_signal.key_concerns[:3])}")
+            console.print(f"  Top concerns: {', '.join(market_signal.key_concerns[:3])}")
 
         # Publish simulation result to bus
         sim_event = AgentEvent(
@@ -151,35 +160,29 @@ async def run_sprint(
 
         # ── Phase 3: Pivot + Rebuild (if needed) ──
         if market_signal.pivot_recommended:
-            print(f"\n[Phase 3] Pivot + Rebuild")
-            print("-" * 40)
-            print(f"  CEO: Pivoting - {market_signal.pivot_suggestion}")
+            console.print(f"\n[bold cyan]Phase 3: Pivot + Rebuild[/bold cyan]")
+            console.print("[dim]" + "-" * 50 + "[/dim]")
+            console.print(f"  [bold yellow]CEO[/bold yellow]: Pivoting - {market_signal.pivot_suggestion}")
 
-            # CEO processes simulation result (triggers pivot via event handler)
             await ceo.process_simulation_result(sim_event)
 
             if ceo.pivot_count > 0:
-                print(f"  CEO: Strategy pivoted (total pivots: {ceo.pivot_count})")
-                # Rebuild everything
-                print("  Rebuilding all artifacts...")
-                await asyncio.gather(
-                    cto.run(),
-                    cfo.run(),
-                    cmo.run(),
-                    legal.run(),
-                    return_exceptions=True,
-                )
-                print("  Rebuild complete.")
+                console.print(f"  [bold yellow]CEO[/bold yellow]: Strategy pivoted (total pivots: {ceo.pivot_count})")
+                with console.status("[bold green]Rebuilding all artifacts..."):
+                    await asyncio.gather(
+                        cto.run(),
+                        cfo.run(),
+                        cmo.run(),
+                        legal.run(),
+                        return_exceptions=True,
+                    )
+                console.print("  [green]Rebuild complete.[/green]")
         else:
-            print("\n[Phase 3] No pivot needed - market reception positive")
+            console.print("\n[bold green]Phase 3: No pivot needed - market reception positive[/bold green]")
     else:
-        print("\n[Phase 2-3] Skipped (--skip-simulation)")
+        console.print("\n[dim]Phase 2-3: Skipped (--skip-simulation)[/dim]")
 
     # ── Summary ──
-    print("\n" + "=" * 60)
-    print("  Sprint Complete!")
-    print("=" * 60)
-
     trace = bus.get_trace()
     total_events = len(trace)
     pivots = ceo.pivot_count
@@ -188,26 +191,35 @@ async def run_sprint(
     total_cost = sum(c["estimated_cost_usd"] for c in costs.values())
 
     total_tokens = sum(c["total_tokens"] for c in costs.values())
-    # Human equivalent: strategy consultant ($300/hr), lawyer ($400/hr),
-    # developer ($200/hr), financial analyst ($250/hr), marketing ($200/hr)
-    # Minimum 2 hours each = $2,300 minimum
-    human_equivalent = 15000.0  # conservative estimate for full engagement
+    human_equivalent = 15000.0
 
-    print(f"  Events: {total_events}")
-    print(f"  Pivots: {pivots}")
-    print(f"  Total tokens: {total_tokens:,}")
-    print(f"  API cost: ${total_cost:.4f}")
-    print(f"  Human equivalent: ~${human_equivalent:,.0f}")
-    print(f"  Savings: {human_equivalent / max(total_cost, 0.01):.0f}x cheaper")
-    print(f"\n  Outputs saved to: outputs/")
-    print(f"  Trace log: outputs/trace.json")
+    # Summary table
+    summary_table = Table(title="Sprint Complete!", border_style="bright_blue")
+    summary_table.add_column("Metric", style="bold")
+    summary_table.add_column("Value", justify="right")
+    summary_table.add_row("Events", str(total_events))
+    summary_table.add_row("Pivots", str(pivots))
+    summary_table.add_row("Total tokens", f"{total_tokens:,}")
+    summary_table.add_row("API cost", f"[green]${total_cost:.4f}[/green]")
+    summary_table.add_row("Human equivalent", f"[dim]~${human_equivalent:,.0f}[/dim]")
+    summary_table.add_row("Savings", f"[bold green]{human_equivalent / max(total_cost, 0.01):,.0f}x cheaper[/bold green]")
+    console.print()
+    console.print(summary_table)
 
+    # Cost breakdown
+    cost_table = Table(title="Cost by Agent", border_style="dim")
+    cost_table.add_column("Agent", style="bold")
+    cost_table.add_column("Tokens", justify="right")
+    cost_table.add_column("Cost", justify="right")
     for name, cost in costs.items():
-        print(f"    {name}: {cost['total_tokens']:,} tokens (${cost['estimated_cost_usd']:.4f})")
+        cost_table.add_row(name, f"{cost['total_tokens']:,}", f"${cost['estimated_cost_usd']:.4f}")
+    console.print(cost_table)
+
+    console.print(f"\n  Outputs: [link=file://outputs/]outputs/[/link]")
+    console.print(f"  Trace: [link=file://outputs/trace.json]outputs/trace.json[/link]")
 
     if hasattr(logger, 'wandb_url') and logger.wandb_url:
-        print(f"\n  W&B dashboard: {logger.wandb_url}")
-        # Save W&B URL for demo
+        console.print(f"  W&B: [link={logger.wandb_url}]{logger.wandb_url}[/link]")
         os.makedirs("demo", exist_ok=True)
         with open("demo/wandb_url.txt", "w") as f:
             f.write(logger.wandb_url + "\n")
