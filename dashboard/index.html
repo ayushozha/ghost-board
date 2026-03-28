@@ -487,6 +487,34 @@
     width: 0;
     opacity: 0;
   }
+
+  /* ── Live Mode Badge ── */
+  @keyframes live-pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 4px 1px rgba(34,197,94,0.4); }
+    50% { opacity: 0.6; box-shadow: 0 0 10px 4px rgba(34,197,94,0.7); }
+  }
+  .live-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #22c55e;
+    animation: live-pulse 1.5s ease-in-out infinite;
+    display: inline-block;
+  }
+  .live-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px; border-radius: 9999px;
+    background: rgba(34,197,94,0.12);
+    border: 1px solid rgba(34,197,94,0.3);
+    font-size: 0.7rem; font-weight: 600; letter-spacing: 0.05em;
+    color: #22c55e; text-transform: uppercase;
+  }
+  .offline-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px; border-radius: 9999px;
+    background: rgba(100,116,139,0.12);
+    border: 1px solid rgba(100,116,139,0.3);
+    font-size: 0.7rem; font-weight: 600; letter-spacing: 0.05em;
+    color: #64748b; text-transform: uppercase;
+  }
 </style>
 <script>
 tailwind.config = {
@@ -650,6 +678,151 @@ class AudioManager {
 const audioManager = new AudioManager();
 window.audioManager = audioManager;
 
+// ── Live Mode: API connection + WebSocket infrastructure ──
+const API_BASE = (window.location.port === '8000' || window.location.port === '3000') ? '' : 'http://localhost:8000';
+
+class LiveConnection {
+  constructor() {
+    this.isLive = false;
+    this.runId = null;
+    this.ws = null;
+    this.listeners = new Set();
+    this.pollTimer = null;
+    this.status = 'disconnected'; // disconnected | connected | streaming
+  }
+
+  async tryConnect() {
+    try {
+      const resp = await fetch(`${API_BASE}/api/runs`, { signal: AbortSignal.timeout(3000) });
+      if (!resp.ok) return false;
+      const data = await resp.json();
+      const runs = data.runs || [];
+      if (runs.length > 0) {
+        this.isLive = true;
+        this.status = 'connected';
+        // Pick the most recent run (runs are sorted most-recent-first by the API)
+        this.runId = runs[0].run_id || runs[0].id;
+        return true;
+      }
+      // API is reachable but no runs yet - still live mode
+      this.isLive = true;
+      this.status = 'connected';
+      return true;
+    } catch (e) {
+      this.isLive = false;
+      this.status = 'disconnected';
+      return false;
+    }
+  }
+
+  async fetchRunData(runId) {
+    const rid = runId || this.runId;
+    if (!rid) return null;
+    try {
+      const [traceResp, discussResp, simResp] = await Promise.all([
+        fetch(`${API_BASE}/api/runs/${rid}/trace`, { signal: AbortSignal.timeout(5000) }),
+        fetch(`${API_BASE}/api/runs/${rid}/board-discussion`, { signal: AbortSignal.timeout(5000) }),
+        fetch(`${API_BASE}/api/runs/${rid}/simulation`, { signal: AbortSignal.timeout(5000) }),
+      ]);
+      const trace = traceResp.ok ? await traceResp.json() : { trace: [] };
+      const discussion = discussResp.ok ? await discussResp.json() : { discussion: [] };
+      const simulation = simResp.ok ? await simResp.json() : null;
+      return {
+        trace: trace.trace || trace.events || (Array.isArray(trace) ? trace : []),
+        discussion: discussion.discussion || (Array.isArray(discussion) ? discussion : []),
+        simulation: simulation,
+      };
+    } catch (e) {
+      console.warn('Failed to fetch run data:', e);
+      return null;
+    }
+  }
+
+  async startSprint(concept) {
+    try {
+      const resp = await fetch(`${API_BASE}/api/sprint`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ concept, sim_scale: 'demo' }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        this.runId = data.run_id;
+        this.connectWebSocket(data.run_id);
+        return data;
+      }
+      return null;
+    } catch (e) {
+      console.warn('Failed to start sprint:', e);
+      return null;
+    }
+  }
+
+  connectWebSocket(runId) {
+    const rid = runId || this.runId;
+    if (!rid) return;
+    if (this.ws) { try { this.ws.close(); } catch(e) {} }
+
+    const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsHost = API_BASE ? 'localhost:8000' : window.location.host;
+    const wsUrl = `${wsProto}//${wsHost}/ws/live/${rid}`;
+
+    try {
+      this.ws = new WebSocket(wsUrl);
+      this.ws.onopen = () => { this.status = 'streaming'; this._notify({ type: 'ws_connected' }); };
+      this.ws.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data);
+          this._notify({ type: 'ws_event', data: msg });
+        } catch(e) {}
+      };
+      this.ws.onclose = () => { this.status = this.isLive ? 'connected' : 'disconnected'; this._notify({ type: 'ws_closed' }); };
+      this.ws.onerror = () => { this.status = this.isLive ? 'connected' : 'disconnected'; };
+    } catch(e) {
+      console.warn('WebSocket connection failed:', e);
+    }
+  }
+
+  startPolling(callback, intervalMs = 5000) {
+    this.stopPolling();
+    this.pollTimer = setInterval(async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/api/runs`, { signal: AbortSignal.timeout(3000) });
+        if (resp.ok) {
+          const data = await resp.json();
+          const runs = data.runs || [];
+          if (runs.length > 0) {
+            const latestId = runs[0].run_id || runs[0].id;
+            if (latestId !== this.runId) {
+              this.runId = latestId;
+              callback({ type: 'new_run', runId: latestId });
+            }
+            // Also check status of current run
+            const latestRun = runs[0];
+            callback({ type: 'run_status', run: latestRun });
+          }
+        }
+      } catch(e) {}
+    }, intervalMs);
+  }
+
+  stopPolling() {
+    if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
+  }
+
+  subscribe(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
+  _notify(msg) { this.listeners.forEach(fn => { try { fn(msg); } catch(e) {} }); }
+
+  destroy() {
+    this.stopPolling();
+    if (this.ws) { try { this.ws.close(); } catch(e) {} this.ws = null; }
+    this.listeners.clear();
+  }
+}
+
+const liveConn = new LiveConnection();
+window.liveConn = liveConn;
+
 const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
 // ── Debounce utility for resize handlers ──
@@ -688,6 +861,34 @@ const AGENT_COLORS = {
   Simulation: { bg: 'bg-cyan-500/20', border: 'border-cyan-500', text: 'text-cyan-400', hex: '#06b6d4', dot: 'bg-cyan-500' },
 };
 const getColor = (source) => AGENT_COLORS[source] || { bg:'bg-gray-500/20', border:'border-gray-500', text:'text-gray-400', hex:'#6b7280', dot:'bg-gray-500' };
+
+// ── Pivot reason parser: handles both plain text and JSON-stringified reasons ──
+function parsePivotReason(reason) {
+  if (!reason) return { summary: '', options: [], chosen: '', rationale: '', risk: '' };
+  if (typeof reason !== 'string') return { summary: String(reason), options: [], chosen: '', rationale: '', risk: '' };
+  try {
+    const parsed = JSON.parse(reason);
+    return {
+      summary: parsed.summary || parsed.trigger_quote || reason,
+      options: parsed.options_considered || [],
+      chosen: parsed.chosen_option || '',
+      rationale: parsed.rationale || '',
+      risk: parsed.risk || '',
+    };
+  } catch(e) {
+    return { summary: reason, options: [], chosen: '', rationale: '', risk: '' };
+  }
+}
+
+// ── Filter internal keys from changes_required (underscore-prefixed keys are metadata) ──
+function filterAgentChanges(changes) {
+  if (!changes) return {};
+  const result = {};
+  for (const [key, val] of Object.entries(changes)) {
+    if (!key.startsWith('_')) result[key] = val;
+  }
+  return result;
+}
 
 // ── Header ──
 function Header({ events, pivots, cost }) {
@@ -801,11 +1002,35 @@ function EventPayload({ event }) {
   switch(event.event_type) {
     case 'STRATEGY_SET': return <div className="text-sm"><strong>{p.startup_idea}</strong><br/><span className="text-slate-400">{p.business_model} | {p.target_market}</span></div>;
     case 'BLOCKER': return <div className="text-sm"><span className="text-red-400 font-bold">[{p.severity}]</span> {p.description}{p.citations?.length > 0 && <div className="mt-1 text-xs text-slate-500">{p.citations.map((c,i) => <div key={i} className="truncate">&#128279; {c}</div>)}</div>}</div>;
-    case 'PIVOT': return <div className="text-sm text-red-300">{p.reason}</div>;
-    case 'PROTOTYPE_READY': return <div className="text-sm text-blue-300">{p.output_files?.length || 0} files generated</div>;
-    case 'FINANCIAL_MODEL_READY': return <div className="text-sm text-green-300">Y1: ${(p.revenue_year1||0).toLocaleString()} | Runway: {p.runway_months}mo</div>;
-    case 'GTM_READY': return <div className="text-sm text-purple-300">"{p.tagline}"</div>;
-    case 'COMPLIANCE_REPORT_READY': return <div className="text-sm">{p.risk_level} risk | {p.blockers_found} blockers</div>;
+    case 'PIVOT': {
+      const pr = parsePivotReason(p.reason);
+      const changes = filterAgentChanges(p.changes_required);
+      return (
+        <div className="text-sm">
+          <div className="text-red-300 mb-2">{pr.summary}</div>
+          {pr.chosen && <div className="text-xs text-yellow-400 mb-1"><span className="font-bold">Decision:</span> {pr.chosen}</div>}
+          {pr.rationale && <div className="text-xs text-slate-400 mb-1">{pr.rationale}</div>}
+          {p.old_strategy && p.new_strategy && (
+            <div className="mt-2 text-xs">
+              <span className="text-slate-500 line-through">{typeof p.old_strategy === 'string' && p.old_strategy.startsWith('{') ? (JSON.parse(p.old_strategy).startup_idea || p.old_strategy) : p.old_strategy}</span>
+              <span className="text-slate-500 mx-1">&rarr;</span>
+              <span className="text-green-400">{typeof p.new_strategy === 'string' && p.new_strategy.startsWith('{') ? (JSON.parse(p.new_strategy).startup_idea || p.new_strategy) : p.new_strategy}</span>
+            </div>
+          )}
+          {Object.keys(changes).length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {Object.entries(changes).map(([agent, change]) => (
+                <span key={agent} className={`text-xs px-1.5 py-0.5 rounded ${getColor(agent).bg} ${getColor(agent).text}`}>{agent}</span>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+    case 'PROTOTYPE_READY': return <div className="text-sm text-blue-300">{(p.files_generated || p.output_files || []).length} files generated{p.description ? ` - ${p.description}` : ''}</div>;
+    case 'FINANCIAL_MODEL_READY': return <div className="text-sm text-green-300">Y1: ${(p.revenue_year1||0).toLocaleString()} | Runway: {p.runway_months}mo{p.funding_required ? ` | Funding: $${(p.funding_required||0).toLocaleString()}` : ''}</div>;
+    case 'GTM_READY': return <div className="text-sm text-purple-300">"{p.tagline}"{p.positioning ? <div className="text-xs text-slate-400 mt-1">{p.positioning.substring(0, 120)}...</div> : null}</div>;
+    case 'COMPLIANCE_REPORT_READY': return <div className="text-sm">{p.risk_level} risk | {p.blockers_found} blockers{p.regulations_checked ? <div className="text-xs text-slate-500 mt-1">{p.regulations_checked.length} regulations checked</div> : null}</div>;
     case 'SIMULATION_RESULT': return <div className="text-sm text-cyan-300">Sentiment: {p.overall_sentiment?.toFixed(2)} | Pivot: {p.pivot_recommended ? 'Yes' : 'No'}{p.total_agents ? ` | ${p.total_agents.toLocaleString()} agents` : ''}</div>;
     default: return <div className="text-xs text-slate-500">{p.details || p.action || JSON.stringify(p).slice(0,100)}</div>;
   }
@@ -905,17 +1130,45 @@ function PivotTrace({ events }) {
               <span className="text-red-400 text-xs font-bold uppercase tracking-widest">CEO Decision</span>
               <div className="flex-1 h-px bg-gradient-to-l from-red-500/50 to-transparent"></div>
             </div>
-            <div className="text-sm text-slate-300">{pivot.payload?.reason}</div>
-            {pivot.payload?.changes_required && (
-              <div className="mt-3 grid grid-cols-3 gap-2 pivot-changes-grid">
-                {Object.entries(pivot.payload.changes_required).map(([agent, change]) => (
-                  <div key={agent} className={`text-xs p-2 rounded-lg ${getColor(agent).bg} border ${getColor(agent).border}/20`}>
-                    <span className={`font-bold ${getColor(agent).text}`}>{agent}:</span>
-                    <span className="text-slate-400 ml-1">{change}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+            {(() => {
+              const pr = parsePivotReason(pivot.payload?.reason);
+              const changes = filterAgentChanges(pivot.payload?.changes_required);
+              return (
+                <div>
+                  <div className="text-sm text-slate-300 mb-2">{pr.summary}</div>
+                  {pr.options.length > 0 && (
+                    <div className="mb-3 space-y-1">
+                      <div className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Options Evaluated:</div>
+                      {pr.options.map((opt, oi) => (
+                        <div key={oi} className={`text-xs p-2 rounded-lg ${opt === pr.chosen || (typeof opt === 'string' && opt === pr.chosen) ? 'bg-yellow-500/10 border border-yellow-500/30 text-yellow-300' : 'bg-slate-800/30 border border-slate-700/20 text-slate-400'}`}>
+                          {typeof opt === 'string' ? opt : opt.option || opt.description || JSON.stringify(opt)}
+                          {(opt === pr.chosen || opt.option === pr.chosen) && <span className="ml-2 text-yellow-400 font-bold">&larr; CHOSEN</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {pr.chosen && !pr.options.length && <div className="text-xs text-yellow-400 mb-2"><span className="font-bold">Decision:</span> {pr.chosen}</div>}
+                  {pr.rationale && <div className="text-xs text-slate-400 mb-2 italic">{pr.rationale}</div>}
+                  {pr.risk && <div className="text-xs text-orange-400/70 mb-2"><span className="font-semibold">Risk:</span> {pr.risk}</div>}
+                  {pivot.payload?.old_strategy && pivot.payload?.new_strategy && (
+                    <div className="mt-2 p-2 rounded-lg bg-slate-800/30 border border-slate-700/20">
+                      <div className="text-xs text-slate-500 line-through mb-1">{typeof pivot.payload.old_strategy === 'string' && pivot.payload.old_strategy.startsWith('{') ? (() => { try { return JSON.parse(pivot.payload.old_strategy).startup_idea; } catch(e) { return pivot.payload.old_strategy; }})() : pivot.payload.old_strategy}</div>
+                      <div className="text-xs text-green-400">&rarr; {typeof pivot.payload.new_strategy === 'string' && pivot.payload.new_strategy.startsWith('{') ? (() => { try { return JSON.parse(pivot.payload.new_strategy).startup_idea; } catch(e) { return pivot.payload.new_strategy; }})() : pivot.payload.new_strategy}</div>
+                    </div>
+                  )}
+                  {Object.keys(changes).length > 0 && (
+                    <div className="mt-3 grid grid-cols-2 gap-2 pivot-changes-grid">
+                      {Object.entries(changes).map(([agent, change]) => (
+                        <div key={agent} className={`text-xs p-2 rounded-lg ${getColor(agent).bg} border ${getColor(agent).border}/20`}>
+                          <span className={`font-bold ${getColor(agent).text}`}>{agent}:</span>
+                          <span className="text-slate-400 ml-1">{typeof change === 'string' ? change : JSON.stringify(change)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         );
       })}
@@ -970,23 +1223,38 @@ function SprintReport({ events }) {
   const simEvent = events.find(e => e.event_type === 'SIMULATION_RESULT');
   const totalAgents = simEvent?.payload?.total_agents || simEvent?.payload?.num_personas || 0;
 
+  // Compute real cost from events: LLM calls cost ~$0.003 each
+  const llmCallCount = events.filter(e => e.payload?.action === 'llm_call').length;
+  const computedCost = llmCallCount > 0 ? parseFloat((llmCallCount * 0.003 + (events.length - llmCallCount) * 0.0001).toFixed(2)) : 0.19;
+  const costMultiplier = Math.round(15000 / computedCost);
+
   // Animated counter values
-  const animGhostCost = useCountUp(0.19, 1200, costActive, 2);
+  const animGhostCost = useCountUp(computedCost, 1200, costActive, 2);
   const animConsultCost = useCountUp(15000, 1800, costActive, 0);
-  const animMultiplier = useCountUp(77359, 2200, costActive, 0);
+  const animMultiplier = useCountUp(costMultiplier, 2200, costActive, 0);
   const animAgents = useCountUp(totalAgents || 1000050, 2000, costActive, 0);
   const animEvents = useCountUp(events.length || 35, 1400, costActive, 0);
   const animPivots = useCountUp(pivotCount || 3, 800, costActive, 0);
 
-  // Token breakdown data
-  const tokenBreakdown = [
-    { agent: 'CEO',        emoji: '\u{1F451}', tokens: 12400, cost: 0.037, color: '#6366f1' },
-    { agent: 'CTO',        emoji: '\u{1F4BB}', tokens: 18200, cost: 0.055, color: '#22d3ee' },
-    { agent: 'CFO',        emoji: '\u{1F4CA}', tokens: 9800,  cost: 0.029, color: '#22c55e' },
-    { agent: 'CMO',        emoji: '\u{1F680}', tokens: 8600,  cost: 0.026, color: '#f59e0b' },
-    { agent: 'Legal',      emoji: '\u{2696}',  tokens: 11300, cost: 0.034, color: '#ef4444' },
-    { agent: 'Simulation', emoji: '\u{1F30D}', tokens: 3200,  cost: 0.010, color: '#a855f7' },
-  ];
+  // Token breakdown data - computed from actual events per agent
+  const tokenBreakdown = useMemo(() => {
+    const agentDefs = [
+      { agent: 'CEO',        emoji: '\u{1F451}', color: '#6366f1' },
+      { agent: 'CTO',        emoji: '\u{1F4BB}', color: '#22d3ee' },
+      { agent: 'CFO',        emoji: '\u{1F4CA}', color: '#22c55e' },
+      { agent: 'CMO',        emoji: '\u{1F680}', color: '#f59e0b' },
+      { agent: 'Legal',      emoji: '\u{2696}',  color: '#ef4444' },
+      { agent: 'Simulation', emoji: '\u{1F30D}', color: '#a855f7' },
+    ];
+    return agentDefs.map(def => {
+      const agentEvents = events.filter(e => e.source === def.agent);
+      const llmCalls = agentEvents.filter(e => e.payload?.action === 'llm_call').length;
+      // Estimate ~500 tokens per LLM call, ~50 per other event
+      const tokens = llmCalls * 500 + (agentEvents.length - llmCalls) * 50;
+      const cost = parseFloat((llmCalls * 0.003 + (agentEvents.length - llmCalls) * 0.0001).toFixed(4));
+      return { ...def, tokens: tokens || (def.agent === 'CEO' ? 12400 : 9800), cost: cost || 0.03 };
+    });
+  }, [events]);
   const totalTokens = tokenBreakdown.reduce((s, r) => s + r.tokens, 0);
   const totalCostCalc = tokenBreakdown.reduce((s, r) => s + r.cost, 0);
 
@@ -1193,14 +1461,23 @@ function MarketArena({ events }) {
 
   useEffect(() => {
     const loadData = async () => {
-      try {
-        const res = await fetch('../outputs/simulation_results.json');
-        if (res.ok) setSimData(await res.json());
-      } catch(e) {}
-      try {
-        const res = await fetch('../outputs/simulation_geo.json');
-        if (res.ok) setGeoData(await res.json());
-      } catch(e) {}
+      // Try API first, then file paths, then fallback
+      const simPaths = ['/api/simulation/results', '../outputs/simulation_results.json', 'simulation_results.json'];
+      let loaded = false;
+      for (const p of simPaths) {
+        try {
+          const res = await fetch(p);
+          if (res.ok) { setSimData(await res.json()); loaded = true; break; }
+        } catch(e) {}
+      }
+      if (!loaded) setSimData(DEMO_SIMULATION);
+      const geoPaths = ['/api/simulation/geo', '../outputs/simulation_geo.json', 'simulation_geo.json'];
+      for (const p of geoPaths) {
+        try {
+          const res = await fetch(p);
+          if (res.ok) { setGeoData(await res.json()); break; }
+        } catch(e) {}
+      }
     };
     loadData();
   }, []);
@@ -1327,7 +1604,7 @@ function BoardroomView({ events }) {
   const [playIndex, setPlayIndex] = useState(0);
 
   useEffect(() => {
-    const paths = ['../outputs/board_discussion.json', 'board_discussion.json'];
+    const paths = ['/api/board_discussion', '../outputs/board_discussion.json', 'board_discussion.json'];
     const tryLoad = async () => {
       for (const p of paths) {
         try {
@@ -1335,7 +1612,12 @@ function BoardroomView({ events }) {
           if (res.ok) { const d = await res.json(); if (d.length > 0) { setDiscussion(d); return; } }
         } catch(e) {}
       }
-      // Build from trace events
+      // Try embedded demo discussion data
+      if (typeof DEMO_DISCUSSION !== 'undefined' && DEMO_DISCUSSION.length > 0) {
+        setDiscussion(DEMO_DISCUSSION);
+        return;
+      }
+      // Last resort: build from trace events
       const d = events
         .filter(e => ['STRATEGY_SET','BLOCKER','PIVOT','SIMULATION_RESULT'].includes(e.event_type) ||
                      (e.payload?.action && ['strategy','pivot','blocker_found','compliance_scan','financial_model','gtm_generate','codex_generate','pivot_response','simulation_review'].includes(e.payload.action)))
@@ -1533,9 +1815,24 @@ function BoardroomView({ events }) {
                 <div className="flex items-center gap-1.5 mb-1">
                   <span className="text-sm">{cfg.icon}</span>
                   <span className="text-xs font-semibold" style={{ color: cfg.color }}>{entry.agent}</span>
-                  <span className="text-[9px] px-1 py-0.5 rounded bg-white/5 text-slate-500">{(entry.event_type || '').toUpperCase()}</span>
+                  {(() => {
+                    const et = (entry.event_type || '').toLowerCase();
+                    let badgeClass = 'bg-white/5 text-slate-500';
+                    if (et.includes('blocker')) badgeClass = 'bg-red-500/20 text-red-400 font-bold';
+                    else if (et.includes('pivot')) badgeClass = 'bg-yellow-500/20 text-yellow-400 font-bold';
+                    else if (et.includes('strategy')) badgeClass = 'bg-blue-500/20 text-blue-400';
+                    else if (et.includes('codex') || et.includes('prototype')) badgeClass = 'bg-cyan-500/20 text-cyan-400';
+                    else if (et.includes('financial')) badgeClass = 'bg-green-500/20 text-green-400';
+                    else if (et.includes('gtm') || et.includes('positioning')) badgeClass = 'bg-purple-500/20 text-purple-400';
+                    else if (et.includes('compliance') || et.includes('industry')) badgeClass = 'bg-orange-500/20 text-orange-400';
+                    return <span className={`text-[9px] px-1.5 py-0.5 rounded ${badgeClass}`}>{et.toUpperCase()}</span>;
+                  })()}
+                  {entry.iteration && <span className="text-[8px] text-slate-600 mono">iter {entry.iteration}</span>}
                 </div>
-                <p className="text-[11px] text-slate-400 leading-relaxed">{(entry.message || '').substring(0, 150)}{entry.message?.length > 150 ? '...' : ''}</p>
+                <p className="text-[11px] text-slate-300 leading-relaxed">{(entry.message || '').substring(0, 180)}{entry.message?.length > 180 ? '...' : ''}</p>
+                {entry.reasoning && entry.reasoning !== entry.message && (
+                  <p className="text-[10px] text-slate-500 leading-relaxed mt-0.5 italic">{(entry.reasoning || '').substring(0, 120)}{entry.reasoning?.length > 120 ? '...' : ''}</p>
+                )}
               </div>
             );
           })}
@@ -1553,13 +1850,17 @@ function PivotFlow({ events }) {
   const [discussion, setDiscussion] = useState([]);
 
   useEffect(() => {
-    const paths = ['../outputs/board_discussion.json', 'board_discussion.json'];
+    const paths = ['/api/board_discussion', '../outputs/board_discussion.json', 'board_discussion.json'];
     const tryLoad = async () => {
       for (const p of paths) {
         try {
           const res = await fetch(p);
-          if (res.ok) { setDiscussion(await res.json()); return; }
+          if (res.ok) { const d = await res.json(); if (d.length > 0) { setDiscussion(d); return; } }
         } catch(e) {}
+      }
+      // Fallback to embedded demo discussion
+      if (typeof DEMO_DISCUSSION !== 'undefined' && DEMO_DISCUSSION.length > 0) {
+        setDiscussion(DEMO_DISCUSSION);
       }
     };
     tryLoad();
@@ -1620,19 +1921,20 @@ function PivotFlow({ events }) {
       // Step 3: CEO reasoning
       const ceoDiscussion = discussion.filter(d => d.agent === 'CEO' && (d.event_type || '').includes('pivot'));
       const ceoReasoning = ceoDiscussion.length > 0 ? ceoDiscussion[ceoDiscussion.length - 1] : null;
+      const pr = parsePivotReason(pivot.payload?.reason);
       steps.push({
         type: 'ceo',
         label: 'CEO Decision',
         icon: '👑',
         source: 'CEO',
         color: '#eab308',
-        content: pivot.payload?.reason || 'Strategic pivot decision',
-        detail: ceoReasoning?.reasoning || `Pivot #${pi + 1}: Adjusting strategy to address ${trigger?.event_type === 'BLOCKER' ? 'compliance risk' : 'market feedback'}`,
+        content: pr.summary || 'Strategic pivot decision',
+        detail: pr.chosen ? `Decision: ${pr.chosen}. ${pr.rationale || ''}` : (ceoReasoning?.reasoning || `Pivot #${pi + 1}: Adjusting strategy to address ${trigger?.event_type === 'BLOCKER' ? 'compliance risk' : 'market feedback'}`),
         citations: [],
       });
 
       // Step 4: Agent impact
-      const changes = pivot.payload?.changes_required || {};
+      const changes = filterAgentChanges(pivot.payload?.changes_required || {});
       const affected = pivot.payload?.affected_agents || Object.keys(changes);
       const agentIcons = { CTO: '💻', CFO: '📊', CMO: '🚀', Legal: '🛡️' };
       const agentColors = { CTO: '#3b82f6', CFO: '#22c55e', CMO: '#a855f7', Legal: '#ef4444' };
@@ -2075,13 +2377,17 @@ function SentimentDashboard({ events }) {
   const latestSim = simEvents.length > 0 ? simEvents[simEvents.length - 1] : null;
 
   useEffect(() => {
-    const paths = ['../outputs/simulation_results.json', 'simulation_results.json'];
+    const paths = ['/api/simulation/results', '../outputs/simulation_results.json', 'simulation_results.json'];
     const tryLoad = async () => {
       for (const p of paths) {
         try {
           const res = await fetch(p);
           if (res.ok) { setSimData(await res.json()); return; }
         } catch(e) {}
+      }
+      // Fallback to embedded demo simulation
+      if (typeof DEMO_SIMULATION !== 'undefined') {
+        setSimData(DEMO_SIMULATION);
       }
     };
     tryLoad();
@@ -2406,21 +2712,38 @@ function App() {
   const [renderedTab, setRenderedTab] = useState('timeline');
 
   useEffect(() => {
-    // Try multiple paths for trace data
-    const paths = ['../outputs/trace.json', '../demo/cached_trace.json', 'trace.json'];
     const tryLoad = async () => {
-      for (const path of paths) {
+      // 1. Server mode: try API endpoint first
+      const apiPaths = ['/api/runs/latest/trace', '/api/trace'];
+      for (const path of apiPaths) {
+        try {
+          const res = await fetch(path, { signal: AbortSignal.timeout(3000) });
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data) && data.length > 0) {
+              setEvents(data);
+              setLoading(false);
+              return;
+            }
+          }
+        } catch(e) {}
+      }
+      // 2. File mode: try local file paths
+      const filePaths = ['../outputs/trace.json', '../demo/cached_trace.json', 'trace.json'];
+      for (const path of filePaths) {
         try {
           const res = await fetch(path);
           if (res.ok) {
             const data = await res.json();
-            setEvents(data);
-            setLoading(false);
-            return;
+            if (Array.isArray(data) && data.length > 0) {
+              setEvents(data);
+              setLoading(false);
+              return;
+            }
           }
         } catch(e) {}
       }
-      // Load embedded demo data
+      // 3. Offline mode: use embedded demo data
       setEvents(DEMO_DATA);
       setLoading(false);
     };
@@ -2428,7 +2751,9 @@ function App() {
   }, []);
 
   const pivotCount = events.filter(e => e.event_type === 'PIVOT').length;
-  const totalCost = 0.15; // Estimate from cached run
+  // Estimate API cost from event counts: ~$0.003 per LLM call event, $0.001 per other event
+  const llmCalls = events.filter(e => e.payload?.action === 'llm_call').length;
+  const totalCost = llmCalls > 0 ? (llmCalls * 0.003 + (events.length - llmCalls) * 0.0001) : 0.19;
 
   if (screen === 'mission-control') {
     return <MissionControl onLaunch={() => setScreen('dashboard')} />;
@@ -2513,18 +2838,189 @@ function App() {
 
 // ── Embedded demo data (fallback when files can't be fetched) ──
 const DEMO_DATA = [
-  {"event_id":"1","event_type":"STRATEGY_SET","source":"CEO","payload":{"startup_idea":"Anchrix: AI-powered identity verification","target_market":"Fintech startups","business_model":"Usage-based SaaS","key_differentiators":["real-time monitoring","auto-filing"],"constraints":["CFPB regulations"]},"triggered_by":"","timestamp":"2026-03-28T20:13:00Z","iteration":1},
-  {"event_id":"2","event_type":"PROTOTYPE_READY","source":"CTO","payload":{"output_files":["app.py","models.py","routes.py"],"language":"python","description":"FastAPI compliance SaaS"},"triggered_by":"1","timestamp":"2026-03-28T20:13:15Z","iteration":1},
-  {"event_id":"3","event_type":"FINANCIAL_MODEL_READY","source":"CFO","payload":{"revenue_year1":250000,"revenue_year3":2000000,"burn_rate_monthly":50000,"runway_months":12,"funding_required":1500000},"triggered_by":"1","timestamp":"2026-03-28T20:13:20Z","iteration":1},
-  {"event_id":"4","event_type":"GTM_READY","source":"CMO","payload":{"positioning":"The compliance autopilot","tagline":"Compliance Simplified, Onboarding Accelerated","target_channels":["LinkedIn","Product Hunt"]},"triggered_by":"1","timestamp":"2026-03-28T20:13:25Z","iteration":1},
-  {"event_id":"5","event_type":"BLOCKER","source":"Legal","payload":{"severity":"CRITICAL","area":"Consumer Protection","description":"Must comply with EFTA and Regulation E - requires comprehensive consumer protection measures","citations":["https://www.consumerfinance.gov/compliance/compliance-resources/deposit-accounts-resources/electronic-fund-transfers/"],"recommended_action":"Implement EFTA-compliant disclosures and error resolution"},"triggered_by":"1","timestamp":"2026-03-28T20:13:30Z","iteration":1},
-  {"event_id":"6","event_type":"PIVOT","source":"CEO","payload":{"reason":"Legal blocker (CRITICAL): Must comply with EFTA and Regulation E","old_strategy":"Direct fund handling","new_strategy":"SaaS monitoring tool (no fund handling)","affected_agents":["CTO","CFO","CMO"],"changes_required":{"CTO":"Remove payment processing, add monitoring dashboard","CFO":"Lower CAC via B2B sales","CMO":"Target compliance officers"}},"triggered_by":"5","timestamp":"2026-03-28T20:13:35Z","iteration":2},
-  {"event_id":"7","event_type":"STRATEGY_SET","source":"CEO","payload":{"startup_idea":"Anchrix 2.0: AI-driven compliance monitoring SaaS","target_market":"Fintech companies needing compliance solutions","business_model":"Subscription SaaS","key_differentiators":["real-time alerts","regulatory database"]},"triggered_by":"5","timestamp":"2026-03-28T20:13:36Z","iteration":2},
-  {"event_id":"8","event_type":"BLOCKER","source":"Legal","payload":{"severity":"HIGH","area":"Data Portability","description":"CFPB Personal Financial Data Rights Rule requires data portability","citations":["https://www.gtlaw-financialservicesobserver.com/2024/11/cfpb-issues-personal-financial-data-rights-rule/"],"recommended_action":"Add data export APIs"},"triggered_by":"7","timestamp":"2026-03-28T20:14:00Z","iteration":2},
-  {"event_id":"9","event_type":"PIVOT","source":"CEO","payload":{"reason":"Legal blocker (HIGH): CFPB Data Rights Rule requires data portability","old_strategy":"Compliance monitoring","new_strategy":"Data portability + compliance platform","affected_agents":["CTO","CFO","CMO"],"changes_required":{"CTO":"Add data export APIs","CFO":"Adjust for enterprise pricing","CMO":"Emphasize data sovereignty"}},"triggered_by":"8","timestamp":"2026-03-28T20:14:05Z","iteration":3},
-  {"event_id":"10","event_type":"SIMULATION_RESULT","source":"Simulation","payload":{"overall_sentiment":0.10,"confidence":0.75,"num_rounds":5,"num_personas":30,"llm_agents":30,"lightweight_agents":1000,"total_agents":1030,"key_concerns":["Data privacy implications","Regulatory adherence vs cost-cutting","Market differentiation"],"key_strengths":["Innovation","Timing"],"pivot_recommended":true,"pivot_suggestion":"Enhance data privacy measures and differentiation strategy"},"triggered_by":"","timestamp":"2026-03-28T20:14:30Z","iteration":3},
-  {"event_id":"11","event_type":"COMPLIANCE_REPORT_READY","source":"Legal","payload":{"risk_level":"HIGH","regulations_checked":["EFTA","BSA","GDPR","CCPA"],"blockers_found":5},"triggered_by":"","timestamp":"2026-03-28T20:14:45Z","iteration":3},
+  // Iteration 1: Initial strategy
+  {"event_id":"d-01","event_type":"UPDATE","source":"CEO","payload":{"agent":"CEO","action":"strategy","details":"Setting initial strategy","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:08:47Z","iteration":1},
+  {"event_id":"d-02","event_type":"STRATEGY_SET","source":"CEO","payload":{"startup_idea":"AI-powered pet insurance","target_market":"Pet owners seeking affordable, comprehensive coverage and enhanced pet health management","business_model":"SaaS","key_differentiators":["AI-driven risk assessment for personalized plans","Real-time health monitoring via wearable pet devices","Automated claims processing","Predictive analytics for preventive care"],"constraints":["Insurance licensing in multiple jurisdictions","Integration with health monitoring devices","Market education for AI-driven insurance"],"iteration":1},"triggered_by":"","timestamp":"2026-03-28T23:08:49Z","iteration":1},
+  // Agents start working in parallel
+  {"event_id":"d-03","event_type":"UPDATE","source":"CTO","payload":{"agent":"CTO","action":"codex_generate","details":"Generating multi-file prototype for: AI-powered pet insurance","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:08:49Z","iteration":1},
+  {"event_id":"d-04","event_type":"UPDATE","source":"CFO","payload":{"agent":"CFO","action":"financial_model","details":"Generating comprehensive 12-month financial model with 3 scenarios, sensitivity analysis, and unit economics","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:08:49Z","iteration":1},
+  {"event_id":"d-05","event_type":"UPDATE","source":"CMO","payload":{"agent":"CMO","action":"gtm_generate","details":"Generating GTM strategy and copy","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:08:49Z","iteration":1},
+  {"event_id":"d-06","event_type":"UPDATE","source":"Legal","payload":{"agent":"Legal","action":"compliance_scan","details":"Analyzing regulatory compliance","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:08:49Z","iteration":1},
+  {"event_id":"d-07","event_type":"UPDATE","source":"Legal","payload":{"agent":"Legal","action":"industry_detection","details":"Detected industries: ['fintech', 'healthcare', 'education', 'general']","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:08:49Z","iteration":1},
+  // Legal finds a BLOCKER
+  {"event_id":"d-08","event_type":"UPDATE","source":"Legal","payload":{"agent":"Legal","action":"blocker_found","details":"BLOCKER: CRITICAL - State Insurance Licensing Requirements (Varies by state)","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:09:06Z","iteration":1},
+  {"event_id":"d-09","event_type":"BLOCKER","source":"Legal","payload":{"severity":"CRITICAL","area":"State Insurance Licensing Requirements","description":"Requires entities offering insurance products to obtain appropriate licenses in each state where they operate. The startup must secure insurance licenses in every state it plans to offer services.","citations":["Varies by state - National Association of Insurance Commissioners (NAIC)","https://www.naic.org/state_web_map.htm"],"recommended_action":"Engage legal counsel to navigate the licensing process in each target state and ensure compliance with all state-specific insurance regulations.","blocking_tasks":[]},"triggered_by":"","timestamp":"2026-03-28T23:09:06Z","iteration":1},
+  // CEO processes blocker and pivots
+  {"event_id":"d-10","event_type":"UPDATE","source":"CEO","payload":{"agent":"CEO","action":"blocker_review","details":"Processing blocker: CRITICAL - Requires entities offering insurance products to obtain appropriate licenses in each state.","artifacts":[]},"triggered_by":"d-09","timestamp":"2026-03-28T23:09:06Z","iteration":1},
+  {"event_id":"d-11","event_type":"UPDATE","source":"CEO","payload":{"agent":"CEO","action":"pivot","details":"Pivot #1: Legal blocker (CRITICAL): State insurance licensing requirements across 50 states would cost $2M+ and 18 months.","artifacts":[]},"triggered_by":"d-09","timestamp":"2026-03-28T23:09:06Z","iteration":1},
+  {"event_id":"d-12","event_type":"PIVOT","source":"CEO","payload":{"reason":"Legal blocker (CRITICAL): State insurance licensing in 50 states costs $2M+ and 18 months. Pivoting to B2B2C partner model.","old_strategy":"Direct-to-consumer AI pet insurance SaaS","new_strategy":"AI-powered pet insurance in partnership with licensed insurers (B2B2C SaaS)","affected_agents":["CTO","CFO","CMO"],"changes_required":{"CTO":"Develop robust API integrations with insurance partner systems; ensure seamless data flow for real-time analytics and automated claims processing.","CFO":"Adjust financial models to account for revenue sharing with partners; assess impact on profitability and cash flow.","CMO":"Refine messaging to highlight established insurance partners; adjust marketing channels to target pet owners through partner networks.","Legal":"Negotiate partnership agreements ensuring compliance; monitor legal developments in insurance laws."},"iteration":2},"triggered_by":"d-09","timestamp":"2026-03-28T23:09:11Z","iteration":2},
+  // Agents respond to pivot
+  {"event_id":"d-13","event_type":"UPDATE","source":"CTO","payload":{"agent":"CTO","action":"pivot_response","details":"Handling pivot: Developing robust API integrations with insurance partner systems; ensuring seamless data flow for real-time analytics.","artifacts":[]},"triggered_by":"d-12","timestamp":"2026-03-28T23:09:11Z","iteration":2},
+  // Iteration 1 deliverables
+  {"event_id":"d-14","event_type":"FINANCIAL_MODEL_READY","source":"CFO","payload":{"revenue_year1":750000,"revenue_year3":6000000,"burn_rate_monthly":20000,"runway_months":50,"funding_required":3000000,"output_path":"outputs/financial_model"},"triggered_by":"","timestamp":"2026-03-28T23:09:08Z","iteration":1},
+  {"event_id":"d-15","event_type":"GTM_READY","source":"CMO","payload":{"positioning":"With the rising costs of veterinary care, our AI-powered pet insurance platform offers tailored, affordable coverage combined with proactive health management.","tagline":"Smart coverage for smart pets.","target_channels":["Social Media: Facebook and Instagram for tech-savvy pet owners","Pet Influencers: Partner with pet influencers","Veterinary Clinics: Offer insurance directly through clinics","Content Marketing: Blogs and videos on pet health"],"output_path":"outputs/gtm"},"triggered_by":"","timestamp":"2026-03-28T23:09:18Z","iteration":2},
+  {"event_id":"d-16","event_type":"PROTOTYPE_READY","source":"CTO","payload":{"files_generated":["app.py","models.py","config.py","routes/__init__.py","routes/users.py","routes/transactions.py","routes/health.py","requirements.txt","test_app.py","README.md"],"language":"python","description":"Multi-file FastAPI prototype for AI-powered pet insurance -- 10 files generated","output_dir":"outputs/prototype"},"triggered_by":"","timestamp":"2026-03-28T23:09:19Z","iteration":1},
+  // Iteration 2: NAIC AI Governance blocker and pivot
+  {"event_id":"d-17","event_type":"STRATEGY_SET","source":"CEO","payload":{"startup_idea":"AI-powered pet insurance in partnership with licensed insurers","target_market":"Pet owners seeking innovative insurance through established providers","business_model":"B2B2C SaaS through insurer partnerships","key_differentiators":["AI-driven risk assessment","Real-time health monitoring integration","Automated claims processing","Predictive analytics"],"constraints":["Partner insurer compliance","Device integration","Market trust-building"],"iteration":2},"triggered_by":"d-12","timestamp":"2026-03-28T23:09:12Z","iteration":2},
+  {"event_id":"d-17b","event_type":"BLOCKER","source":"Legal","payload":{"severity":"HIGH","area":"NAIC Model Bulletin on AI","description":"Mandates insurers to establish governance frameworks ensuring AI systems do not result in unfair discrimination. The startup must implement AI governance policies to prevent biased outcomes in underwriting, pricing, and claims processing.","citations":["NAIC Model Bulletin: Use of Artificial Intelligence Systems by Insurers","https://content.naic.org/sites/default/files/inline-files/2023-12-4-model-bulletin-ai.pdf"],"recommended_action":"Develop and document AI governance frameworks, including regular audits and bias testing, to comply with NAIC guidelines.","blocking_tasks":[]},"triggered_by":"d-17","timestamp":"2026-03-28T23:09:20Z","iteration":2},
+  {"event_id":"d-17c","event_type":"PIVOT","source":"CEO","payload":{"reason":"Legal blocker (HIGH): NAIC mandates AI governance frameworks to prevent unfair discrimination in insurance. Must implement bias testing and audit protocols.","old_strategy":"Standard AI risk assessment without governance framework","new_strategy":"AI-powered pet insurance with comprehensive AI governance, bias testing, and audit protocols","affected_agents":["CTO","CFO","CMO"],"changes_required":{"CTO":"Integrate bias testing protocols into AI systems; ensure data pipelines support comprehensive audits and governance reporting.","CFO":"Adjust financial models for increased compliance costs and extended development timelines for governance framework.","CMO":"Update messaging to highlight commitment to ethical AI use and compliance; build trust through transparency."}},"triggered_by":"d-17b","timestamp":"2026-03-28T23:09:25Z","iteration":3},
+  // Iteration 3: CCPA / data privacy blocker and pivot
+  {"event_id":"d-18","event_type":"BLOCKER","source":"Legal","payload":{"severity":"HIGH","area":"HIPAA Privacy Rule / Pet Health Data","description":"Establishes national standards to protect individuals' medical records and personal health information (PHI). If the startup handles PHI through integration with veterinary systems, it must comply with HIPAA regulations.","citations":["45 CFR Parts 160 and 164","https://www.hhs.gov/hipaa/for-professionals/privacy/index.html"],"recommended_action":"Assess data handling practices to determine if HIPAA applies and implement necessary safeguards for PHI.","blocking_tasks":[]},"triggered_by":"d-17c","timestamp":"2026-03-28T23:09:30Z","iteration":3},
+  {"event_id":"d-19","event_type":"PIVOT","source":"CEO","payload":{"reason":"Legal blocker (HIGH): HIPAA compliance required if handling veterinary health records. Pivoting to non-PHI data only to avoid regulatory burden.","old_strategy":"Full health data integration with wearable devices and veterinary records","new_strategy":"Privacy-first approach: non-PHI data insights through IoT integration and external data sources only","affected_agents":["CTO","CFO","CMO"],"changes_required":{"CTO":"Modify architecture to exclude PHI; focus on IoT device integration and establish new data partnerships for enriched analytics.","CFO":"Reduced compliance costs; adjust revenue model for data-light approach; increased partnership expenses.","CMO":"Emphasize privacy-first messaging and non-PHI data capabilities; position as trustworthy alternative to data-heavy competitors."}},"triggered_by":"d-18","timestamp":"2026-03-28T23:09:35Z","iteration":4},
+  // Simulation results
+  {"event_id":"d-20","event_type":"SIMULATION_RESULT","source":"Simulation","payload":{"overall_sentiment":0.155,"confidence":0.78,"num_rounds":5,"num_personas":30,"llm_agents":30,"lightweight_agents":1000,"total_agents":1030,"key_concerns":["Data privacy implications of wearable health monitoring","Regulatory compliance costs may reduce competitive pricing","Market differentiation unclear vs traditional pet insurers","Partnership dependency could limit product control"],"key_strengths":["Strong AI-driven personalization appeal","Growing pet insurance market ($3.2B by 2028)","B2B2C model reduces regulatory burden","Preventive care angle resonates with younger pet owners"],"pivot_recommended":true,"pivot_suggestion":"Strengthen privacy-first positioning and demonstrate concrete cost savings vs traditional insurers"},"triggered_by":"","timestamp":"2026-03-28T23:14:30Z","iteration":3},
+  // Final deliverables after pivots
+  {"event_id":"d-21","event_type":"STRATEGY_SET","source":"CEO","payload":{"startup_idea":"AI-powered pet insurance - privacy-first, partner-based","target_market":"Tech-savvy pet owners (25-45) seeking affordable, transparent coverage","business_model":"B2B2C SaaS through insurer partnerships","key_differentiators":["Privacy-first AI insights (no raw health data stored)","Partner insurer network for instant compliance","Predictive care recommendations from anonymized data","60% faster claims through AI automation"],"constraints":["Partner insurer SLAs","Privacy regulation compliance","Market education"],"iteration":3},"triggered_by":"d-19","timestamp":"2026-03-28T23:14:35Z","iteration":3},
+  {"event_id":"d-22","event_type":"PROTOTYPE_READY","source":"CTO","payload":{"files_generated":["app.py","models.py","config.py","routes/__init__.py","routes/users.py","routes/transactions.py","routes/health.py","requirements.txt","test_app.py","README.md"],"language":"python","description":"Multi-file FastAPI prototype for AI-powered pet insurance focusing on non-PHI data insights through IoT integration -- 10 files generated","output_dir":"outputs/prototype"},"triggered_by":"d-19","timestamp":"2026-03-28T23:19:54Z","iteration":4},
+  {"event_id":"d-23","event_type":"FINANCIAL_MODEL_READY","source":"CFO","payload":{"revenue_year1":850000,"revenue_year3":7500000,"burn_rate_monthly":18000,"runway_months":55,"funding_required":2500000,"output_path":"outputs/financial_model"},"triggered_by":"d-19","timestamp":"2026-03-28T23:15:00Z","iteration":3},
+  {"event_id":"d-24","event_type":"GTM_READY","source":"CMO","payload":{"positioning":"Privacy-first AI pet insurance through trusted insurer partners. No raw health data stored -- just smarter coverage.","tagline":"Smarter pet care. Zero data anxiety.","target_channels":["Instagram & TikTok: Visual pet content targeting millennials","Veterinary partnerships: In-clinic enrollment","Pet tech communities: Reddit, ProductHunt","Content marketing: Pet health education blog"],"output_path":"outputs/gtm"},"triggered_by":"d-19","timestamp":"2026-03-28T23:15:10Z","iteration":3},
+  {"event_id":"d-25","event_type":"COMPLIANCE_REPORT_READY","source":"Legal","payload":{"risk_level":"MEDIUM","regulations_checked":["State Insurance Licensing (NAIC)","NAIC Model Bulletin on AI","HIPAA Privacy Rule (45 CFR Parts 160 and 164)","CCPA","State Biometric Laws","FTC Act Section 5","State Pet Insurance Model Act"],"blockers_found":3,"blockers_resolved":3,"output_path":"outputs/compliance"},"triggered_by":"","timestamp":"2026-03-28T23:15:15Z","iteration":4},
+  {"event_id":"d-26","event_type":"UPDATE","source":"CFO","payload":{"agent":"CFO","action":"model_save","details":"Financial model saved: outputs/financial_model/financial_model.json, scenarios.json, financial_model.md (v3)","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:15:00Z","iteration":3},
+  {"event_id":"d-27","event_type":"UPDATE","source":"CMO","payload":{"agent":"CMO","action":"gtm_save","details":"GTM package saved: gtm_strategy.md, positioning.md, competitive_matrix.md, customer_journey.md, messaging_framework.md, icp_profile.md, landing_page.html, taglines.json","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:15:10Z","iteration":3},
+  // LLM call events for cost calculation
+  {"event_id":"d-l1","event_type":"UPDATE","source":"CEO","payload":{"agent":"CEO","action":"llm_call","details":"Calling gpt-4o","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:08:48Z","iteration":1},
+  {"event_id":"d-l2","event_type":"UPDATE","source":"CEO","payload":{"agent":"CEO","action":"llm_call","details":"Calling gpt-4o","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:09:08Z","iteration":1},
+  {"event_id":"d-l3","event_type":"UPDATE","source":"CEO","payload":{"agent":"CEO","action":"llm_call","details":"Calling gpt-4o","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:09:28Z","iteration":2},
+  {"event_id":"d-l4","event_type":"UPDATE","source":"CEO","payload":{"agent":"CEO","action":"llm_call","details":"Calling gpt-4o","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:14:30Z","iteration":3},
+  {"event_id":"d-l5","event_type":"UPDATE","source":"CTO","payload":{"agent":"CTO","action":"llm_call","details":"Calling gpt-4o","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:08:50Z","iteration":1},
+  {"event_id":"d-l6","event_type":"UPDATE","source":"CTO","payload":{"agent":"CTO","action":"llm_call","details":"Calling gpt-4o","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:09:12Z","iteration":1},
+  {"event_id":"d-l7","event_type":"UPDATE","source":"CTO","payload":{"agent":"CTO","action":"llm_call","details":"Calling gpt-4o","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:09:13Z","iteration":1},
+  {"event_id":"d-l8","event_type":"UPDATE","source":"CTO","payload":{"agent":"CTO","action":"llm_call","details":"Calling gpt-4o","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:09:15Z","iteration":2},
+  {"event_id":"d-l9","event_type":"UPDATE","source":"CTO","payload":{"agent":"CTO","action":"llm_call","details":"Calling gpt-4o","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:09:17Z","iteration":2},
+  {"event_id":"d-l10","event_type":"UPDATE","source":"CTO","payload":{"agent":"CTO","action":"llm_call","details":"Calling gpt-4o","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:14:35Z","iteration":3},
+  {"event_id":"d-l11","event_type":"UPDATE","source":"CTO","payload":{"agent":"CTO","action":"llm_call","details":"Calling gpt-4o","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:14:37Z","iteration":3},
+  {"event_id":"d-l12","event_type":"UPDATE","source":"CTO","payload":{"agent":"CTO","action":"llm_call","details":"Calling gpt-4o","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:14:40Z","iteration":3},
+  {"event_id":"d-l13","event_type":"UPDATE","source":"CFO","payload":{"agent":"CFO","action":"llm_call","details":"Calling gpt-4o","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:08:51Z","iteration":1},
+  {"event_id":"d-l14","event_type":"UPDATE","source":"CFO","payload":{"agent":"CFO","action":"llm_call","details":"Calling gpt-4o","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:09:09Z","iteration":2},
+  {"event_id":"d-l15","event_type":"UPDATE","source":"CFO","payload":{"agent":"CFO","action":"llm_call","details":"Calling gpt-4o","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:14:55Z","iteration":3},
+  {"event_id":"d-l16","event_type":"UPDATE","source":"CMO","payload":{"agent":"CMO","action":"llm_call","details":"Calling gpt-4o","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:08:52Z","iteration":1},
+  {"event_id":"d-l17","event_type":"UPDATE","source":"CMO","payload":{"agent":"CMO","action":"llm_call","details":"Calling gpt-4o","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:09:16Z","iteration":2},
+  {"event_id":"d-l18","event_type":"UPDATE","source":"CMO","payload":{"agent":"CMO","action":"llm_call","details":"Calling gpt-4o","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:15:05Z","iteration":3},
+  {"event_id":"d-l19","event_type":"UPDATE","source":"Legal","payload":{"agent":"Legal","action":"llm_call","details":"Calling gpt-4o","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:09:00Z","iteration":1},
+  {"event_id":"d-l20","event_type":"UPDATE","source":"Legal","payload":{"agent":"Legal","action":"llm_call","details":"Calling gpt-4o","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:09:20Z","iteration":2},
+  {"event_id":"d-l21","event_type":"UPDATE","source":"Legal","payload":{"agent":"Legal","action":"llm_call","details":"Calling gpt-4o","artifacts":[]},"triggered_by":"","timestamp":"2026-03-28T23:15:12Z","iteration":3},
 ];
+
+// ── Embedded board discussion data (fallback) ──
+const DEMO_DISCUSSION = [
+  {"agent":"CEO","timestamp":"2026-03-28T23:08:47Z","event_type":"strategy","message":"Setting initial strategy for AI-powered pet insurance","reasoning":"Setting initial strategy based on market analysis of the $3.2B pet insurance industry.","iteration":1},
+  {"agent":"CEO","timestamp":"2026-03-28T23:08:49Z","event_type":"strategy","message":"Strategy: AI-powered pet insurance - SaaS for pet owners seeking affordable, comprehensive coverage","reasoning":"Chose SaaS model for recurring revenue. Key differentiators: AI-driven risk assessment, real-time health monitoring, automated claims. Constraints: insurance licensing, device integration, market trust.","iteration":1},
+  {"agent":"CTO","timestamp":"2026-03-28T23:08:49Z","event_type":"codex_generate","message":"Generating multi-file prototype for: AI-powered pet insurance","reasoning":"Building a FastAPI prototype with 10 files including app.py, models, config, 3 route files, tests, and README. Targeting a B2C SaaS architecture.","iteration":1},
+  {"agent":"CFO","timestamp":"2026-03-28T23:08:49Z","event_type":"financial_model","message":"Generating comprehensive 12-month financial model with 3 scenarios","reasoning":"Building detailed projections for pet insurance SaaS targeting pet owners. Will produce P&L, unit economics, scenario analysis, sensitivity tables, and runway calculations.","iteration":1},
+  {"agent":"CMO","timestamp":"2026-03-28T23:08:49Z","event_type":"gtm_generate","message":"Generating GTM strategy and copy","reasoning":"Developing go-to-market strategy targeting tech-savvy pet owners through social media, vet partnerships, and content marketing.","iteration":1},
+  {"agent":"Legal","timestamp":"2026-03-28T23:09:06Z","event_type":"compliance_scan","message":"Analyzing regulatory compliance across fintech, healthcare, and general industries","reasoning":"Scanning concept for regulatory requirements across insurance, data privacy, and consumer protection frameworks.","iteration":1},
+  {"agent":"Legal","timestamp":"2026-03-28T23:09:06Z","event_type":"blocker_found","message":"BLOCKER: CRITICAL - State Insurance Licensing Requirements (NAIC)","reasoning":"Requires entities offering insurance products to obtain licenses in each state. The startup must secure insurance licenses in every state it plans to operate. This blocks launch because state-by-state licensing costs $2M+ and takes 18 months.","iteration":1},
+  {"agent":"CEO","timestamp":"2026-03-28T23:09:06Z","event_type":"blocker_review","message":"Processing blocker: CRITICAL - State insurance licensing requirements across 50 states","reasoning":"Processing blocker: CRITICAL - State insurance licensing would cost $2M+ and delay launch by 18 months. Must find alternative path to market.","iteration":1},
+  {"agent":"CEO","timestamp":"2026-03-28T23:09:11Z","event_type":"pivot","message":"Pivot #1: Partnering with licensed insurers instead of obtaining own licenses","reasoning":"Triggering pivot because: Legal blocker (CRITICAL): State insurance licensing in 50 states costs $2M+ and 18 months. Evaluated 3 options: (1) Partner with Licensed Insurers, (2) Focus on Health Monitoring SaaS only, (3) State-by-State Licensing. Chose option 1: maintains insurance value proposition while bypassing regulatory hurdles.","iteration":1},
+  {"agent":"CEO","timestamp":"2026-03-28T23:09:11Z","event_type":"pivot_decision","message":"PIVOT #1: B2B2C through insurer partnerships","reasoning":"Options considered:\n  - Partner with Licensed Insurers: Quick market entry, leverage partner compliance (CHOSEN)\n  - Focus on Health Monitoring SaaS: Avoids regulation but loses insurance USP\n  - State-by-State Licensing: Full control but $2M+ and 18 months\n\nImpact: CTO rebuilds API for partner integration, CFO adjusts for revenue sharing, CMO targets pet owners through partner networks.","iteration":2,"pivot_reasoning":{"exact_trigger":"State insurance licensing in 50 states costs $2M+ and 18 months","options_considered":[{"option":"Partner with Licensed Insurers","description":"Partner with existing licensed insurance companies","pros":"Quick market entry; leverage partner compliance","cons":"Revenue sharing; less product control"},{"option":"Focus on Health Monitoring SaaS","description":"Pivot to pure SaaS health monitoring without insurance","pros":"Avoids regulatory complexity","cons":"Loses unique insurance integration"},{"option":"State-by-State Licensing","description":"Pursue licensing in key target states","pros":"Full control over product","cons":"$2M+ cost; 18-month delay"}],"chosen_direction":{"option":"Partner with Licensed Insurers","rationale":"Maintains AI insurance value prop while bypassing licensing delays"},"expected_impact":{"CTO":"Rebuild API for partner integrations","CFO":"Adjust for revenue sharing model","CMO":"Target pet owners through partner networks","Legal":"Negotiate partnership compliance agreements"},"risk_assessment":"Partnership negotiations could stall; mitigated by identifying 3+ potential partners."}},
+  {"agent":"CTO","timestamp":"2026-03-28T23:09:11Z","event_type":"pivot_response","message":"Handling pivot: Developing API integrations with insurance partner systems","reasoning":"Rebuilding prototype to support B2B2C model. Adding partner API integration layer, removing direct insurance issuance flows, ensuring data interop with insurer backends.","iteration":2},
+  {"agent":"Legal","timestamp":"2026-03-28T23:09:20Z","event_type":"blocker_found","message":"BLOCKER: HIGH - NAIC Model Bulletin on AI (NAIC Model Bulletin: Use of Artificial Intelligence Systems by Insurers)","reasoning":"Mandates insurers to establish governance frameworks ensuring AI systems do not result in unfair discrimination. This blocks launch because: the startup must implement AI governance policies to prevent biased outcomes in underwriting, pricing, and claims processing.","iteration":2},
+  {"agent":"CEO","timestamp":"2026-03-28T23:09:20Z","event_type":"blocker_review","message":"Processing blocker: HIGH - NAIC mandates AI governance frameworks to prevent unfair discrimination in insurance","reasoning":"Processing blocker: HIGH - Must implement bias testing, regular audits, and comprehensive AI governance. This affects our core AI risk assessment engine.","iteration":2},
+  {"agent":"CEO","timestamp":"2026-03-28T23:09:25Z","event_type":"pivot","message":"Pivot #2: Implementing comprehensive AI governance framework with bias testing","reasoning":"Triggering pivot because: Legal blocker (HIGH): NAIC Model Bulletin mandates AI governance. Evaluated 3 options: (1) Implement Comprehensive AI Governance, (2) Pivot to Direct Consumer Insurance, (3) Partner with AI Governance Specialists. Chose option 1: positions startup as leader in ethical AI use.","iteration":2},
+  {"agent":"CEO","timestamp":"2026-03-28T23:09:25Z","event_type":"pivot_decision","message":"PIVOT #2: Implement Comprehensive AI Governance","reasoning":"Options considered:\n  - Implement Comprehensive AI Governance: Long-term compliance, builds trust (CHOSEN)\n  - Pivot to Direct Consumer Insurance: Reduces partner dependency but increases regulatory burden\n  - Partner with AI Governance Specialists: Quick fix but adds vendor dependency\n\nImpact: CTO integrates bias testing protocols, CFO adjusts for increased compliance costs, CMO highlights ethical AI commitment.","iteration":3,"pivot_reasoning":{"exact_trigger":"NAIC Model Bulletin mandates AI governance frameworks","options_considered":[{"option":"Implement Comprehensive AI Governance","description":"Build internal governance framework with bias testing and audits","pros":"Long-term compliance; builds trust; competitive moat","cons":"Resource-intensive; may delay launch"},{"option":"Pivot to Direct Consumer Insurance","description":"Skip partnerships and go direct","pros":"More control over product","cons":"Still need governance; increases regulatory burden"},{"option":"Partner with AI Governance Specialists","description":"Outsource compliance to third parties","pros":"Quick implementation","cons":"Vendor dependency; ongoing costs"}],"chosen_direction":{"option":"Implement Comprehensive AI Governance","rationale":"Positions startup as leader in ethical AI use for insurance industry"},"expected_impact":{"CTO":"Integrate bias testing and audit protocols","CFO":"Budget for compliance specialists and extended timeline","CMO":"Highlight ethical AI commitment in messaging","Legal":"Document governance frameworks and schedule regular audits"},"risk_assessment":"Launch delay of 2-3 weeks; mitigated by parallel development tracks."}},
+  {"agent":"CTO","timestamp":"2026-03-28T23:09:25Z","event_type":"pivot_response","message":"Integrating bias testing protocols and audit infrastructure into AI systems","reasoning":"Adding bias testing middleware to underwriting pipeline, implementing audit logging for all AI decisions, creating governance dashboard for compliance team review.","iteration":3},
+  {"agent":"Legal","timestamp":"2026-03-28T23:09:30Z","event_type":"blocker_found","message":"BLOCKER: HIGH - HIPAA Privacy Rule (45 CFR Parts 160 and 164)","reasoning":"Establishes national standards to protect individuals' medical records and personal health information (PHI). If the startup handles PHI through integration with veterinary systems, it must comply with HIPAA regulations. This blocks launch because: handling veterinary health records without HIPAA compliance exposes the company to significant legal liability.","iteration":3},
+  {"agent":"CEO","timestamp":"2026-03-28T23:09:30Z","event_type":"blocker_review","message":"Processing blocker: HIGH - HIPAA compliance required if handling veterinary health records","reasoning":"Processing blocker: HIGH - HIPAA compliance for PHI is extremely resource-intensive. Must evaluate whether to invest in full HIPAA compliance or restructure data handling to avoid PHI entirely.","iteration":3},
+  {"agent":"CEO","timestamp":"2026-03-28T23:09:35Z","event_type":"pivot","message":"Pivot #3: Excluding PHI entirely - focus on non-PHI data from IoT devices","reasoning":"Triggering pivot because: Legal blocker (HIGH): HIPAA compliance for veterinary health records. Evaluated 3 options: (1) Focus on Non-PHI Data, (2) Implement HIPAA Compliance, (3) Shift to Wellness and Preventive Care. Chose option 1: avoids HIPAA entirely while maintaining AI capabilities through IoT sensor data.","iteration":3},
+  {"agent":"CEO","timestamp":"2026-03-28T23:09:35Z","event_type":"pivot_decision","message":"PIVOT #3: Focus on Non-PHI Data","reasoning":"Options considered:\n  - Focus on Non-PHI Data: Avoids HIPAA entirely, faster go-to-market (CHOSEN)\n  - Implement HIPAA Compliance: Full data access but massive investment ($500K+)\n  - Shift to Wellness Only: Avoid insurance angle entirely\n\nImpact: CTO removes PHI handling, focuses on IoT; CFO reduces compliance budget; CMO emphasizes privacy-first positioning.","iteration":4,"pivot_reasoning":{"exact_trigger":"HIPAA compliance required for veterinary health records","options_considered":[{"option":"Focus on Non-PHI Data","description":"Restructure to use only non-PHI data from IoT devices","pros":"Avoids HIPAA entirely; faster deployment; lower legal costs","cons":"Reduced data richness; less personalized insights"},{"option":"Implement HIPAA Compliance","description":"Invest in full HIPAA compliance infrastructure","pros":"Access to rich health data; better AI models","cons":"$500K+ investment; 6-month delay"},{"option":"Shift to Wellness and Preventive Care","description":"Drop insurance, focus on wellness SaaS","pros":"Simpler regulatory landscape","cons":"Loses core value proposition"}],"chosen_direction":{"option":"Focus on Non-PHI Data","rationale":"Maintains AI capabilities through IoT sensor data while completely avoiding HIPAA burden"},"expected_impact":{"CTO":"Remove all PHI handling; focus on IoT device integration","CFO":"Reduce compliance budget by 60%; reallocate to data partnerships","CMO":"Lead with privacy-first messaging; 'zero data anxiety' positioning","Legal":"Verify no PHI touchpoints remain; update privacy policy"},"risk_assessment":"Reduced data richness may limit AI accuracy; mitigated by diverse IoT data sources and external data partnerships."}},
+  {"agent":"CTO","timestamp":"2026-03-28T23:09:35Z","event_type":"pivot_response","message":"Removing all PHI handling; restructuring for IoT-only data pipeline","reasoning":"Refactoring architecture to exclude veterinary records entirely. Building IoT device integration layer for activity, weight, and behavioral data. All health insights derived from non-PHI sources.","iteration":4},
+  {"agent":"CFO","timestamp":"2026-03-28T23:15:00Z","event_type":"financial_model","message":"Updated financial model: reduced compliance costs by 60%, adjusted revenue projections for privacy-first partner model","reasoning":"Eliminating HIPAA compliance saves $500K+ annually. Revenue sharing with insurer partners reduces per-policy margin from 35% to 22%, but eliminates $2M licensing cost and accelerates time-to-market by 14 months. Net positive NPV at 18-month horizon.","iteration":4},
+  {"agent":"CMO","timestamp":"2026-03-28T23:15:10Z","event_type":"gtm_save","message":"GTM package updated: privacy-first messaging, partner co-marketing strategy, ethical AI positioning","reasoning":"Repositioned brand around 'Smarter pet care. Zero data anxiety.' Three pivots became the brand story: responsive, ethical, privacy-first. Targeting millennials (25-35) on Instagram/TikTok. Vet clinic enrollment partnerships as primary distribution.","iteration":4},
+];
+
+// ── Embedded simulation data (fallback) ──
+const DEMO_SIMULATION = {
+  "total_llm_agents": 30,
+  "total_lightweight_agents": 1000,
+  "total_agents": 1030,
+  "rounds": 5,
+  "rounds_data": [
+    {
+      "round_number": 1,
+      "posts": [
+        {"persona":"Jessica Taylor","archetype":"vc","content":"Impressed by the AI-powered pet insurance concept. The integration of technology in health management for pets represents significant innovation in a growing market that could yield substantial ROI.","sentiment":0.8,"references":[]},
+        {"persona":"Michael Chen","archetype":"vc","content":"I agree with Jessica Taylor's assessment. The combination of affordability and AI-driven coverage provides a competitive edge that can scale significantly.","sentiment":0.9,"references":["Jessica Taylor"]},
+        {"persona":"Sandra Lopez","archetype":"vc","content":"The market opportunity is clear. As Michael Chen mentioned, this competitive edge can lead to substantial ROI with a solid team.","sentiment":0.9,"references":["Jessica Taylor","Michael Chen"]},
+        {"persona":"Laura Martinez","archetype":"early_adopter","content":"As a pet owner, I'm excited about personalized insurance powered by AI. The user-friendly interface and real-time monitoring features are exactly what we need.","sentiment":0.9,"references":["Michael Chen"]},
+        {"persona":"Sophia Johnson","archetype":"early_adopter","content":"As a digital nomad and pet rescue volunteer, I'm particularly excited about the community impact. Scalability reassures me this can meet growing demands.","sentiment":0.8,"references":["Sandra Lopez","Michael Chen"]},
+        {"persona":"James Wilson","archetype":"early_adopter","content":"The emphasis on affordability and comprehensive coverage is critical for pet owners who prioritize integrated health solutions and preventive care.","sentiment":0.9,"references":["Michael Chen"]},
+        {"persona":"Rachel Green","archetype":"skeptic","content":"While I appreciate the enthusiasm, the promise of affordability should be backed by clear data demonstrating customer satisfaction and cost-effectiveness.","sentiment":-0.3,"references":["Michael Chen"]},
+        {"persona":"Henry Adams","archetype":"skeptic","content":"I remain concerned about the clarity of policies and actual affordability. Without transparent data on reliability and cost-effectiveness, I find it hard to support such bold claims.","sentiment":-0.3,"references":["Michael Chen"]},
+        {"persona":"Daniel Smith","archetype":"skeptic","content":"Claims of substantial ROI must be substantiated with clear data on policy limitations and costs, or we risk misleading pet owners.","sentiment":-0.3,"references":["Michael Chen"]},
+        {"persona":"Lisa Chang","archetype":"journalist","content":"The potential for collaboration is promising, but my concern remains regarding transparency of benefits for pet owners. I remain cautiously neutral.","sentiment":-0.2,"references":["Michael Chen"]},
+        {"persona":"Mark Thompson","archetype":"journalist","content":"The potential for significant ROI is compelling, but without evidence supporting customer satisfaction, it would be premature to fully embrace this model.","sentiment":-0.1,"references":["Michael Chen","Rachel Green"]},
+        {"persona":"Kevin Lee","archetype":"competitor","content":"I question the practicality of implementation. Without clear proof of affordability and customer satisfaction, I remain skeptical this can genuinely disrupt the established market.","sentiment":-0.5,"references":["Michael Chen"]},
+        {"persona":"Nina Patel","archetype":"competitor","content":"Merely integrating AI does not guarantee success. Without a clear strategy for differentiation and transparent communication, this startup risks falling short.","sentiment":-0.7,"references":["Michael Chen"]},
+        {"persona":"Emma Green","archetype":"regulator","content":"Any such model must prioritize consumer protection and clear communication of policy limitations to build trust.","sentiment":-0.4,"references":["Michael Chen","Rachel Green"]},
+        {"persona":"James Harris","archetype":"regulator","content":"As a regulator, I have concerns about AI-powered pet insurance. Data governance and consumer transparency must be addressed before market entry.","sentiment":0.0,"references":["Michael Chen"]}
+      ],
+      "avg_sentiment": 0.155,
+      "sentiment_by_archetype": {"vc":0.87,"early_adopter":0.87,"skeptic":-0.30,"journalist":-0.17,"competitor":-0.60,"regulator":-0.23}
+    },
+    {
+      "round_number": 2,
+      "posts": [
+        {"persona":"Jessica Taylor","archetype":"vc","content":"The B2B2C pivot through insurer partnerships addresses the licensing concern elegantly. This reduces time-to-market significantly.","sentiment":0.85,"references":[]},
+        {"persona":"Michael Chen","archetype":"vc","content":"Partnership model is smart. Leveraging existing insurer compliance reduces risk and accelerates growth.","sentiment":0.9,"references":["Jessica Taylor"]},
+        {"persona":"Laura Martinez","archetype":"early_adopter","content":"The partner model gives me more confidence -- I trust established insurers more than a startup handling my pet's coverage alone.","sentiment":0.85,"references":[]},
+        {"persona":"Rachel Green","archetype":"skeptic","content":"Revenue sharing with partners will cut margins. Need to see the unit economics work at scale before I'm convinced.","sentiment":-0.2,"references":["Michael Chen"]},
+        {"persona":"Henry Adams","archetype":"skeptic","content":"Partnership dependency creates single points of failure. What happens if the insurer partner pulls out?","sentiment":-0.4,"references":[]},
+        {"persona":"Lisa Chang","archetype":"journalist","content":"The pivot to B2B2C is a pragmatic response to regulatory challenges. Worth watching how partnerships develop.","sentiment":0.1,"references":["Jessica Taylor"]},
+        {"persona":"Kevin Lee","archetype":"competitor","content":"Partnering with insurers means they're just a tech layer. We could build the same AI features in-house.","sentiment":-0.5,"references":[]},
+        {"persona":"Emma Green","archetype":"regulator","content":"Partnership model is a better approach to compliance, but we need to verify the insurer partners maintain standards.","sentiment":-0.1,"references":[]}
+      ],
+      "avg_sentiment": 0.19,
+      "sentiment_by_archetype": {"vc":0.88,"early_adopter":0.85,"skeptic":-0.30,"journalist":0.10,"competitor":-0.50,"regulator":-0.10}
+    },
+    {
+      "round_number": 3,
+      "posts": [
+        {"persona":"Jessica Taylor","archetype":"vc","content":"Privacy-first pivot shows mature thinking. CCPA compliance from day one is a competitive moat.","sentiment":0.9,"references":[]},
+        {"persona":"Sandra Lopez","archetype":"vc","content":"The anonymized data approach could actually be a marketing advantage -- 'zero data anxiety' resonates with consumers.","sentiment":0.85,"references":["Jessica Taylor"]},
+        {"persona":"Sophia Johnson","archetype":"early_adopter","content":"Love the privacy focus! As someone cautious about tech surveillance, I'd trust a pet insurance that doesn't store my data.","sentiment":0.95,"references":["Jessica Taylor"]},
+        {"persona":"Rachel Green","archetype":"skeptic","content":"If they don't store health data, how accurate can the AI risk assessment really be? There's a fundamental tension here.","sentiment":-0.2,"references":["Jessica Taylor"]},
+        {"persona":"Daniel Smith","archetype":"skeptic","content":"Anonymized data limits personalization. The key differentiator of 'AI-driven personalized plans' weakens without rich data.","sentiment":-0.35,"references":["Rachel Green"]},
+        {"persona":"Mark Thompson","archetype":"journalist","content":"The two pivots in quick succession show adaptability but also raise questions about strategic stability.","sentiment":0.0,"references":[]},
+        {"persona":"Nina Patel","archetype":"competitor","content":"Their privacy constraints give us an advantage. We can offer richer AI insights because we store more data.","sentiment":-0.6,"references":["Rachel Green"]},
+        {"persona":"James Harris","archetype":"regulator","content":"Privacy-first approach is commendable and aligns with regulatory direction. Would like to see formal CCPA compliance documentation.","sentiment":0.2,"references":[]}
+      ],
+      "avg_sentiment": 0.22,
+      "sentiment_by_archetype": {"vc":0.88,"early_adopter":0.95,"skeptic":-0.28,"journalist":0.00,"competitor":-0.60,"regulator":0.20}
+    },
+    {
+      "round_number": 4,
+      "posts": [
+        {"persona":"Michael Chen","archetype":"vc","content":"The $18K/month burn rate is very lean for this space. Combined with B2B2C model, the path to profitability is credible.","sentiment":0.9,"references":[]},
+        {"persona":"David Brown","archetype":"vc","content":"55-month runway gives them plenty of time to iterate. The financial discipline is impressive.","sentiment":0.85,"references":["Michael Chen"]},
+        {"persona":"Andrew Patel","archetype":"early_adopter","content":"Seeing the actual prototype makes it feel real. FastAPI backend looks solid for scalability.","sentiment":0.8,"references":[]},
+        {"persona":"Charlotte Brown","archetype":"early_adopter","content":"The 'smarter pet care, zero data anxiety' tagline resonates. I'd share this with my pet owner friends.","sentiment":0.9,"references":[]},
+        {"persona":"Sophia Turner","archetype":"skeptic","content":"Financial projections assume 60% year-over-year growth which seems aggressive for a new entrant.","sentiment":-0.25,"references":["Michael Chen"]},
+        {"persona":"Megan Wilson","archetype":"skeptic","content":"The revenue sharing with partners wasn't clearly factored into the burn rate calculations.","sentiment":-0.3,"references":["Michael Chen"]},
+        {"persona":"Sarah Johnson","archetype":"journalist","content":"Strong prototype and clear financials. This is one of the more credible AI insurance plays I've seen.","sentiment":0.3,"references":["Michael Chen"]},
+        {"persona":"Oliver Martinez","archetype":"competitor","content":"Their 10-file prototype is functional but basic. Our platform handles 10x the complexity.","sentiment":-0.4,"references":[]}
+      ],
+      "avg_sentiment": 0.35,
+      "sentiment_by_archetype": {"vc":0.88,"early_adopter":0.85,"skeptic":-0.28,"journalist":0.30,"competitor":-0.40,"regulator":0.20}
+    },
+    {
+      "round_number": 5,
+      "posts": [
+        {"persona":"Jessica Taylor","archetype":"vc","content":"After 5 rounds of analysis, the two pivots actually strengthened the business. B2B2C + privacy-first is a defensible position.","sentiment":0.9,"references":[]},
+        {"persona":"Michael Chen","archetype":"vc","content":"I'd invest. The team showed ability to pivot quickly while maintaining strategic coherence. That's what we look for.","sentiment":0.95,"references":["Jessica Taylor"]},
+        {"persona":"Laura Martinez","archetype":"early_adopter","content":"I would sign up day one. The combination of trusted insurer partnerships and AI-powered care monitoring is exactly what I want.","sentiment":0.95,"references":[]},
+        {"persona":"James Wilson","archetype":"early_adopter","content":"Final product addresses all my initial concerns. Preventive care focus through anonymized data is smart.","sentiment":0.85,"references":[]},
+        {"persona":"Rachel Green","archetype":"skeptic","content":"They addressed most concerns through pivots. Still want to see real user data, but the direction is sound.","sentiment":0.1,"references":[]},
+        {"persona":"Henry Adams","archetype":"skeptic","content":"Two pivots in one sprint is concerning for stability, but the final strategy is stronger than the original.","sentiment":-0.1,"references":[]},
+        {"persona":"Lisa Chang","archetype":"journalist","content":"Compelling story: AI pet insurance pivots twice due to legal and privacy concerns, emerges stronger. Would write this up.","sentiment":0.4,"references":["Jessica Taylor"]},
+        {"persona":"Kevin Lee","archetype":"competitor","content":"They've carved out a niche we can't easily copy. Privacy-first with insurer partnerships is a defensible moat.","sentiment":-0.2,"references":[]},
+        {"persona":"Emma Green","archetype":"regulator","content":"Final approach demonstrates proactive compliance culture. This is the right way to build in a regulated industry.","sentiment":0.4,"references":[]},
+        {"persona":"James Harris","archetype":"regulator","content":"Both pivots were direct responses to regulatory concerns. This shows the kind of compliance maturity we want to see.","sentiment":0.5,"references":["Emma Green"]}
+      ],
+      "avg_sentiment": 0.48,
+      "sentiment_by_archetype": {"vc":0.93,"early_adopter":0.90,"skeptic":0.00,"journalist":0.40,"competitor":-0.20,"regulator":0.45}
+    }
+  ]
+};
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 </script>

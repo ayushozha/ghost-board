@@ -403,18 +403,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://localhost:8000",
-        "http://localhost:8080",
-        "http://localhost:3000",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174",
-        "http://127.0.0.1:8000",
-        "http://127.0.0.1:8080",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -863,22 +852,31 @@ async def websocket_live(websocket: WebSocket, run_id: str) -> None:
     await ws_manager.connect(run_id, websocket)
     try:
         # Send current run status immediately
-        async with get_session() as session:
-            result = await session.execute(
-                select(SprintRun).where(SprintRun.id == run_id)
-            )
-            run = result.scalar_one_or_none()
-            if run:
-                await websocket.send_json({
-                    "type": "initial_state",
-                    "run": _run_to_summary(run),
-                })
-            else:
-                await websocket.send_json({
-                    "type": "status",
-                    "status": "unknown",
-                    "message": "Run not found",
-                })
+        try:
+            async with get_session() as session:
+                result = await session.execute(
+                    select(SprintRun).where(SprintRun.id == run_id)
+                )
+                run = result.scalar_one_or_none()
+                if run:
+                    await websocket.send_json({
+                        "type": "initial_state",
+                        "run": _run_to_summary(run),
+                    })
+                else:
+                    await websocket.send_json({
+                        "type": "status",
+                        "status": "unknown",
+                        "message": "Run not found",
+                    })
+        except Exception:
+            # Database may be locked (SQLite) or unavailable — still
+            # allow the WebSocket to function for live event streaming.
+            await websocket.send_json({
+                "type": "status",
+                "status": "unknown",
+                "message": "Run lookup unavailable",
+            })
 
         # Keep connection alive, listening for client messages
         while True:
@@ -925,20 +923,32 @@ async def serve_artifact(file_path: str) -> Any:
 
 
 # ---------------------------------------------------------------------------
-# Static file serving (dashboard)
+# Static file serving (outputs + dashboard)
 # ---------------------------------------------------------------------------
 
+# Serve outputs/ at /outputs/ so the dashboard can fetch trace.json,
+# board_discussion.json, simulation_results.json, simulation_geo.json, etc.
+if OUTPUTS_DIR.exists():
+    app.mount("/outputs", StaticFiles(directory=str(OUTPUTS_DIR)), name="outputs")
+
+# Serve the dashboard.  Prefer dashboard/dist (Vite build) if it exists,
+# otherwise serve dashboard/ directly (plain HTML files).
 _dashboard_dist = DASHBOARD_DIR / "dist"
 _static_dir = _dashboard_dist if _dashboard_dist.exists() else DASHBOARD_DIR
 
 if _static_dir.exists():
+    # Explicit route for the root so GET / always returns index.html
+    # (the StaticFiles mount with html=True would do this too, but an
+    # explicit route is more reliable and lets us return a clear 404).
     @app.get("/")
     async def serve_index() -> Any:
         index = _static_dir / "index.html"
         if index.exists():
             return FileResponse(index)
-        return JSONResponse({"error": "Dashboard not found"}, status_code=404)
+        return JSONResponse({"error": "Dashboard not found. Place index.html in dashboard/"}, status_code=404)
 
+    # Catch-all mount MUST come last -- it serves JS/CSS/assets and
+    # sub-pages like boardroom.html, globe.html.
     app.mount("/", StaticFiles(directory=str(_static_dir), html=True), name="dashboard")
 
 

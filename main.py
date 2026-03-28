@@ -652,9 +652,19 @@ def main(startup_idea: str, personas: int, rounds: int, sim_scale: str | None, s
     # --serve: start the FastAPI server and exit
     if serve:
         import uvicorn
-        console.print(f"[bold green]Starting Ghost Board API server on port {serve_port}...[/bold green]")
-        console.print(f"  API docs: http://localhost:{serve_port}/docs")
-        console.print(f"  Dashboard: http://localhost:{serve_port}/")
+        console.print()
+        console.print(Panel(
+            f"[bold bright_white]Ghost Board Server[/bold bright_white]\n\n"
+            f"  Dashboard:  [link=http://localhost:{serve_port}]http://localhost:{serve_port}[/link]\n"
+            f"  API docs:   [link=http://localhost:{serve_port}/docs]http://localhost:{serve_port}/docs[/link]\n"
+            f"  Health:     [link=http://localhost:{serve_port}/api/health]http://localhost:{serve_port}/api/health[/link]\n"
+            f"  WebSocket:  ws://localhost:{serve_port}/ws/live/{{run_id}}\n\n"
+            f"  [dim]Open the dashboard, type a concept, and click Launch Sprint.[/dim]",
+            title="[bold green]SERVING[/bold green]",
+            border_style="green",
+            padding=(1, 2),
+        ))
+        console.print()
         uvicorn.run("server.app:app", host="0.0.0.0", port=serve_port, reload=False)
         return
 
