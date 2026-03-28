@@ -135,3 +135,8 @@ PostgreSQL on our VPS for database (see VPS.md for connection details)
 [x] PRD-114: Update dashboard embedded DEMO_DATA to include hybrid simulation stats. Add SIMULATION_RESULT event payload with total_agents: 1030 (30 LLM + 1000 crowd), show lightweight agent crowd data. Dashboard header should display total agents count.
 [x] PRD-115: Add tests/test_cli.py - Test CLI help works, --cached flag works, --json-output flag is present. Use click.testing.CliRunner. 3+ tests.
 [x] PRD-116: Fix requirements.txt - Add torch and transformers as optional deps with comment. Add note about BettaFish needing these for ML sentiment.
+[x] PRD-117: Add pyproject.toml with [tool.pytest.ini_options] asyncio_mode = "auto" so async tests don't need @pytest.mark.asyncio decorator. Verify tests still pass after change.
+[x] PRD-118: Add .github/FUNDING.yml with GitHub Sponsors link. Add social card metadata to README (og:image for GitHub preview).
+[x] PRD-119: Add type hints to all public functions in db/storage.py and db/models.py. Run mypy --ignore-missing-imports on db/ module to verify type correctness.
+[x] PRD-120: Add conftest.py with shared fixtures (mock_client, mock_bus_logger, db_engine) to reduce test duplication across test files.
+[x] PRD-121: Add --concept flag to main.py that accepts concept name (anchrix, coforge, medpulse, learnloop, saas) and loads the corresponding demo/*.txt concept file. Easier than typing full text.

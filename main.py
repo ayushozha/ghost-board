@@ -369,7 +369,8 @@ def _play_cached_demo() -> None:
 @click.option("--demo", is_flag=True, help="Run with the Anchrix demo concept")
 @click.option("--cached", is_flag=True, help="Play back cached demo results (no API calls)")
 @click.option("--json-output", is_flag=True, help="Output sprint result as JSON")
-def main(startup_idea: str, personas: int, rounds: int, sim_scale: str | None, skip_simulation: bool, demo: bool, cached: bool, json_output: bool):
+@click.option("--concept", type=click.Choice(["anchrix", "coforge", "medpulse", "learnloop", "saas"]), default=None, help="Load a named demo concept")
+def main(startup_idea: str, personas: int, rounds: int, sim_scale: str | None, skip_simulation: bool, demo: bool, cached: bool, json_output: bool, concept: str | None):
     """Ghost Board - Autonomous AI executive team sprint.
 
     Runs five AI agents (CEO, CTO, CFO, CMO, Legal) that coordinate to build
@@ -378,6 +379,21 @@ def main(startup_idea: str, personas: int, rounds: int, sim_scale: str | None, s
     if cached or (demo and not os.environ.get("OPENAI_API_KEY")):
         _play_cached_demo()
         return
+
+    # Load named concept
+    CONCEPT_FILES = {
+        "anchrix": "demo/anchrix_concept.txt",
+        "coforge": "demo/coforge_concept.txt",
+        "medpulse": "demo/healthtech_concept.txt",
+        "learnloop": "demo/edtech_concept.txt",
+        "saas": "demo/saas_concept.txt",
+    }
+    if concept:
+        concept_path = Path(CONCEPT_FILES[concept])
+        if concept_path.exists():
+            startup_idea = concept_path.read_text().strip()
+            click.echo(f"[Concept: {concept}] Loaded from {concept_path}")
+        demo = False  # override
 
     if demo:
         demo_path = Path("demo/anchrix_concept.txt")

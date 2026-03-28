@@ -1,0 +1,9 @@
+[project]
+name = "ghost-board"
+version = "1.0.0"
+description = "Autonomous AI executive team that builds and validates a startup in a single sprint"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
