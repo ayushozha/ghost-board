@@ -1,0 +1,100 @@
+{
+  "revenue_year1": 250000,
+  "revenue_year2": 750000,
+  "revenue_year3": 2000000,
+  "burn_rate_monthly": 50000,
+  "runway_months": 12,
+  "funding_required": 1500000,
+  "cac": 500,
+  "ltv": 4000,
+  "gross_margin": 75,
+  "headcount_year1": 10,
+  "unit_economics": "The startup achieves a positive unit economics with an LTV to CAC ratio of 8:1, indicating strong profitability potential as customer acquisition scales.",
+  "key_assumptions": [
+    "Average revenue per customer per month is $200",
+    "Initial customer base is 20 companies in the first month, growing by 10% each month",
+    "Operational expenses grow by 5% quarterly",
+    "Free tier users convert to paid users at a rate of 15% within 6 months",
+    "Funding will be secured within the first 6 months to maintain runway"
+  ],
+  "risks": [
+    "Regulatory changes that increase compliance costs",
+    "Higher than expected churn rate",
+    "Increased competition driving down prices",
+    "Delay in securing additional funding"
+  ],
+  "monthly_breakdown": [
+    {
+      "month": 1,
+      "revenue": 10000,
+      "expenses": 50000,
+      "customers": 20
+    },
+    {
+      "month": 2,
+      "revenue": 11000,
+      "expenses": 50000,
+      "customers": 22
+    },
+    {
+      "month": 3,
+      "revenue": 12100,
+      "expenses": 52500,
+      "customers": 24
+    },
+    {
+      "month": 4,
+      "revenue": 13310,
+      "expenses": 52500,
+      "customers": 26
+    },
+    {
+      "month": 5,
+      "revenue": 14641,
+      "expenses": 55125,
+      "customers": 29
+    },
+    {
+      "month": 6,
+      "revenue": 16105,
+      "expenses": 55125,
+      "customers": 32
+    },
+    {
+      "month": 7,
+      "revenue": 17715,
+      "expenses": 57881,
+      "customers": 35
+    },
+    {
+      "month": 8,
+      "revenue": 19486,
+      "expenses": 57881,
+      "customers": 39
+    },
+    {
+      "month": 9,
+      "revenue": 21434,
+      "expenses": 60775,
+      "customers": 43
+    },
+    {
+      "month": 10,
+      "revenue": 23578,
+      "expenses": 60775,
+      "customers": 47
+    },
+    {
+      "month": 11,
+      "revenue": 25936,
+      "expenses": 63813,
+      "customers": 52
+    },
+    {
+      "month": 12,
+      "revenue": 28530,
+      "expenses": 63813,
+      "customers": 57
+    }
+  ]
+}

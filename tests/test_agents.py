@@ -297,3 +297,102 @@ class TestCMOAgent:
 
         events = bus.get_events_by_type(EventType.GTM_READY)
         assert len(events) == 1
+
+
+# --- Edge case tests ---
+
+class TestCEOMaxPivots:
+    @pytest.mark.asyncio
+    @patch("agents.base.AsyncOpenAI")
+    async def test_max_pivot_limit(self, mock_openai_cls):
+        """CEO should stop pivoting after MAX_PIVOTS."""
+        mock_client = AsyncMock()
+        pivot_json = json.dumps({
+            "startup_idea": "pivoted",
+            "target_market": "new",
+            "business_model": "new",
+            "key_differentiators": [],
+            "constraints": [],
+            "pivot_reason": "test",
+            "changes_for_cto": "x",
+            "changes_for_cfo": "x",
+            "changes_for_cmo": "x",
+        })
+        mock_client.chat.completions.create = AsyncMock(
+            side_effect=[
+                MockResponse(make_strategy_json()),
+                MockResponse(pivot_json),
+                MockResponse(pivot_json),
+                MockResponse(pivot_json),
+                MockResponse(pivot_json),
+            ]
+        )
+
+        bus, logger = make_bus_and_logger()
+        from agents.ceo import CEOAgent
+        ceo = CEOAgent(bus, logger)
+        ceo.client = mock_client
+
+        await ceo.set_strategy("test")
+
+        # Send 5 critical blockers - only MAX_PIVOTS should trigger pivots
+        for i in range(5):
+            blocker = AgentEvent(
+                type=EventType.BLOCKER,
+                source="Legal",
+                payload=BlockerPayload(severity="CRITICAL", area="test", description=f"blocker {i}"),
+            )
+            await ceo.process_blocker(blocker)
+
+        assert ceo.pivot_count == ceo.MAX_PIVOTS  # Should cap at MAX_PIVOTS
+
+    @pytest.mark.asyncio
+    @patch("agents.base.AsyncOpenAI")
+    async def test_low_severity_no_pivot(self, mock_openai_cls):
+        """LOW/MEDIUM blockers should not trigger pivots."""
+        mock_client = AsyncMock()
+        mock_client.chat.completions.create = AsyncMock(
+            return_value=MockResponse(make_strategy_json())
+        )
+
+        bus, logger = make_bus_and_logger()
+        from agents.ceo import CEOAgent
+        ceo = CEOAgent(bus, logger)
+        ceo.client = mock_client
+
+        await ceo.set_strategy("test")
+
+        for severity in ["LOW", "MEDIUM"]:
+            blocker = AgentEvent(
+                type=EventType.BLOCKER,
+                source="Legal",
+                payload=BlockerPayload(severity=severity, area="test", description="minor"),
+            )
+            await ceo.process_blocker(blocker)
+
+        assert ceo.pivot_count == 0
+
+
+class TestRetryLogic:
+    @pytest.mark.asyncio
+    @patch("agents.base.AsyncOpenAI")
+    async def test_call_llm_retry_on_failure(self, mock_openai_cls):
+        """call_llm should retry on failure and return {} on exhaustion."""
+        mock_client = AsyncMock()
+        mock_client.chat.completions.create = AsyncMock(
+            side_effect=Exception("API error")
+        )
+
+        bus, logger = make_bus_and_logger()
+        from agents.base import BaseAgent
+        agent = BaseAgent(bus, logger)
+        agent.client = mock_client
+        agent.name = "TestAgent"
+
+        result = await agent.call_llm(
+            [{"role": "user", "content": "test"}],
+            retries=2,
+        )
+
+        assert result == "{}"
+        assert mock_client.chat.completions.create.call_count == 2

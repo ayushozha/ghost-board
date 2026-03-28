@@ -32,19 +32,16 @@ class LegalAgent(BaseAgent):
         super().__init__(bus, logger)
         self.current_strategy: StrategyPayload | None = None
         self.blockers_published: list[BlockerPayload] = []
-        self.subscribe(EventType.STRATEGY_SET, EventType.PIVOT)
+        self._analysis_count = 0
+        # Only subscribe to STRATEGY_SET, not PIVOT
+        # (re-analysis on pivot is done explicitly in orchestration to prevent cascade loops)
+        self.subscribe(EventType.STRATEGY_SET)
 
     async def handle_event(self, event: AgentEvent) -> None:
         if event.type == EventType.STRATEGY_SET:
             payload = event.payload
             if isinstance(payload, StrategyPayload):
                 self.current_strategy = payload
-        elif event.type == EventType.PIVOT:
-            payload = event.payload
-            if isinstance(payload, PivotPayload):
-                # Re-analyze after pivot
-                if self.current_strategy:
-                    await self.analyze_compliance(self.current_strategy)
 
     async def analyze_compliance(self, strategy: StrategyPayload) -> CompliancePayload:
         """Analyze regulatory risks using web search for real citations."""

@@ -1,0 +1,100 @@
+{
+  "revenue_year1": 1200000,
+  "revenue_year2": 3000000,
+  "revenue_year3": 6000000,
+  "burn_rate_monthly": 60000,
+  "runway_months": 18,
+  "funding_required": 2000000,
+  "cac": 1500,
+  "ltv": 15000,
+  "gross_margin": 70,
+  "headcount_year1": 15,
+  "unit_economics": "The unit economics are favorable due to a high LTV to CAC ratio of 10:1, indicating strong profitability potential per customer.",
+  "key_assumptions": [
+    "Average customer generates $50,000 annually",
+    "Customer acquisition cost remains stable",
+    "Customer churn rate of 5% annually",
+    "Gross margin remains at 70% due to efficient AI-driven processes",
+    "Steady increase in customer base by 100% each year"
+  ],
+  "risks": [
+    "High competition in the fintech security space",
+    "Potential regulatory changes affecting operations",
+    "Dependence on continuous technological innovation to stay ahead of fraud tactics",
+    "Economic downturn affecting customer budgets"
+  ],
+  "monthly_breakdown": [
+    {
+      "month": 1,
+      "revenue": 50000,
+      "expenses": 110000,
+      "customers": 1
+    },
+    {
+      "month": 2,
+      "revenue": 50000,
+      "expenses": 110000,
+      "customers": 1
+    },
+    {
+      "month": 3,
+      "revenue": 75000,
+      "expenses": 110000,
+      "customers": 2
+    },
+    {
+      "month": 4,
+      "revenue": 75000,
+      "expenses": 110000,
+      "customers": 2
+    },
+    {
+      "month": 5,
+      "revenue": 100000,
+      "expenses": 110000,
+      "customers": 3
+    },
+    {
+      "month": 6,
+      "revenue": 100000,
+      "expenses": 110000,
+      "customers": 3
+    },
+    {
+      "month": 7,
+      "revenue": 125000,
+      "expenses": 110000,
+      "customers": 4
+    },
+    {
+      "month": 8,
+      "revenue": 125000,
+      "expenses": 110000,
+      "customers": 4
+    },
+    {
+      "month": 9,
+      "revenue": 150000,
+      "expenses": 110000,
+      "customers": 5
+    },
+    {
+      "month": 10,
+      "revenue": 150000,
+      "expenses": 110000,
+      "customers": 5
+    },
+    {
+      "month": 11,
+      "revenue": 175000,
+      "expenses": 110000,
+      "customers": 6
+    },
+    {
+      "month": 12,
+      "revenue": 175000,
+      "expenses": 110000,
+      "customers": 6
+    }
+  ]
+}

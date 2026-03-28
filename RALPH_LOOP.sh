@@ -12,7 +12,7 @@ SLEEP_BETWEEN=5
 echo "========================================="
 echo "  Ghost Board Ralph Loop"
 echo "  Max iterations: $MAX_ITERATIONS"
-echo "  Agent: Claude Code"
+echo "  Agent: clauded"
 echo "  Started: $(date)"
 echo "========================================="
 
@@ -29,17 +29,15 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
     fi
     echo "Tasks remaining: $REMAINING"
 
-    # Run Claude Code with the prompt
-    # --dangerously-skip-permissions: allows autonomous file writes and command execution
-    # --max-turns: limit how many back-and-forth turns per iteration
-    claude --dangerously-skip-permissions --max-turns 30 --print \
+    # Run Claude Code
+    clauded --print \
         "Read CLAUDE.md for full instructions. Read progress.txt and find the FIRST task marked [ ] (not done). Complete that ONE task. Write tests. Run tests with: python -m pytest tests/ -x --tb=short. Fix any failures. Mark the task [x] in progress.txt. Git add and commit. Then stop." \
         2>&1 | tee -a "logs/ralph_iteration_${ITERATION}.log"
 
     EXIT_CODE=$?
 
     if [ $EXIT_CODE -ne 0 ]; then
-        echo "WARNING: Claude Code exited with code $EXIT_CODE"
+        echo "WARNING: clauded exited with code $EXIT_CODE"
         echo "Continuing to next iteration..."
     fi
 

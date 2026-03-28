@@ -1,0 +1,100 @@
+{
+  "revenue_year1": 500000,
+  "revenue_year2": 1500000,
+  "revenue_year3": 3000000,
+  "burn_rate_monthly": 80000,
+  "runway_months": 12,
+  "funding_required": 1500000,
+  "cac": 5000,
+  "ltv": 25000,
+  "gross_margin": 70,
+  "headcount_year1": 15,
+  "unit_economics": "With a CAC of $5000 and an LTV of $25000, the LTV:CAC ratio is 5:1, indicating efficient customer acquisition relative to customer lifetime value.",
+  "key_assumptions": [
+    "Average subscription price is $1000 per month per customer.",
+    "Customer churn rate is 5% annually.",
+    "Annual growth rate in customer base is 100%.",
+    "Initial customer acquisition starts at 5 customers in month 1 with consistent growth.",
+    "Operating expenses grow at 10% per annum."
+  ],
+  "risks": [
+    "High customer acquisition costs might impact profitability.",
+    "Compliance changes may necessitate frequent updates to the platform.",
+    "Competition from established players in the data privacy sector.",
+    "Potential data breaches affecting reputation and customer trust."
+  ],
+  "monthly_breakdown": [
+    {
+      "month": 1,
+      "revenue": 5000,
+      "expenses": 80000,
+      "customers": 5
+    },
+    {
+      "month": 2,
+      "revenue": 10000,
+      "expenses": 80000,
+      "customers": 10
+    },
+    {
+      "month": 3,
+      "revenue": 15000,
+      "expenses": 80000,
+      "customers": 15
+    },
+    {
+      "month": 4,
+      "revenue": 20000,
+      "expenses": 80000,
+      "customers": 20
+    },
+    {
+      "month": 5,
+      "revenue": 25000,
+      "expenses": 80000,
+      "customers": 25
+    },
+    {
+      "month": 6,
+      "revenue": 30000,
+      "expenses": 80000,
+      "customers": 30
+    },
+    {
+      "month": 7,
+      "revenue": 35000,
+      "expenses": 80000,
+      "customers": 35
+    },
+    {
+      "month": 8,
+      "revenue": 40000,
+      "expenses": 80000,
+      "customers": 40
+    },
+    {
+      "month": 9,
+      "revenue": 45000,
+      "expenses": 80000,
+      "customers": 45
+    },
+    {
+      "month": 10,
+      "revenue": 50000,
+      "expenses": 80000,
+      "customers": 50
+    },
+    {
+      "month": 11,
+      "revenue": 55000,
+      "expenses": 80000,
+      "customers": 55
+    },
+    {
+      "month": 12,
+      "revenue": 60000,
+      "expenses": 80000,
+      "customers": 60
+    }
+  ]
+}

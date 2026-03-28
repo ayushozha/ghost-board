@@ -1,5 +1,10 @@
 # Ghost Board
 
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
+![Tests](https://img.shields.io/badge/tests-39%20passed-brightgreen)
+![License: MIT](https://img.shields.io/badge/license-MIT-green)
+![Built at](https://img.shields.io/badge/built%20at-Ralphthon%20SF%202026-purple)
+
 Autonomous AI executive team that builds AND validates a startup in a single sprint.
 
 ```
@@ -146,9 +151,9 @@ ghost-board/
 python -m pytest tests/ -x --tb=short
 ```
 
-31 tests covering:
-- Event bus pub/sub mechanics (14 tests)
-- Agent behavior with mocked LLM responses (6 tests)
+39 tests covering:
+- Event bus pub/sub mechanics (19 tests including edge cases)
+- Agent behavior with mocked LLM responses (9 tests including max pivot, retry)
 - Simulation personas, engine, and analyzer (7 tests)
 - Full cascade E2E: strategy -> build -> blocker -> pivot -> rebuild (4 tests)
 
@@ -158,10 +163,18 @@ The included demo concept (`--demo` flag) is **Anchrix**: an AI-powered identity
 
 ## Credits
 
-- [Ralph Loop](https://github.com/anthropics/claude-code) - Autonomous build loop
-- [MiroFish](https://github.com/666ghj/MiroFish) - Social simulation architecture inspiration
-- [BettaFish](https://github.com/666ghj/BettaFish) - Sentiment analysis patterns
-- [W&B](https://wandb.ai) - Execution tracing
-- [oh-my-opencode](https://github.com/nicepkg/oh-my-opencode) - Claude Code extensions
-- [oh-my-claude-code](https://github.com/nicepkg/oh-my-claude-code) - Claude Code plugins
-- [OpenClaw](https://github.com/nicepkg/OpenClaw) - Agent orchestration patterns
+- **[Ralph Loop](https://github.com/anthropics/claude-code)** by Geoffrey Huntley - Autonomous build loop technique
+- **[MiroFish](https://github.com/666ghj/MiroFish)** by Guo Hangjiang - Social simulation architecture inspiration
+- **[BettaFish](https://github.com/666ghj/BettaFish)** - Sentiment analysis patterns
+- **[W&B](https://wandb.ai)** - Execution tracing and observability
+- **[oh-my-opencode](https://github.com/nicepkg/oh-my-opencode)** by Q - Claude Code extensions
+- **[oh-my-claude-code](https://github.com/nicepkg/oh-my-claude-code)** by Yeachan Heo - Claude Code plugins
+- **[OpenClaw](https://github.com/nicepkg/OpenClaw)** by George Zhang - Agent orchestration patterns
+
+## License
+
+MIT
+
+---
+
+*Built at Ralphthon SF 2026*

@@ -39,11 +39,14 @@ class TraceLogger:
 
         try:
             import wandb
+            # Set timeout and offline mode fallback
+            os.environ.setdefault("WANDB_INIT_TIMEOUT", "30")
             self._wandb_run = wandb.init(
                 project=self.project,
                 name=self.run_name,
                 config={"system": "ghost-board"},
                 reinit=True,
+                settings=wandb.Settings(init_timeout=30),
             )
             self._use_wandb = True
         except Exception:

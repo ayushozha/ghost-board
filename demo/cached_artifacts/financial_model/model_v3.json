@@ -1,0 +1,99 @@
+{
+  "revenue_year1": 200000,
+  "revenue_year2": 600000,
+  "revenue_year3": 1500000,
+  "burn_rate_monthly": 50000,
+  "runway_months": 12,
+  "funding_required": 1000000,
+  "cac": 2000,
+  "ltv": 15000,
+  "gross_margin": 70,
+  "headcount_year1": 10,
+  "unit_economics": "Positive unit economics with a strong LTV to CAC ratio, indicating scalability potential.",
+  "key_assumptions": [
+    "Average subscription price of $1000 per month per customer",
+    "Customer growth rate of 10% per month",
+    "Gross margin improvement as operations scale",
+    "Achieving product-market fit within the first year"
+  ],
+  "risks": [
+    "Regulatory changes affecting business model",
+    "Increased competition in the fintech space",
+    "Longer-than-expected sales cycles",
+    "Customer churn due to evolving industry needs"
+  ],
+  "monthly_breakdown": [
+    {
+      "month": 1,
+      "revenue": 10000,
+      "expenses": 50000,
+      "customers": 10
+    },
+    {
+      "month": 2,
+      "revenue": 11000,
+      "expenses": 52000,
+      "customers": 11
+    },
+    {
+      "month": 3,
+      "revenue": 12100,
+      "expenses": 54000,
+      "customers": 12
+    },
+    {
+      "month": 4,
+      "revenue": 13310,
+      "expenses": 56000,
+      "customers": 13
+    },
+    {
+      "month": 5,
+      "revenue": 14641,
+      "expenses": 58000,
+      "customers": 14
+    },
+    {
+      "month": 6,
+      "revenue": 16105,
+      "expenses": 60000,
+      "customers": 15
+    },
+    {
+      "month": 7,
+      "revenue": 17715,
+      "expenses": 62000,
+      "customers": 16
+    },
+    {
+      "month": 8,
+      "revenue": 19487,
+      "expenses": 64000,
+      "customers": 17
+    },
+    {
+      "month": 9,
+      "revenue": 21436,
+      "expenses": 66000,
+      "customers": 18
+    },
+    {
+      "month": 10,
+      "revenue": 23579,
+      "expenses": 68000,
+      "customers": 19
+    },
+    {
+      "month": 11,
+      "revenue": 25937,
+      "expenses": 70000,
+      "customers": 20
+    },
+    {
+      "month": 12,
+      "revenue": 28531,
+      "expenses": 72000,
+      "customers": 21
+    }
+  ]
+}

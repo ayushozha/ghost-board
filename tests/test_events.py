@@ -265,3 +265,85 @@ class TestStateBus:
         ))
 
         assert len(received) == 2
+
+    @pytest.mark.asyncio
+    async def test_handler_exception_doesnt_crash_bus(self):
+        """A failing handler should not prevent other handlers from running."""
+        bus = StateBus()
+        received = []
+
+        async def bad_handler(event: AgentEvent):
+            raise ValueError("handler error")
+
+        async def good_handler(event: AgentEvent):
+            received.append(event)
+
+        bus.subscribe(EventType.UPDATE, bad_handler)
+        bus.subscribe(EventType.UPDATE, good_handler)
+
+        await bus.publish(AgentEvent(
+            type=EventType.UPDATE, source="test",
+            payload=UpdatePayload(agent="test", action="a"),
+        ))
+
+        # Good handler should still receive the event (gather with return_exceptions=True)
+        assert len(received) == 1
+
+    @pytest.mark.asyncio
+    async def test_clear_bus(self):
+        bus = StateBus()
+        received = []
+
+        async def handler(event: AgentEvent):
+            received.append(event)
+
+        bus.subscribe(EventType.UPDATE, handler)
+        await bus.publish(AgentEvent(
+            type=EventType.UPDATE, source="test",
+            payload=UpdatePayload(agent="test", action="a"),
+        ))
+        assert len(received) == 1
+
+        bus.clear()
+        assert bus.get_trace() == []
+        assert bus.get_state() == {}
+
+    @pytest.mark.asyncio
+    async def test_get_events_by_source(self):
+        bus = StateBus()
+        await bus.publish(AgentEvent(
+            type=EventType.UPDATE, source="CEO",
+            payload=UpdatePayload(agent="CEO", action="a"),
+        ))
+        await bus.publish(AgentEvent(
+            type=EventType.UPDATE, source="CTO",
+            payload=UpdatePayload(agent="CTO", action="b"),
+        ))
+        await bus.publish(AgentEvent(
+            type=EventType.BLOCKER, source="CEO",
+            payload=BlockerPayload(severity="LOW", area="x", description="y"),
+        ))
+
+        ceo_events = bus.get_events_by_source("CEO")
+        assert len(ceo_events) == 2
+
+    def test_event_unique_ids(self):
+        e1 = AgentEvent(
+            type=EventType.UPDATE, source="test",
+            payload=UpdatePayload(agent="test", action="a"),
+        )
+        e2 = AgentEvent(
+            type=EventType.UPDATE, source="test",
+            payload=UpdatePayload(agent="test", action="b"),
+        )
+        assert e1.id != e2.id
+
+    def test_event_payload_map_coverage(self):
+        """Verify all critical event types have a payload model mapping."""
+        from coordination.events import EVENT_PAYLOAD_MAP
+        critical_types = [
+            EventType.STRATEGY_SET, EventType.PIVOT, EventType.BLOCKER,
+            EventType.SIMULATION_RESULT, EventType.UPDATE, EventType.ERROR,
+        ]
+        for et in critical_types:
+            assert et in EVENT_PAYLOAD_MAP, f"{et} missing from EVENT_PAYLOAD_MAP"

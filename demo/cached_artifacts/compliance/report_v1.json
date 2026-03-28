@@ -1,0 +1,49 @@
+{
+  "risk_level": "HIGH",
+  "regulations_checked": [
+    "Electronic Fund Transfer Act (EFTA) and Regulation E",
+    "Bank Secrecy Act (BSA) and FinCEN regulations",
+    "Securities Exchange Act and SEC regulations",
+    "Federal Trade Commission (FTC) regulations",
+    "General Data Protection Regulation (GDPR)",
+    "State-specific financial and data protection laws"
+  ],
+  "blockers": [
+    {
+      "severity": "CRITICAL",
+      "area": "Consumer Protection",
+      "description": "Failure to comply with EFTA and Regulation E requirements, such as providing necessary disclosures and error resolution procedures, can result in significant penalties.",
+      "citations": [
+        "https://www.consumerfinance.gov/compliance/compliance-resources/deposit-accounts-resources/electronic-fund-transfers/"
+      ],
+      "recommended_action": "Ensure that all services align with EFTA and Regulation E by implementing comprehensive consumer protection measures, including clear disclosures and robust error resolution processes."
+    },
+    {
+      "severity": "HIGH",
+      "area": "Anti-Money Laundering (AML) Compliance",
+      "description": "Non-compliance with BSA and FinCEN regulations, including failure to implement effective AML programs and report suspicious activities, can lead to severe legal consequences.",
+      "citations": [
+        "https://www.fincen.gov/news/news-releases/fincen-issues-alert-fraud-schemes-involving-deepfake-media-targeting-financial"
+      ],
+      "recommended_action": "Develop and maintain a robust AML program that includes customer due diligence, transaction monitoring, and timely reporting of suspicious activities."
+    },
+    {
+      "severity": "HIGH",
+      "area": "Data Privacy",
+      "description": "Non-compliance with GDPR requirements, such as failing to protect personal data and not obtaining proper consent, can result in substantial fines and reputational damage.",
+      "citations": [
+        "https://gdpr-info.eu/"
+      ],
+      "recommended_action": "Implement data protection measures in line with GDPR, including data minimization, secure processing, and obtaining explicit consent from users."
+    },
+    {
+      "severity": "MEDIUM",
+      "area": "State Regulations",
+      "description": "Failure to adhere to state-specific financial and data protection laws can lead to legal challenges and fines.",
+      "citations": [
+        "https://www.nascus.org/cfpb-summaries/bulletin-2022-02-compliance-bulletin-on-the-efta-compulsory-use-prohibition-and-government-benefit-accounts/"
+      ],
+      "recommended_action": "Conduct a thorough review of relevant state laws and ensure compliance with all applicable regulations."
+    }
+  ]
+}

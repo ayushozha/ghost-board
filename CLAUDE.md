@@ -165,3 +165,29 @@ Again, reference for inspiration. Do NOT depend on these directly.
 - [ ] Event bus uses async callbacks, not polling
 - [ ] Every agent action calls self.log()
 - [ ] Every event has triggered_by set correctly
+
+## VENDOR SETUP (PRD-00)
+Clone these repos into vendor/ for integration:
+- git clone --depth 1 https://github.com/666ghj/MiroFish.git vendor/MiroFish
+- git clone --depth 1 https://github.com/666ghj/BettaFish.git vendor/BettaFish
+
+Install MiroFish backend deps:
+- cd vendor/MiroFish/backend && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
+
+Create simulation/mirofish_bridge.py:
+- Try to call real MiroFish via subprocess first
+- If MiroFish fails, fall back to custom lightweight simulation
+- Reference vendor/MiroFish/backend/app/services/simulation_runner.py for how OASIS runs simulations
+- Reference vendor/BettaFish/InsightEngine/tools/sentiment_analyzer.py for sentiment patterns
+
+### Dependency Failures
+If MiroFish or BettaFish setup fails for ANY reason:
+1. Do NOT stop, do NOT skip features
+2. Replace THEIR infrastructure with OURS:
+   - - Their database (KuzuDB/Zep Cloud) -> use PostgreSQL on our VPS (connection details in VPS.md)
+   - Their OASIS simulation engine -> use our own async simulation loop
+   - Their playwright crawlers -> use our own OpenAI web search calls
+   - Their cloud memory -> use local file-based agent memory
+3. Keep all the logic: persona generation, sentiment analysis, simulation rounds, report generation
+4. The goal is feature parity with local-only dependencies
+5. Mark the task done and move on

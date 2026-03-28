@@ -23,6 +23,8 @@ class CEOAgent(BaseAgent):
     name = "CEO"
     model = "gpt-4o"
 
+    MAX_PIVOTS = 3  # Prevent infinite cascade loops
+
     def __init__(self, bus: StateBus, logger: TraceLogger) -> None:
         super().__init__(bus, logger)
         self.current_strategy: StrategyPayload | None = None
@@ -86,6 +88,10 @@ Respond in JSON with these exact fields:
 
         self.log(f"Processing blocker: {payload.severity} - {payload.description}", action="blocker_review")
 
+        if self.pivot_count >= self.MAX_PIVOTS:
+            self.log(f"Max pivots ({self.MAX_PIVOTS}) reached, absorbing blocker", action="max_pivots")
+            return
+
         if payload.severity in ("CRITICAL", "HIGH") and self.current_strategy:
             await self._pivot(
                 reason=f"Legal blocker ({payload.severity}): {payload.description}",
@@ -99,6 +105,10 @@ Respond in JSON with these exact fields:
             return
 
         self.log(f"Reviewing simulation: sentiment={payload.overall_sentiment:.2f}", action="simulation_review")
+
+        if self.pivot_count >= self.MAX_PIVOTS:
+            self.log(f"Max pivots ({self.MAX_PIVOTS}) reached, absorbing simulation signal", action="max_pivots")
+            return
 
         if payload.pivot_recommended and self.current_strategy:
             await self._pivot(

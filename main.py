@@ -187,14 +187,23 @@ async def run_sprint(
     costs = {a.name: a.get_cost_summary() for a in agents}
     total_cost = sum(c["estimated_cost_usd"] for c in costs.values())
 
+    total_tokens = sum(c["total_tokens"] for c in costs.values())
+    # Human equivalent: strategy consultant ($300/hr), lawyer ($400/hr),
+    # developer ($200/hr), financial analyst ($250/hr), marketing ($200/hr)
+    # Minimum 2 hours each = $2,300 minimum
+    human_equivalent = 15000.0  # conservative estimate for full engagement
+
     print(f"  Events: {total_events}")
     print(f"  Pivots: {pivots}")
-    print(f"  Est. cost: ${total_cost:.4f}")
+    print(f"  Total tokens: {total_tokens:,}")
+    print(f"  API cost: ${total_cost:.4f}")
+    print(f"  Human equivalent: ~${human_equivalent:,.0f}")
+    print(f"  Savings: {human_equivalent / max(total_cost, 0.01):.0f}x cheaper")
     print(f"\n  Outputs saved to: outputs/")
     print(f"  Trace log: outputs/trace.json")
 
     for name, cost in costs.items():
-        print(f"    {name}: {cost['total_tokens']} tokens (${cost['estimated_cost_usd']:.4f})")
+        print(f"    {name}: {cost['total_tokens']:,} tokens (${cost['estimated_cost_usd']:.4f})")
 
     # Finalize trace
     logger.finish()
@@ -208,18 +217,80 @@ async def run_sprint(
     }
 
 
+def _play_cached_demo() -> None:
+    """Play back cached demo results without API calls."""
+    import time
+
+    cached_trace = Path("demo/cached_trace.json")
+    cached_summary = Path("demo/cached_artifacts/sprint_summary.json")
+
+    if not cached_trace.exists():
+        print("No cached demo found. Run with --demo first to generate one.")
+        return
+
+    print("=" * 60)
+    print("  GHOST BOARD - Cached Demo Playback")
+    print("  (No API calls - instant replay)")
+    print("=" * 60)
+
+    trace_data = json.loads(cached_trace.read_text())
+    for entry in trace_data:
+        event_type = entry.get("event_type", "")
+        source = entry.get("source", "")
+        payload = entry.get("payload", {})
+
+        if event_type == "STRATEGY_SET":
+            print(f"\n  [{source}] Strategy: {payload.get('startup_idea', '')}")
+            print(f"    Market: {payload.get('target_market', '')}")
+            print(f"    Model: {payload.get('business_model', '')}")
+        elif event_type == "BLOCKER":
+            print(f"\n  [{source}] BLOCKER ({payload.get('severity', '')}): {payload.get('description', '')}")
+            for cite in payload.get("citations", []):
+                print(f"    Citation: {cite}")
+        elif event_type == "PIVOT":
+            print(f"\n  [{source}] PIVOT: {payload.get('reason', '')}")
+        elif event_type == "PROTOTYPE_READY":
+            print(f"\n  [{source}] Prototype: {len(payload.get('files_generated', []))} files")
+        elif event_type == "FINANCIAL_MODEL_READY":
+            print(f"\n  [{source}] Financial: Y1=${payload.get('revenue_year1', 0):,.0f}, Runway={payload.get('runway_months', 0)}mo")
+        elif event_type == "GTM_READY":
+            print(f"\n  [{source}] GTM: \"{payload.get('tagline', '')}\"")
+        elif event_type == "COMPLIANCE_REPORT_READY":
+            print(f"\n  [{source}] Compliance: {payload.get('risk_level', '')} risk, {payload.get('blockers_found', 0)} blockers")
+        elif event_type == "SIMULATION_RESULT":
+            print(f"\n  [{source}] Simulation: sentiment={payload.get('overall_sentiment', 0):.2f}")
+
+        time.sleep(0.05)  # Brief delay for readability
+
+    if cached_summary.exists():
+        summary = json.loads(cached_summary.read_text())
+        print("\n" + "=" * 60)
+        print("  Sprint Complete! (cached)")
+        print("=" * 60)
+        print(f"  Events: {summary.get('events', '?')}")
+        print(f"  Pivots: {summary.get('pivots', '?')}")
+        print(f"  Original API cost: ${summary.get('total_cost', 0):.4f}")
+
+    print("\n  Cached artifacts in: demo/cached_artifacts/")
+
+
 @click.command()
 @click.argument("startup_idea", default="AI-powered regulatory compliance automation for fintech startups")
 @click.option("--personas", "-p", default=10, help="Number of simulation personas")
 @click.option("--rounds", "-r", default=3, help="Number of simulation rounds")
 @click.option("--skip-simulation", is_flag=True, help="Skip market simulation phase")
 @click.option("--demo", is_flag=True, help="Run with the Anchrix demo concept")
-def main(startup_idea: str, personas: int, rounds: int, skip_simulation: bool, demo: bool):
+@click.option("--cached", is_flag=True, help="Play back cached demo results (no API calls)")
+def main(startup_idea: str, personas: int, rounds: int, skip_simulation: bool, demo: bool, cached: bool):
     """Ghost Board - Autonomous AI executive team sprint.
 
     Runs five AI agents (CEO, CTO, CFO, CMO, Legal) that coordinate to build
     and validate a startup in a single sprint.
     """
+    if cached or (demo and not os.environ.get("OPENAI_API_KEY")):
+        _play_cached_demo()
+        return
+
     if demo:
         demo_path = Path("demo/anchrix_concept.txt")
         if demo_path.exists():

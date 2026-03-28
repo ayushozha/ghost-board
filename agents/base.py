@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 from typing import Any
 
@@ -50,8 +51,9 @@ class BaseAgent:
         temperature: float = 0.7,
         max_tokens: int = 4096,
         response_format: type[BaseModel] | None = None,
+        retries: int = 3,
     ) -> str:
-        """Make an async LLM call and track usage."""
+        """Make an async LLM call with retry and track usage."""
         use_model = model or self.model
         self.log(f"Calling {use_model}", action="llm_call")
 
@@ -64,19 +66,32 @@ class BaseAgent:
         if response_format:
             kwargs["response_format"] = response_format
 
-        response = await self.client.chat.completions.create(**kwargs)
+        last_error: Exception | None = None
+        for attempt in range(retries):
+            try:
+                response = await self.client.chat.completions.create(**kwargs)
 
-        content = response.choices[0].message.content or ""
-        usage = response.usage
-        if usage:
-            self.total_tokens += usage.total_tokens
-            costs = MODEL_COSTS.get(use_model, MODEL_COSTS["gpt-4o"])
-            self.estimated_cost += (
-                usage.prompt_tokens * costs["input"] / 1_000_000
-                + usage.completion_tokens * costs["output"] / 1_000_000
-            )
+                content = response.choices[0].message.content or ""
+                usage = response.usage
+                if usage:
+                    self.total_tokens += usage.total_tokens
+                    costs = MODEL_COSTS.get(use_model, MODEL_COSTS["gpt-4o"])
+                    self.estimated_cost += (
+                        usage.prompt_tokens * costs["input"] / 1_000_000
+                        + usage.completion_tokens * costs["output"] / 1_000_000
+                    )
 
-        return content
+                return content
+            except Exception as e:
+                last_error = e
+                if attempt < retries - 1:
+                    wait = 2 ** attempt
+                    self.log(f"LLM call failed (attempt {attempt + 1}/{retries}), retrying in {wait}s: {e}", action="retry")
+                    await asyncio.sleep(wait)
+
+        # All retries exhausted - return degraded result instead of crashing
+        self.log(f"LLM call failed after {retries} attempts: {last_error}", action="error")
+        return "{}"
 
     async def call_llm_with_tools(
         self,
@@ -84,28 +99,41 @@ class BaseAgent:
         tools: list[dict[str, Any]],
         model: str | None = None,
         temperature: float = 0.7,
+        retries: int = 3,
     ) -> Any:
-        """Make an LLM call with tool/function definitions."""
+        """Make an LLM call with tool/function definitions and retry."""
         use_model = model or self.model
         self.log(f"Calling {use_model} with tools", action="llm_tool_call")
 
-        response = await self.client.chat.completions.create(
-            model=use_model,
-            messages=messages,
-            tools=tools,
-            temperature=temperature,
-        )
+        last_error: Exception | None = None
+        for attempt in range(retries):
+            try:
+                response = await self.client.chat.completions.create(
+                    model=use_model,
+                    messages=messages,
+                    tools=tools,
+                    temperature=temperature,
+                )
 
-        usage = response.usage
-        if usage:
-            self.total_tokens += usage.total_tokens
-            costs = MODEL_COSTS.get(use_model, MODEL_COSTS["gpt-4o"])
-            self.estimated_cost += (
-                usage.prompt_tokens * costs["input"] / 1_000_000
-                + usage.completion_tokens * costs["output"] / 1_000_000
-            )
+                usage = response.usage
+                if usage:
+                    self.total_tokens += usage.total_tokens
+                    costs = MODEL_COSTS.get(use_model, MODEL_COSTS["gpt-4o"])
+                    self.estimated_cost += (
+                        usage.prompt_tokens * costs["input"] / 1_000_000
+                        + usage.completion_tokens * costs["output"] / 1_000_000
+                    )
 
-        return response
+                return response
+            except Exception as e:
+                last_error = e
+                if attempt < retries - 1:
+                    wait = 2 ** attempt
+                    self.log(f"Tool call failed (attempt {attempt + 1}/{retries}), retrying in {wait}s: {e}", action="retry")
+                    await asyncio.sleep(wait)
+
+        self.log(f"Tool call failed after {retries} attempts: {last_error}", action="error")
+        return None
 
     def log(self, message: str, action: str = "info") -> None:
         """Log an action to the trace logger."""
