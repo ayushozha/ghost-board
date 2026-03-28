@@ -368,7 +368,8 @@ def _play_cached_demo() -> None:
 @click.option("--skip-simulation", is_flag=True, help="Skip market simulation phase")
 @click.option("--demo", is_flag=True, help="Run with the Anchrix demo concept")
 @click.option("--cached", is_flag=True, help="Play back cached demo results (no API calls)")
-def main(startup_idea: str, personas: int, rounds: int, sim_scale: str | None, skip_simulation: bool, demo: bool, cached: bool):
+@click.option("--json-output", is_flag=True, help="Output sprint result as JSON")
+def main(startup_idea: str, personas: int, rounds: int, sim_scale: str | None, skip_simulation: bool, demo: bool, cached: bool, json_output: bool):
     """Ghost Board - Autonomous AI executive team sprint.
 
     Runs five AI agents (CEO, CTO, CFO, CMO, Legal) that coordinate to build
@@ -408,6 +409,9 @@ def main(startup_idea: str, personas: int, rounds: int, sim_scale: str | None, s
     os.makedirs("outputs", exist_ok=True)
     with open("outputs/sprint_summary.json", "w") as f:
         json.dump(result, f, indent=2, default=str)
+
+    if json_output:
+        click.echo(json.dumps(result, indent=2, default=str))
 
 
 if __name__ == "__main__":
