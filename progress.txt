@@ -125,3 +125,8 @@ PostgreSQL on our VPS for database (see VPS.md for connection details)
 [x] PRD-104: Add simulation __init__.py export for hybrid_engine and lightweight_agents. Update ARCHITECTURE.md with million agent section.
 [x] PRD-105: Add a demo/DEMO_VIDEO_SCRIPT.md covering: one-liner intro, Legal blocker, CEO pivot, 1M agent simulation, sentiment chart, cost comparison, all 3 Ralphthon statements.
 [x] PRD-106: Improve dashboard embedded demo data to include hybrid simulation stats (total_agents, lightweight_agents, swarm_history). Show "1,000,050 agents" prominently.
+[x] PRD-107: Update simulation/__init__.py to export hybrid_engine and lightweight_agents modules.
+[x] PRD-108: Add hybrid simulation stats to the cost summary table in main.py output. Show "LLM agents: X, Crowd agents: Y, Total: Z".
+[x] PRD-109: Add archetype icons to dashboard timeline (crown for CEO, laptop for CTO, chart for CFO, rocket for CMO, shield for Legal).
+[x] PRD-110: Update ARCHITECTURE.md with million agent architecture section. Diagram showing LLM tier + crowd tier.
+[x] PRD-111: Add test for hybrid_engine.run_hybrid_simulation with mocked client verifying both LLM and crowd results merge.
