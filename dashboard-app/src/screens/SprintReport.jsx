@@ -1,4 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+} from 'recharts';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -12,9 +15,22 @@ const TAB_LIST = [
   { id: 'report',     label: 'Full Report', icon: '\uD83D\uDCC4' },
 ];
 
+const AGENT_COLORS = {
+  CEO: '#3b82f6',
+  CTO: '#8b5cf6',
+  CFO: '#22c55e',
+  CMO: '#f59e0b',
+  Legal: '#ef4444',
+  Simulation: '#06b6d4',
+};
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 function formatUsd(val) {
   if (val === null || val === undefined) return '$0.00';
   const n = Number(val);
+  if (isNaN(n)) return '$0.00';
   return '$' + (n < 1 ? n.toFixed(4) : n >= 1000 ? n.toLocaleString(undefined, { maximumFractionDigits: 0 }) : n.toFixed(2));
 }
 
@@ -23,6 +39,35 @@ function apiFetch(path) {
     if (!r.ok) throw new Error(`${r.status}`);
     return r;
   });
+}
+
+// ---------------------------------------------------------------------------
+// Hooks
+// ---------------------------------------------------------------------------
+
+/** Count-up animation hook */
+function useCountUp(target, duration = 2000, active = true) {
+  const [value, setValue] = useState(0);
+  const rafRef = useRef(null);
+
+  useEffect(() => {
+    if (!active || target <= 0) { setValue(target); return; }
+    const start = performance.now();
+    const animate = (now) => {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      // ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setValue(Math.round(eased * target));
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(animate);
+      }
+    };
+    rafRef.current = requestAnimationFrame(animate);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [target, duration, active]);
+
+  return value;
 }
 
 // ---------------------------------------------------------------------------
@@ -73,6 +118,21 @@ function StatCard({ label, value, icon }) {
   );
 }
 
+function SeverityBadge({ severity }) {
+  const s = (severity || '').toUpperCase();
+  const styles = {
+    CRITICAL: 'bg-red-900/60 text-red-300 border-red-600',
+    HIGH:     'bg-red-900/40 text-red-400 border-red-700',
+    MEDIUM:   'bg-yellow-900/40 text-yellow-400 border-yellow-700',
+    LOW:      'bg-green-900/40 text-green-400 border-green-700',
+  };
+  return (
+    <span className={`text-xs px-2 py-0.5 rounded font-bold border ${styles[s] || 'bg-gray-800 text-gray-400 border-gray-700'}`}>
+      {s || 'UNKNOWN'}
+    </span>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Tab: Prototype (code viewer with file tree)
 // ---------------------------------------------------------------------------
@@ -107,10 +167,27 @@ function PrototypeTab({ artifacts }) {
 
   if (protoFiles.length === 0) return <EmptyState message="No prototype files found" />;
 
+  const fileExt = (name) => {
+    if (!name) return '';
+    const dot = name.lastIndexOf('.');
+    return dot >= 0 ? name.slice(dot + 1).toLowerCase() : '';
+  };
+
+  const fileIcon = (name) => {
+    const ext = fileExt(name);
+    if (ext === 'py') return '\uD83D\uDC0D';
+    if (ext === 'js' || ext === 'jsx' || ext === 'ts' || ext === 'tsx') return '\uD83D\uDFE8';
+    if (ext === 'json') return '\uD83D\uDCC4';
+    if (ext === 'md') return '\uD83D\uDCD6';
+    if (ext === 'html') return '\uD83C\uDF10';
+    if (ext === 'css') return '\uD83C\uDFA8';
+    return '\uD83D\uDCC4';
+  };
+
   return (
     <div className="flex h-[600px]">
-      {/* File tree */}
-      <div className="w-52 flex-shrink-0 bg-gray-900/60 rounded-l-lg border-r border-gray-800 overflow-y-auto">
+      {/* File tree sidebar - 30% */}
+      <div className="w-[30%] flex-shrink-0 bg-gray-900/60 rounded-l-lg border-r border-gray-800 overflow-y-auto">
         <div className="p-3 border-b border-gray-800 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
           Files ({protoFiles.length})
         </div>
@@ -122,18 +199,20 @@ function PrototypeTab({ artifacts }) {
               key={i}
               onClick={() => setSelectedFile(f)}
               className={`w-full text-left px-3 py-2 text-sm border-b border-gray-800/50 transition-colors ${
-                isActive ? 'bg-indigo-900/40 text-indigo-300 border-l-2 border-l-indigo-500' : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200 border-l-2 border-l-transparent'
+                isActive
+                  ? 'bg-indigo-900/40 text-indigo-300 border-l-2 border-l-indigo-500'
+                  : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200 border-l-2 border-l-transparent'
               }`}
             >
-              <span className="text-gray-600 mr-1.5">{name?.endsWith('.py') ? '\uD83D\uDC0D' : '\uD83D\uDCC4'}</span>
+              <span className="text-gray-600 mr-1.5">{fileIcon(name)}</span>
               {name}
             </button>
           );
         })}
       </div>
 
-      {/* Code viewer */}
-      <div className="flex-1 bg-gray-950 overflow-hidden flex flex-col rounded-r-lg">
+      {/* Code viewer - 70% */}
+      <div className="w-[70%] bg-gray-950 overflow-hidden flex flex-col rounded-r-lg">
         <div className="px-4 py-2 border-b border-gray-800 flex items-center justify-between bg-gray-900/80">
           <span className="text-xs text-gray-400 font-mono">
             {selectedFile?.name || (selectedFile?.path || '').split('/').pop()}
@@ -150,7 +229,7 @@ function PrototypeTab({ artifacts }) {
               {fileContent.split('\n').map((line, i) => (
                 <div key={i} className="flex hover:bg-white/[0.02]">
                   <span className="inline-block w-12 text-right pr-4 text-gray-600 select-none flex-shrink-0 text-xs leading-6 bg-gray-900/40">{i + 1}</span>
-                  <span className="flex-1 px-4">{highlightPython(line)}</span>
+                  <span className="flex-1 px-4">{highlightSyntax(line)}</span>
                 </div>
               ))}
             </pre>
@@ -161,11 +240,12 @@ function PrototypeTab({ artifacts }) {
   );
 }
 
-function highlightPython(line) {
+function highlightSyntax(line) {
   if (typeof line !== 'string') return line;
   if (line.trimStart().startsWith('#')) return <span className="text-gray-500 italic">{line}</span>;
+  if (line.trimStart().startsWith('//')) return <span className="text-gray-500 italic">{line}</span>;
 
-  const combined = /(["'])(?:(?=(\\?))\2.)*?\1|\b(def|class|import|from|return|if|else|elif|for|while|try|except|finally|with|as|async|await|yield|raise|pass|break|continue|and|or|not|in|is|None|True|False|self)\b|(@\w+)|(#.*$)/g;
+  const combined = /(["'])(?:(?=(\\?))\2.)*?\1|\b(def|class|import|from|return|if|else|elif|for|while|try|except|finally|with|as|async|await|yield|raise|pass|break|continue|and|or|not|in|is|None|True|False|self|const|let|var|function|export|default)\b|(@\w+)|(#.*$|\/\/.*$)/g;
   const parts = [];
   let lastIndex = 0;
   let match;
@@ -191,7 +271,7 @@ function highlightPython(line) {
 }
 
 // ---------------------------------------------------------------------------
-// Tab: Financial
+// Tab: Financial (Recharts AreaChart + 12-month P&L table)
 // ---------------------------------------------------------------------------
 function FinancialTab({ runId }) {
   const [data, setData] = useState(null);
@@ -216,26 +296,116 @@ function FinancialTab({ runId }) {
   const runway = data.runway || {};
   const ue = data.unit_economics || {};
 
+  // Chart data
+  const chartData = monthly.map((m) => ({
+    name: `M${m.month}`,
+    Revenue: m.revenue || 0,
+    COGS: m.cogs || 0,
+    OpEx: m.opex || 0,
+    Net: (m.revenue || 0) - (m.cogs || 0) - (m.opex || 0),
+  }));
+
+  // Summary cards
+  const y1Revenue = scenarios.base?.year1_revenue || monthly.reduce((s, m) => s + (m.revenue || 0), 0);
+
   return (
     <div className="space-y-6 p-4 overflow-auto">
-      {/* Key metrics */}
+      {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MetricCard label="Monthly Burn" value={formatUsd(runway.monthly_burn_rate)} color="red" />
+        <MetricCard label="Revenue Y1" value={formatUsd(y1Revenue)} color="green" />
+        <MetricCard label="Burn Rate" value={formatUsd(runway.monthly_burn_rate)} color="red" />
         <MetricCard label="Runway" value={`${runway.runway_months || 0} mo`} color="yellow" />
-        <MetricCard label="Series A Req." value={formatUsd(runway.funding_required_series_a)} color="blue" />
-        <MetricCard label="LTV/CAC" value={`${ue.ltv_cac_ratio || 0}x`} color="green" />
+        <MetricCard label="LTV/CAC" value={`${ue.ltv_cac_ratio || 0}x`} color="cyan" />
       </div>
 
-      {/* Unit economics */}
-      {ue.cac && (
-        <div className="bg-gray-900/50 rounded-lg border border-gray-800 p-4">
-          <h3 className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mb-3">Unit Economics</h3>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
-            <div><div className="text-lg font-bold text-cyan-300">{formatUsd(ue.cac)}</div><div className="text-xs text-gray-500">CAC</div></div>
-            <div><div className="text-lg font-bold text-green-300">{formatUsd(ue.ltv)}</div><div className="text-xs text-gray-500">LTV</div></div>
-            <div><div className="text-lg font-bold text-purple-300">{ue.ltv_cac_ratio}x</div><div className="text-xs text-gray-500">LTV/CAC</div></div>
-            <div><div className="text-lg font-bold text-yellow-300">{ue.payback_period_months} mo</div><div className="text-xs text-gray-500">Payback</div></div>
-            <div><div className="text-lg font-bold text-emerald-300">{ue.gross_margin_pct}%</div><div className="text-xs text-gray-500">Gross Margin</div></div>
+      {/* Recharts AreaChart: Revenue vs Costs */}
+      {chartData.length > 0 && (
+        <div className="bg-gray-900/50 rounded-lg border border-gray-800 p-5">
+          <h3 className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mb-4">Revenue vs Costs (12 Months)</h3>
+          <div style={{ width: '100%', height: 280 }}>
+            <ResponsiveContainer>
+              <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0.02} />
+                  </linearGradient>
+                  <linearGradient id="colorCosts" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0.02} />
+                  </linearGradient>
+                  <linearGradient id="colorNet" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 11 }} axisLine={{ stroke: '#374151' }} />
+                <YAxis tick={{ fill: '#6b7280', fontSize: 11 }} axisLine={{ stroke: '#374151' }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
+                <Tooltip
+                  contentStyle={{ background: '#111827', border: '1px solid #374151', borderRadius: 8, fontSize: 12, color: '#e5e7eb' }}
+                  formatter={(v) => formatUsd(v)}
+                  labelStyle={{ color: '#9ca3af' }}
+                />
+                <Legend wrapperStyle={{ fontSize: 11, color: '#9ca3af' }} />
+                <Area type="monotone" dataKey="Revenue" stroke="#22c55e" fillOpacity={1} fill="url(#colorRevenue)" strokeWidth={2} />
+                <Area type="monotone" dataKey="OpEx" stroke="#ef4444" fillOpacity={1} fill="url(#colorCosts)" strokeWidth={2} />
+                <Area type="monotone" dataKey="Net" stroke="#06b6d4" fillOpacity={1} fill="url(#colorNet)" strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* 12-month P&L table */}
+      {monthly.length > 0 && (
+        <div className="bg-gray-900/50 rounded-lg border border-gray-800 overflow-hidden">
+          <div className="p-3 border-b border-gray-800">
+            <h3 className="text-[10px] text-gray-500 font-mono uppercase tracking-wider">12-Month P&L Projection</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-800 text-gray-500">
+                  <th className="text-left p-3 font-medium text-xs">Month</th>
+                  <th className="text-right p-3 font-medium text-xs">Revenue</th>
+                  <th className="text-right p-3 font-medium text-xs">COGS</th>
+                  <th className="text-right p-3 font-medium text-xs">Gross Margin</th>
+                  <th className="text-right p-3 font-medium text-xs">OpEx</th>
+                  <th className="text-right p-3 font-medium text-xs">Net</th>
+                </tr>
+              </thead>
+              <tbody>
+                {monthly.map((m) => {
+                  const gross = (m.revenue || 0) - (m.cogs || 0);
+                  const net = gross - (m.opex || 0);
+                  return (
+                    <tr key={m.month} className="border-b border-gray-800/50 hover:bg-white/[0.02] transition-colors">
+                      <td className="p-3 text-gray-300 font-mono text-xs">M{m.month}</td>
+                      <td className="p-3 text-right text-green-400 font-mono text-xs">{formatUsd(m.revenue)}</td>
+                      <td className="p-3 text-right text-orange-400 font-mono text-xs">{formatUsd(m.cogs)}</td>
+                      <td className={`p-3 text-right font-mono text-xs ${gross >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>{formatUsd(gross)}</td>
+                      <td className="p-3 text-right text-red-400 font-mono text-xs">{formatUsd(m.opex)}</td>
+                      <td className={`p-3 text-right font-mono text-xs font-bold ${net >= 0 ? 'text-green-300' : 'text-red-300'}`}>{formatUsd(net)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-gray-700 font-bold">
+                  <td className="p-3 text-gray-200 text-xs">Total</td>
+                  <td className="p-3 text-right text-green-300 font-mono text-xs">{formatUsd(monthly.reduce((s, m) => s + (m.revenue || 0), 0))}</td>
+                  <td className="p-3 text-right text-orange-300 font-mono text-xs">{formatUsd(monthly.reduce((s, m) => s + (m.cogs || 0), 0))}</td>
+                  <td className={`p-3 text-right font-mono text-xs ${monthly.reduce((s, m) => s + (m.revenue || 0) - (m.cogs || 0), 0) >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                    {formatUsd(monthly.reduce((s, m) => s + (m.revenue || 0) - (m.cogs || 0), 0))}
+                  </td>
+                  <td className="p-3 text-right text-red-300 font-mono text-xs">{formatUsd(monthly.reduce((s, m) => s + (m.opex || 0), 0))}</td>
+                  <td className={`p-3 text-right font-mono text-xs ${monthly.reduce((s, m) => s + (m.revenue || 0) - (m.cogs || 0) - (m.opex || 0), 0) >= 0 ? 'text-green-300' : 'text-red-300'}`}>
+                    {formatUsd(monthly.reduce((s, m) => s + (m.revenue || 0) - (m.cogs || 0) - (m.opex || 0), 0))}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
         </div>
       )}
@@ -255,83 +425,12 @@ function FinancialTab({ runId }) {
           </div>
         </div>
       )}
-
-      {/* 12-month P&L */}
-      {monthly.length > 0 && (
-        <div className="bg-gray-900/50 rounded-lg border border-gray-800 overflow-hidden">
-          <div className="p-3 border-b border-gray-800">
-            <h3 className="text-[10px] text-gray-500 font-mono uppercase tracking-wider">12-Month P&L Projection</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-800 text-gray-500">
-                  <th className="text-left p-3 font-medium text-xs">Month</th>
-                  <th className="text-right p-3 font-medium text-xs">Revenue</th>
-                  <th className="text-right p-3 font-medium text-xs">COGS</th>
-                  <th className="text-right p-3 font-medium text-xs">OpEx</th>
-                  <th className="text-right p-3 font-medium text-xs">Net</th>
-                </tr>
-              </thead>
-              <tbody>
-                {monthly.map((m) => {
-                  const net = (m.revenue || 0) - (m.cogs || 0) - (m.opex || 0);
-                  return (
-                    <tr key={m.month} className="border-b border-gray-800/50 hover:bg-white/[0.02] transition-colors">
-                      <td className="p-3 text-gray-300 font-mono text-xs">M{m.month}</td>
-                      <td className="p-3 text-right text-green-400 font-mono text-xs">{formatUsd(m.revenue)}</td>
-                      <td className="p-3 text-right text-orange-400 font-mono text-xs">{formatUsd(m.cogs)}</td>
-                      <td className="p-3 text-right text-red-400 font-mono text-xs">{formatUsd(m.opex)}</td>
-                      <td className={`p-3 text-right font-mono text-xs font-bold ${net >= 0 ? 'text-green-300' : 'text-red-300'}`}>{formatUsd(net)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="border-t-2 border-gray-700 font-bold">
-                  <td className="p-3 text-gray-200 text-xs">Total</td>
-                  <td className="p-3 text-right text-green-300 font-mono text-xs">{formatUsd(monthly.reduce((s, m) => s + (m.revenue || 0), 0))}</td>
-                  <td className="p-3 text-right text-orange-300 font-mono text-xs">{formatUsd(monthly.reduce((s, m) => s + (m.cogs || 0), 0))}</td>
-                  <td className="p-3 text-right text-red-300 font-mono text-xs">{formatUsd(monthly.reduce((s, m) => s + (m.opex || 0), 0))}</td>
-                  <td className={`p-3 text-right font-mono text-xs ${monthly.reduce((s, m) => s + (m.revenue || 0) - (m.cogs || 0) - (m.opex || 0), 0) >= 0 ? 'text-green-300' : 'text-red-300'}`}>
-                    {formatUsd(monthly.reduce((s, m) => s + (m.revenue || 0) - (m.cogs || 0) - (m.opex || 0), 0))}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Revenue bar chart */}
-      {monthly.length > 0 && (
-        <div className="bg-gray-900/50 rounded-lg border border-gray-800 p-4">
-          <h3 className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mb-4">Revenue Growth</h3>
-          <div className="flex items-end gap-2 h-36">
-            {monthly.map((m) => {
-              const maxRev = Math.max(...monthly.map((x) => x.revenue || 0));
-              const pct = maxRev > 0 ? ((m.revenue || 0) / maxRev) * 100 : 0;
-              return (
-                <div key={m.month} className="flex-1 flex flex-col items-center">
-                  <div className="w-full flex flex-col items-center justify-end" style={{ height: 110 }}>
-                    <div
-                      className="w-full max-w-8 rounded-t bg-gradient-to-t from-cyan-600 to-cyan-400 transition-all duration-500"
-                      style={{ height: `${Math.max(pct, 3)}%` }}
-                    />
-                  </div>
-                  <div className="text-[9px] text-gray-600 mt-1">M{m.month}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Tab: GTM
+// Tab: GTM (positioning, taglines, competitive matrix)
 // ---------------------------------------------------------------------------
 function GtmTab({ runId }) {
   const [data, setData] = useState(null);
@@ -340,7 +439,6 @@ function GtmTab({ runId }) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    // Try latest version, fallback down
     fetch('/api/artifacts/gtm/gtm_v4.json')
       .then((r) => r.ok ? r.json() : fetch('/api/artifacts/gtm/gtm_v3.json').then((r2) => r2.ok ? r2.json() : null))
       .then((d) => { if (!cancelled) setData(d); })
@@ -355,28 +453,78 @@ function GtmTab({ runId }) {
   const framework = data.messaging_framework || {};
   const taglines = data.taglines || [];
   const byPersona = framework.by_persona || {};
+  const compMatrix = data.competitive_matrix || data.competitive_landscape || [];
+  const proofPoints = framework.proof_points || data.proof_points || [];
 
   return (
     <div className="space-y-6 p-4 overflow-auto">
-      {/* Positioning */}
+      {/* Positioning statement - large text */}
       {data.positioning && (
-        <div className="p-5 rounded-xl bg-gradient-to-r from-purple-500/5 to-indigo-500/5 border border-purple-500/20">
-          <div className="text-[10px] text-purple-400 font-mono uppercase tracking-wider mb-2">Positioning</div>
-          <p className="text-gray-200 leading-relaxed">{data.positioning}</p>
+        <div className="p-6 rounded-xl bg-gradient-to-r from-purple-500/5 to-indigo-500/5 border border-purple-500/20">
+          <div className="text-[10px] text-purple-400 font-mono uppercase tracking-wider mb-3">Positioning Statement</div>
+          <p className="text-xl text-gray-100 leading-relaxed font-medium">{data.positioning}</p>
         </div>
       )}
 
-      {/* Taglines */}
+      {/* Taglines as cards */}
       {taglines.length > 0 && (
         <div className="bg-gray-900/50 rounded-lg border border-gray-800 p-5">
           <h3 className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mb-3">Taglines</h3>
-          <div className="space-y-3">
+          <div className="grid gap-3 md:grid-cols-2">
             {taglines.map((t, i) => (
-              <div key={i} className="p-3 rounded-lg bg-indigo-900/15 border border-indigo-800/30">
+              <div key={i} className="p-4 rounded-lg bg-indigo-900/15 border border-indigo-800/30 hover:border-indigo-600/50 transition-colors">
                 <div className="text-lg font-bold text-indigo-200 italic">&ldquo;{typeof t === 'string' ? t : t.tagline}&rdquo;</div>
-                {t.reasoning && <div className="text-xs text-gray-400 mt-1">{t.reasoning}</div>}
+                {(typeof t !== 'string' && t.reasoning) && <div className="text-xs text-gray-400 mt-2">{t.reasoning}</div>}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Competitive matrix as table */}
+      {compMatrix.length > 0 && (
+        <div className="bg-gray-900/50 rounded-lg border border-gray-800 overflow-hidden">
+          <div className="p-3 border-b border-gray-800">
+            <h3 className="text-[10px] text-gray-500 font-mono uppercase tracking-wider">Competitive Matrix</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-800 text-gray-500">
+                  <th className="text-left p-3 font-medium text-xs">Competitor</th>
+                  {compMatrix[0] && Object.keys(compMatrix[0]).filter((k) => k !== 'name' && k !== 'competitor').map((col) => (
+                    <th key={col} className="text-center p-3 font-medium text-xs capitalize">{col.replace(/_/g, ' ')}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {compMatrix.map((row, i) => {
+                  const name = row.name || row.competitor || `Entry ${i + 1}`;
+                  const cols = Object.entries(row).filter(([k]) => k !== 'name' && k !== 'competitor');
+                  return (
+                    <tr key={i} className="border-b border-gray-800/50 hover:bg-white/[0.02] transition-colors">
+                      <td className="p-3 text-gray-200 font-semibold text-xs">{name}</td>
+                      {cols.map(([key, val]) => {
+                        const v = typeof val === 'string' ? val.toLowerCase() : '';
+                        const cellColor =
+                          v.includes('strong') || v.includes('yes') || v.includes('high') || val === true
+                            ? 'bg-green-900/30 text-green-300'
+                            : v.includes('weak') || v.includes('no') || v.includes('low') || val === false
+                              ? 'bg-red-900/30 text-red-300'
+                              : v.includes('medium') || v.includes('partial')
+                                ? 'bg-yellow-900/30 text-yellow-300'
+                                : 'text-gray-300';
+                        return (
+                          <td key={key} className={`p-3 text-center text-xs ${cellColor}`}>
+                            {typeof val === 'boolean' ? (val ? 'Yes' : 'No') : String(val)}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
@@ -421,11 +569,11 @@ function GtmTab({ runId }) {
       )}
 
       {/* Proof points */}
-      {framework.proof_points?.length > 0 && (
+      {proofPoints.length > 0 && (
         <div className="bg-gray-900/50 rounded-lg border border-gray-800 p-5">
           <h3 className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mb-3">Proof Points</h3>
           <div className="grid gap-2 md:grid-cols-2">
-            {framework.proof_points.map((pp, i) => (
+            {proofPoints.map((pp, i) => (
               <div key={i} className="flex items-center gap-2 p-2 rounded bg-green-900/10 border border-green-800/25">
                 <span className="text-green-400 text-sm">{'\u2713'}</span>
                 <span className="text-sm text-gray-300">{pp}</span>
@@ -439,7 +587,7 @@ function GtmTab({ runId }) {
 }
 
 // ---------------------------------------------------------------------------
-// Tab: Compliance
+// Tab: Compliance (regulatory concerns with severity badges)
 // ---------------------------------------------------------------------------
 function ComplianceTab({ runId }) {
   const [data, setData] = useState(null);
@@ -491,9 +639,9 @@ function ComplianceTab({ runId }) {
             {'\u26A0'} Blockers ({blockers.length})
           </h3>
           {blockers.map((b, i) => (
-            <div key={i} className="p-4 rounded-lg bg-red-900/10 border border-red-800/30">
+            <div key={i} className="p-4 rounded-lg bg-red-900/10 border-l-4 border-l-red-500 border border-red-800/30">
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs px-2 py-0.5 rounded bg-red-900/50 text-red-300 border border-red-700">{b.severity}</span>
+                <SeverityBadge severity={b.severity} />
                 <span className="text-white font-semibold">{b.area}</span>
               </div>
               <p className="text-sm text-gray-300 mb-2">{b.description}</p>
@@ -503,7 +651,7 @@ function ComplianceTab({ runId }) {
                     <span key={ci} className="text-xs px-2 py-0.5 rounded bg-gray-800 text-cyan-400 border border-gray-700 font-mono">
                       {c.startsWith?.('http') ? (
                         <a href={c} target="_blank" rel="noopener noreferrer" className="hover:text-cyan-300 underline">{c.replace(/^https?:\/\//, '').split('/')[0]}</a>
-                      ) : c}
+                      ) : <span className="text-cyan-400">{c}</span>}
                     </span>
                   ))}
                 </div>
@@ -523,14 +671,22 @@ function ComplianceTab({ runId }) {
         <div className="space-y-3">
           <h3 className="text-[10px] text-gray-500 font-mono uppercase tracking-wider">Regulatory Concerns ({concerns.length})</h3>
           {concerns.map((c, i) => {
-            const sev = c.severity || '';
-            const sevIsHigh = sev === 'HIGH' || sev === 'CRITICAL';
+            const sev = (c.severity || '').toUpperCase();
+            const isCritical = sev === 'CRITICAL' || sev === 'HIGH';
+            const borderLeft = isCritical
+              ? 'border-l-4 border-l-red-500'
+              : sev === 'MEDIUM'
+                ? 'border-l-4 border-l-yellow-500'
+                : 'border-l-4 border-l-green-500';
+            const bgColor = isCritical
+              ? 'bg-red-900/10 border-red-800/30'
+              : sev === 'MEDIUM'
+                ? 'bg-yellow-900/10 border-yellow-800/25'
+                : 'bg-green-900/10 border-green-800/25';
             return (
-              <div key={i} className={`p-4 rounded-lg border ${sevIsHigh ? 'bg-red-900/10 border-red-800/30' : sev === 'MEDIUM' ? 'bg-yellow-900/10 border-yellow-800/25' : 'bg-green-900/10 border-green-800/25'}`}>
+              <div key={i} className={`p-4 rounded-lg border ${bgColor} ${borderLeft}`}>
                 <div className="flex items-center gap-2 mb-2 flex-wrap">
-                  <span className={`text-xs px-2 py-0.5 rounded font-bold ${sevIsHigh ? 'text-red-400' : sev === 'MEDIUM' ? 'text-yellow-400' : 'text-green-400'}`} style={{ background: 'rgba(0,0,0,0.25)' }}>
-                    {sev}
-                  </span>
+                  <SeverityBadge severity={sev} />
                   <span className="text-white font-semibold">{c.regulation_name}</span>
                   {c.is_blocker && <span className="text-xs px-1.5 py-0.5 rounded bg-red-900/40 text-red-300 border border-red-700">BLOCKER</span>}
                 </div>
@@ -565,11 +721,12 @@ function ComplianceTab({ runId }) {
 }
 
 // ---------------------------------------------------------------------------
-// Tab: Cost (dramatic comparison)
+// Tab: Cost (dramatic comparison with count-up animation)
 // ---------------------------------------------------------------------------
 function CostTab({ runData, runId }) {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [animating, setAnimating] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -579,7 +736,13 @@ function CostTab({ runData, runId }) {
       .then((r) => r.json())
       .then((d) => { if (!cancelled) setSummary(d.summary || d); })
       .catch(() => { if (!cancelled) setSummary(null); })
-      .finally(() => { if (!cancelled) setLoading(false); });
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+          // Start animation after data loads
+          setTimeout(() => setAnimating(true), 100);
+        }
+      });
     return () => { cancelled = true; };
   }, [runId]);
 
@@ -591,76 +754,132 @@ function CostTab({ runData, runId }) {
   const totalTokens = summary?.total_tokens || 0;
   const totalEvents = summary?.events || runData?.events || runData?.total_events || 0;
   const totalPivots = summary?.pivots || runData?.pivots || runData?.total_pivots || 0;
+  const totalAgents = summary?.total_agents || 1000050;
+  const duration = summary?.duration || runData?.duration || '< 5 min';
   const costs = summary?.costs || {};
   const wandbUrl = summary?.wandb_url || runData?.wandb_url;
 
-  const maxCost = Math.max(apiCost, consultingCost);
-  const apiBarH = Math.max((apiCost / maxCost) * 260, 16);
-  const consultBarH = Math.max((consultingCost / maxCost) * 260, 16);
+  const animatedMultiplier = useCountUp(multiplier, 2500, animating);
+
+  // Dramatic bar heights: consulting bar fills the space, API bar is tiny
+  const barContainerH = 300;
+  const consultBarH = barContainerH;
+  const apiBarH = Math.max(Math.round((apiCost / consultingCost) * barContainerH), 4);
 
   return (
-    <div className="space-y-8 p-4 overflow-auto">
+    <div className="space-y-8 p-6 overflow-auto">
       {/* Dramatic bar comparison */}
-      <div className="flex items-end justify-center gap-16 pt-8 pb-4">
+      <div className="flex items-end justify-center gap-20 pt-4">
+        {/* API cost bar - tiny */}
         <div className="flex flex-col items-center gap-3">
           <div className="text-3xl font-black text-cyan-400 font-mono">{formatUsd(apiCost)}</div>
-          <div
-            className="w-20 rounded-t-xl bg-gradient-to-t from-cyan-600 to-cyan-400 transition-all duration-1000"
-            style={{ height: `${apiBarH}px`, boxShadow: '0 0 20px rgba(6,182,212,0.35)' }}
-          />
-          <div className="text-xs text-gray-400 text-center font-semibold">Ghost Board<br />API Cost</div>
+          <div className="flex items-end" style={{ height: `${barContainerH}px` }}>
+            <div
+              className="w-24 rounded-t-xl transition-all duration-1000 ease-out"
+              style={{
+                height: animating ? `${apiBarH}px` : '0px',
+                background: 'linear-gradient(to top, #0891b2, #22d3ee)',
+                boxShadow: '0 0 30px rgba(6,182,212,0.4), 0 0 60px rgba(6,182,212,0.15)',
+              }}
+            />
+          </div>
+          <div className="text-sm text-gray-400 text-center font-semibold">Ghost Board<br />API Cost</div>
         </div>
-        <div className="flex flex-col items-center justify-end pb-8">
-          <div className="text-lg text-gray-600 font-bold">vs</div>
+
+        {/* VS */}
+        <div className="flex flex-col items-center justify-center" style={{ height: `${barContainerH}px` }}>
+          <div className="text-2xl text-gray-600 font-bold">vs</div>
         </div>
+
+        {/* Consulting cost bar - MASSIVE */}
         <div className="flex flex-col items-center gap-3">
           <div className="text-3xl font-black text-red-400 font-mono">{formatUsd(consultingCost)}</div>
-          <div
-            className="w-20 rounded-t-xl bg-gradient-to-t from-red-700 to-red-500 transition-all duration-1000"
-            style={{ height: `${consultBarH}px`, boxShadow: '0 0 20px rgba(239,68,68,0.25)' }}
-          />
-          <div className="text-xs text-gray-400 text-center font-semibold">Traditional<br />Consulting</div>
+          <div className="flex items-end" style={{ height: `${barContainerH}px` }}>
+            <div
+              className="w-24 rounded-t-xl transition-all duration-1500 ease-out"
+              style={{
+                height: animating ? `${consultBarH}px` : '0px',
+                background: 'linear-gradient(to top, #991b1b, #ef4444)',
+                boxShadow: '0 0 30px rgba(239,68,68,0.3), 0 0 60px rgba(239,68,68,0.1)',
+              }}
+            />
+          </div>
+          <div className="text-sm text-gray-400 text-center font-semibold">Traditional<br />Consulting</div>
         </div>
       </div>
 
-      {/* Multiplier */}
-      <div className="text-center">
-        <span className="inline-block px-6 py-3 rounded-2xl bg-gradient-to-r from-cyan-500/10 to-emerald-500/10 border border-cyan-500/30">
-          <span className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-emerald-400">
-            {multiplier.toLocaleString()}x cheaper
+      {/* Multiplier with count-up animation */}
+      <div className="text-center py-4">
+        <span className="inline-block px-8 py-4 rounded-2xl bg-gradient-to-r from-cyan-500/10 to-emerald-500/10 border border-cyan-500/30">
+          <span className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-emerald-400 tabular-nums">
+            {animatedMultiplier.toLocaleString()}x
+          </span>
+          <span className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400/80 to-emerald-400/80 ml-3">
+            cheaper
           </span>
         </span>
       </div>
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label="Total Events" value={totalEvents} icon={'\uD83D\uDCCA'} />
+        <StatCard label="Agents Simulated" value={Number(totalAgents).toLocaleString()} icon={'\uD83E\uDDD1\u200D\uD83D\uDCBB'} />
+        <StatCard label="Events" value={`${totalEvents}+`} icon={'\uD83D\uDCCA'} />
         <StatCard label="Pivots" value={totalPivots} icon={'\u21BB'} />
-        <StatCard label="Total Tokens" value={totalTokens.toLocaleString()} icon={'\uD83D\uDCDD'} />
-        <StatCard label="Total Cost" value={formatUsd(apiCost)} icon={'\uD83D\uDCB0'} />
+        <StatCard label="Duration" value={typeof duration === 'number' ? `${Math.round(duration / 60)}m ${duration % 60}s` : duration} icon={'\u23F1'} />
       </div>
 
-      {/* Per-agent cost breakdown */}
+      {/* Per-agent cost table */}
       {Object.keys(costs).length > 0 && (
-        <div className="bg-gray-900/50 rounded-lg border border-gray-800 p-5">
-          <h3 className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mb-4">Cost by Agent</h3>
-          <div className="space-y-3">
-            {Object.entries(costs).map(([agent, d]) => {
-              const agentCost = d.estimated_cost_usd || 0;
-              const pct = apiCost > 0 ? (agentCost / apiCost) * 100 : 0;
-              const agentColors = { CEO: '#3b82f6', CTO: '#8b5cf6', CFO: '#22c55e', CMO: '#f59e0b', Legal: '#ef4444' };
-              const c = agentColors[agent] || '#6b7280';
-              return (
-                <div key={agent} className="flex items-center gap-4">
-                  <div className="w-14 text-sm font-semibold" style={{ color: c }}>{agent}</div>
-                  <div className="flex-1 h-5 bg-gray-800 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.max(pct, 2)}%`, background: c, boxShadow: `0 0 8px ${c}40` }} />
-                  </div>
-                  <div className="text-sm text-gray-300 font-mono w-16 text-right">{formatUsd(agentCost)}</div>
-                  <div className="text-xs text-gray-600 w-20 text-right">{d.total_tokens?.toLocaleString() || 0} tok</div>
-                </div>
-              );
-            })}
+        <div className="bg-gray-900/50 rounded-lg border border-gray-800 overflow-hidden">
+          <div className="p-4 border-b border-gray-800">
+            <h3 className="text-[10px] text-gray-500 font-mono uppercase tracking-wider">Cost Breakdown by Agent</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-800 text-gray-500">
+                  <th className="text-left p-3 font-medium text-xs">Agent</th>
+                  <th className="text-right p-3 font-medium text-xs">Tokens</th>
+                  <th className="text-right p-3 font-medium text-xs">Cost</th>
+                  <th className="text-left p-3 font-medium text-xs w-1/3">Share</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(costs).map(([agent, d]) => {
+                  const agentCost = d.estimated_cost_usd || 0;
+                  const pct = apiCost > 0 ? (agentCost / apiCost) * 100 : 0;
+                  const c = AGENT_COLORS[agent] || '#6b7280';
+                  return (
+                    <tr key={agent} className="border-b border-gray-800/50 hover:bg-white/[0.02] transition-colors">
+                      <td className="p-3">
+                        <span className="text-sm font-semibold" style={{ color: c }}>{agent}</span>
+                      </td>
+                      <td className="p-3 text-right text-gray-400 font-mono text-xs">{(d.total_tokens || 0).toLocaleString()}</td>
+                      <td className="p-3 text-right text-gray-300 font-mono text-xs font-bold">{formatUsd(agentCost)}</td>
+                      <td className="p-3">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-4 bg-gray-800 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-700"
+                              style={{ width: `${Math.max(pct, 2)}%`, background: c, boxShadow: `0 0 8px ${c}40` }}
+                            />
+                          </div>
+                          <span className="text-xs text-gray-500 w-10 text-right">{pct.toFixed(1)}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-gray-700 font-bold">
+                  <td className="p-3 text-gray-200 text-xs">Total</td>
+                  <td className="p-3 text-right text-gray-300 font-mono text-xs">{totalTokens.toLocaleString()}</td>
+                  <td className="p-3 text-right text-cyan-300 font-mono text-xs">{formatUsd(apiCost)}</td>
+                  <td className="p-3 text-xs text-gray-500">100%</td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
         </div>
       )}
@@ -696,7 +915,6 @@ function FullReportTab({ runId }) {
       .then((r) => r.json())
       .then((d) => { if (!cancelled) setReport(d.report || ''); })
       .catch(() => {
-        // Fallback: try raw file
         fetch('/api/artifacts/sprint_report.md')
           .then((r) => r.ok ? r.text() : '')
           .then((text) => { if (!cancelled) setReport(text); })
@@ -716,7 +934,9 @@ function FullReportTab({ runId }) {
   );
 }
 
+// ---------------------------------------------------------------------------
 // Simple markdown renderer
+// ---------------------------------------------------------------------------
 function renderMarkdown(md) {
   const lines = md.split('\n');
   const elements = [];
