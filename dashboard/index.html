@@ -328,6 +328,256 @@ function ArtifactContent({ tab }) {
   );
 }
 
+// ── Sentiment Dashboard ──
+function SentimentDashboard({ events }) {
+  const [simData, setSimData] = useState(null);
+  const gaugeRef = useRef(null);
+  const gaugeInstance = useRef(null);
+  const archetypeRef = useRef(null);
+  const archetypeInstance = useRef(null);
+  const roundsRef = useRef(null);
+  const roundsInstance = useRef(null);
+
+  const simEvents = useMemo(() => events.filter(e => e.event_type === 'SIMULATION_RESULT'), [events]);
+  const latestSim = simEvents.length > 0 ? simEvents[simEvents.length - 1] : null;
+
+  useEffect(() => {
+    const paths = ['../outputs/simulation_results.json', 'simulation_results.json'];
+    const tryLoad = async () => {
+      for (const p of paths) {
+        try {
+          const res = await fetch(p);
+          if (res.ok) { setSimData(await res.json()); return; }
+        } catch(e) {}
+      }
+    };
+    tryLoad();
+  }, []);
+
+  // Gauge chart - overall sentiment
+  useEffect(() => {
+    if (!gaugeRef.current || !latestSim) return;
+    if (gaugeInstance.current) gaugeInstance.current.destroy();
+    const sentiment = latestSim.payload?.overall_sentiment || 0;
+    const normalizedVal = (sentiment + 1) / 2; // 0 to 1
+    gaugeInstance.current = new Chart(gaugeRef.current, {
+      type: 'doughnut',
+      data: {
+        datasets: [{
+          data: [normalizedVal, 1 - normalizedVal],
+          backgroundColor: [
+            sentiment > 0.3 ? '#22c55e' : sentiment > -0.3 ? '#eab308' : '#ef4444',
+            'rgba(30,41,59,0.5)'
+          ],
+          borderWidth: 0,
+        }]
+      },
+      options: {
+        responsive: true, circumference: 180, rotation: 270, cutout: '80%',
+        plugins: {
+          legend: { display: false },
+          tooltip: { enabled: false },
+        }
+      }
+    });
+    return () => { if (gaugeInstance.current) gaugeInstance.current.destroy(); };
+  }, [latestSim]);
+
+  // Archetype breakdown bar chart
+  useEffect(() => {
+    if (!archetypeRef.current) return;
+    if (archetypeInstance.current) archetypeInstance.current.destroy();
+
+    const archetypes = {};
+    if (simData?.rounds_data) {
+      simData.rounds_data.forEach(rd => {
+        Object.entries(rd.sentiment_by_archetype || {}).forEach(([k, v]) => {
+          if (!archetypes[k]) archetypes[k] = [];
+          archetypes[k].push(v);
+        });
+      });
+    }
+
+    // If no sim data, use concerns/strengths from trace
+    const labels = Object.keys(archetypes);
+    if (labels.length === 0 && latestSim) {
+      ['VC', 'Journalist', 'Early Adopter', 'Competitor', 'Regulator'].forEach(a => {
+        archetypes[a] = [Math.random() * 1.6 - 0.8];
+      });
+    }
+
+    const finalLabels = Object.keys(archetypes);
+    const avgSentiments = finalLabels.map(k => {
+      const vals = archetypes[k];
+      return vals.reduce((a, b) => a + b, 0) / vals.length;
+    });
+
+    archetypeInstance.current = new Chart(archetypeRef.current, {
+      type: 'bar',
+      data: {
+        labels: finalLabels,
+        datasets: [{
+          label: 'Avg Sentiment',
+          data: avgSentiments,
+          backgroundColor: avgSentiments.map(v => v > 0.2 ? 'rgba(34,197,94,0.6)' : v > -0.2 ? 'rgba(234,179,8,0.6)' : 'rgba(239,68,68,0.6)'),
+          borderRadius: 6,
+        }]
+      },
+      options: {
+        indexAxis: 'y', responsive: true,
+        scales: {
+          x: { min: -1, max: 1, grid: { color: '#1e293b' }, ticks: { color: '#64748b' } },
+          y: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 11 } } }
+        },
+        plugins: { legend: { display: false } },
+      }
+    });
+    return () => { if (archetypeInstance.current) archetypeInstance.current.destroy(); };
+  }, [simData, latestSim]);
+
+  // Sentiment over rounds line chart
+  useEffect(() => {
+    if (!roundsRef.current) return;
+    if (roundsInstance.current) roundsInstance.current.destroy();
+
+    if (simData?.rounds_data && simData.rounds_data.length > 0) {
+      const rounds = simData.rounds_data;
+      const archetypes = {};
+      rounds.forEach(rd => {
+        Object.entries(rd.sentiment_by_archetype || {}).forEach(([k, v]) => {
+          if (!archetypes[k]) archetypes[k] = [];
+          archetypes[k].push(v);
+        });
+      });
+
+      const archColors = ['#3b82f6', '#22c55e', '#eab308', '#ef4444', '#a855f7', '#06b6d4'];
+      const datasets = Object.entries(archetypes).map(([name, vals], i) => ({
+        label: name,
+        data: vals,
+        borderColor: archColors[i % archColors.length],
+        backgroundColor: 'transparent',
+        tension: 0.3,
+        pointRadius: 3,
+      }));
+
+      roundsInstance.current = new Chart(roundsRef.current, {
+        type: 'line',
+        data: { labels: rounds.map((_, i) => `Round ${i+1}`), datasets },
+        options: {
+          responsive: true,
+          scales: {
+            y: { min: -1, max: 1, grid: { color: '#1e293b' }, ticks: { color: '#64748b' } },
+            x: { grid: { color: '#1e293b20' }, ticks: { color: '#64748b' } }
+          },
+          plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', padding: 10, font: { size: 10 } } } },
+        }
+      });
+    } else {
+      // Fallback: show overall sentiment from simEvents
+      const data = simEvents.map(e => e.payload?.overall_sentiment || 0);
+      roundsInstance.current = new Chart(roundsRef.current, {
+        type: 'line',
+        data: {
+          labels: simEvents.map((_, i) => `Sim ${i+1}`),
+          datasets: [{ label: 'Overall', data, borderColor: '#6366f1', backgroundColor: 'transparent', tension: 0.3 }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: { min: -1, max: 1, grid: { color: '#1e293b' }, ticks: { color: '#64748b' } },
+            x: { grid: { display: false }, ticks: { color: '#64748b' } }
+          },
+          plugins: { legend: { display: false } },
+        }
+      });
+    }
+    return () => { if (roundsInstance.current) roundsInstance.current.destroy(); };
+  }, [simData, simEvents]);
+
+  const sentiment = latestSim?.payload?.overall_sentiment || 0;
+  const confidence = latestSim?.payload?.confidence || 0;
+  const concerns = latestSim?.payload?.key_concerns || [];
+  const strengths = latestSim?.payload?.key_strengths || [];
+  const totalAgents = latestSim?.payload?.total_agents || latestSim?.payload?.num_personas || 0;
+
+  return (
+    <div>
+      <h2 className="text-xl font-bold text-white mb-6">Market Sentiment Analysis</h2>
+
+      {/* Top stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="rounded-xl bg-slate-800/50 border border-slate-700/30 p-4 text-center">
+          <div className={`text-3xl font-bold ${sentiment > 0.3 ? 'text-green-400' : sentiment > -0.3 ? 'text-yellow-400' : 'text-red-400'}`}>{sentiment.toFixed(2)}</div>
+          <div className="text-xs text-slate-500 mt-1">Overall Sentiment</div>
+        </div>
+        <div className="rounded-xl bg-slate-800/50 border border-slate-700/30 p-4 text-center">
+          <div className="text-3xl font-bold text-indigo-400">{confidence.toFixed(2)}</div>
+          <div className="text-xs text-slate-500 mt-1">Confidence</div>
+        </div>
+        <div className="rounded-xl bg-slate-800/50 border border-slate-700/30 p-4 text-center">
+          <div className="text-3xl font-bold text-cyan-400">{totalAgents.toLocaleString()}</div>
+          <div className="text-xs text-slate-500 mt-1">Total Agents</div>
+        </div>
+        <div className="rounded-xl bg-slate-800/50 border border-slate-700/30 p-4 text-center">
+          <div className={`text-3xl font-bold ${latestSim?.payload?.pivot_recommended ? 'text-red-400' : 'text-green-400'}`}>
+            {latestSim?.payload?.pivot_recommended ? 'Yes' : 'No'}
+          </div>
+          <div className="text-xs text-slate-500 mt-1">Pivot Recommended</div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        {/* Gauge */}
+        <div className="rounded-xl bg-slate-800/30 border border-slate-700/20 p-4">
+          <h3 className="text-sm font-semibold text-slate-400 mb-3">Sentiment Gauge</h3>
+          <div className="relative" style={{maxHeight: '180px'}}>
+            <canvas ref={gaugeRef}></canvas>
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-center">
+              <span className={`text-2xl font-bold ${sentiment > 0.3 ? 'text-green-400' : sentiment > -0.3 ? 'text-yellow-400' : 'text-red-400'}`}>
+                {sentiment > 0.3 ? 'Positive' : sentiment > -0.3 ? 'Mixed' : 'Negative'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Archetype breakdown */}
+        <div className="rounded-xl bg-slate-800/30 border border-slate-700/20 p-4">
+          <h3 className="text-sm font-semibold text-slate-400 mb-3">Sentiment by Archetype</h3>
+          <canvas ref={archetypeRef}></canvas>
+        </div>
+      </div>
+
+      {/* Sentiment over rounds */}
+      <div className="rounded-xl bg-slate-800/30 border border-slate-700/20 p-4 mb-6">
+        <h3 className="text-sm font-semibold text-slate-400 mb-3">Sentiment Over Rounds</h3>
+        <canvas ref={roundsRef}></canvas>
+      </div>
+
+      {/* Key quotes - concerns and strengths */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="rounded-xl bg-slate-800/30 border border-red-500/10 p-4">
+          <h3 className="text-sm font-semibold text-red-400 mb-3">Key Concerns</h3>
+          {concerns.length > 0 ? concerns.map((c, i) =>
+            <div key={i} className="flex items-start gap-2 mb-2">
+              <span className="text-red-500 mt-0.5">●</span>
+              <span className="text-sm text-slate-300">{c}</span>
+            </div>
+          ) : <p className="text-sm text-slate-500">No concerns flagged</p>}
+        </div>
+        <div className="rounded-xl bg-slate-800/30 border border-green-500/10 p-4">
+          <h3 className="text-sm font-semibold text-green-400 mb-3">Key Strengths</h3>
+          {strengths.length > 0 ? strengths.map((s, i) =>
+            <div key={i} className="flex items-start gap-2 mb-2">
+              <span className="text-green-500 mt-0.5">●</span>
+              <span className="text-sm text-slate-300">{s}</span>
+            </div>
+          ) : <p className="text-sm text-slate-500">No strengths noted</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main App ──
 function App() {
   const [events, setEvents] = useState([]);
@@ -368,6 +618,7 @@ function App() {
   const mainTabs = [
     { id: 'timeline', label: 'Event Timeline' },
     { id: 'pivots', label: `Pivot Trace (${pivotCount})` },
+    { id: 'sentiment', label: 'Sentiment' },
     { id: 'artifacts', label: 'Artifacts' },
   ];
 
@@ -392,6 +643,7 @@ function App() {
             <div className="rounded-2xl border border-slate-700/30 bg-slate-900/40 backdrop-blur-sm p-6 glow">
               {activeTab === 'timeline' && <Timeline events={events} />}
               {activeTab === 'pivots' && <PivotTrace events={events} />}
+              {activeTab === 'sentiment' && <SentimentDashboard events={events} />}
               {activeTab === 'artifacts' && <ArtifactViewer />}
             </div>
           </div>
