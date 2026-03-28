@@ -891,7 +891,7 @@ function filterAgentChanges(changes) {
 }
 
 // ── Header ──
-function Header({ events, pivots, cost }) {
+function Header({ events, pivots, cost, isLive, liveStatus }) {
   const [muted, setMuted] = useState(audioManager.muted);
   const handleToggleMute = () => {
     audioManager._init();
@@ -908,6 +908,15 @@ function Header({ events, pivots, cost }) {
           <h1 className="text-3xl font-black tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
             Ghost Board
           </h1>
+          {/* Live mode badge */}
+          {isLive ? (
+            <span className="live-badge ml-2">
+              <span className="live-dot"></span>
+              {liveStatus === 'streaming' ? 'LIVE' : 'CONNECTED'}
+            </span>
+          ) : (
+            <span className="offline-badge ml-2">DEMO</span>
+          )}
           <button onClick={handleToggleMute} title={muted ? 'Unmute sounds' : 'Mute sounds'}
             className="ml-auto w-9 h-9 rounded-lg bg-slate-800/60 border border-slate-700/40 flex items-center justify-center hover:bg-slate-700/60 transition-colors text-slate-400 hover:text-slate-200"
             style={{ fontSize: '16px' }}>
@@ -1455,32 +1464,58 @@ function ArtifactContent({ tab }) {
 }
 
 // ── Market Arena (Screen 3) ──
-function MarketArena({ events }) {
+function MarketArena({ events, liveSimulation, isLive, runId }) {
   const [simData, setSimData] = useState(null);
   const [geoData, setGeoData] = useState([]);
 
+  // If we got live simulation data from parent, use it
+  useEffect(() => {
+    if (liveSimulation) {
+      setSimData(liveSimulation);
+    }
+  }, [liveSimulation]);
+
   useEffect(() => {
     const loadData = async () => {
-      // Try API first, then file paths, then fallback
-      const simPaths = ['/api/simulation/results', '../outputs/simulation_results.json', 'simulation_results.json'];
+      // Try run-scoped API first if live
+      const simPaths = [];
+      if (isLive && runId) {
+        simPaths.push(`${API_BASE}/api/runs/${runId}/simulation`);
+      }
+      simPaths.push('/api/simulation/results', '../outputs/simulation_results.json', 'simulation_results.json');
+
       let loaded = false;
       for (const p of simPaths) {
         try {
           const res = await fetch(p);
-          if (res.ok) { setSimData(await res.json()); loaded = true; break; }
+          if (res.ok) {
+            const raw = await res.json();
+            setSimData(raw.simulation || raw);
+            loaded = true;
+            break;
+          }
         } catch(e) {}
       }
-      if (!loaded) setSimData(DEMO_SIMULATION);
-      const geoPaths = ['/api/simulation/geo', '../outputs/simulation_geo.json', 'simulation_geo.json'];
+      if (!loaded && !liveSimulation) setSimData(DEMO_SIMULATION);
+
+      const geoPaths = [];
+      if (isLive && runId) {
+        geoPaths.push(`${API_BASE}/api/runs/${runId}/simulation-geo`);
+      }
+      geoPaths.push('/api/simulation/geo', '../outputs/simulation_geo.json', 'simulation_geo.json');
       for (const p of geoPaths) {
         try {
           const res = await fetch(p);
-          if (res.ok) { setGeoData(await res.json()); break; }
+          if (res.ok) {
+            const raw = await res.json();
+            setGeoData(raw.geo || (Array.isArray(raw) ? raw : []));
+            break;
+          }
         } catch(e) {}
       }
     };
     loadData();
-  }, []);
+  }, [isLive, runId]);
 
   const simEvent = events.find(e => e.event_type === 'SIMULATION_RESULT');
   const totalAgents = simEvent?.payload?.total_agents || simEvent?.payload?.num_personas || 30;
@@ -1599,17 +1634,37 @@ function MarketArena({ events }) {
 }
 
 // ── Boardroom View (Screen 2) ──
-function BoardroomView({ events }) {
+function BoardroomView({ events, liveDiscussion, isLive, runId }) {
   const [discussion, setDiscussion] = useState([]);
   const [playIndex, setPlayIndex] = useState(0);
 
+  // If we got live discussion data from parent (via WebSocket or API), use it
   useEffect(() => {
-    const paths = ['/api/board_discussion', '../outputs/board_discussion.json', 'board_discussion.json'];
+    if (liveDiscussion && liveDiscussion.length > 0) {
+      setDiscussion(liveDiscussion);
+      return;
+    }
+  }, [liveDiscussion]);
+
+  useEffect(() => {
+    if (liveDiscussion && liveDiscussion.length > 0) return; // Already handled above
+
+    const paths = [];
+    // If live with a runId, try the run-scoped endpoint first
+    if (isLive && runId) {
+      paths.push(`${API_BASE}/api/runs/${runId}/board-discussion`);
+    }
+    paths.push('/api/board_discussion', '../outputs/board_discussion.json', 'board_discussion.json');
+
     const tryLoad = async () => {
       for (const p of paths) {
         try {
           const res = await fetch(p);
-          if (res.ok) { const d = await res.json(); if (d.length > 0) { setDiscussion(d); return; } }
+          if (res.ok) {
+            const raw = await res.json();
+            const d = raw.discussion || (Array.isArray(raw) ? raw : []);
+            if (d.length > 0) { setDiscussion(d); return; }
+          }
         } catch(e) {}
       }
       // Try embedded demo discussion data
@@ -1632,7 +1687,7 @@ function BoardroomView({ events }) {
       setDiscussion(d);
     };
     tryLoad();
-  }, [events]);
+  }, [events, isLive, runId]);
 
   useEffect(() => { setPlayIndex(Math.min(playIndex, discussion.length - 1)); }, [discussion]);
 
@@ -2618,13 +2673,38 @@ function SentimentDashboard({ events }) {
 }
 
 // ── Mission Control (Screen 1) ──
-function MissionControl({ onLaunch }) {
+function MissionControl({ onLaunch, isLive }) {
   const [concept, setConcept] = useState('');
   const [launching, setLaunching] = useState(false);
+  const [launchError, setLaunchError] = useState('');
+  const [sprintStatus, setSprintStatus] = useState(''); // '' | 'starting' | 'running' | 'done'
 
-  const handleLaunch = () => {
+  const handleLaunch = async () => {
+    setLaunchError('');
     audioManager.play('launch');
     setLaunching(true);
+
+    if (isLive && concept.trim()) {
+      // Live mode: POST to the API
+      setSprintStatus('starting');
+      const result = await liveConn.startSprint(concept.trim());
+      if (result) {
+        setSprintStatus('running');
+        // Wait a moment for the warp animation then switch to dashboard
+        setTimeout(() => {
+          audioManager.play('sprint_complete');
+          onLaunch(concept, result.run_id);
+        }, 1200);
+        return;
+      } else {
+        setLaunchError('Failed to start sprint. Check that the server is running.');
+        setLaunching(false);
+        setSprintStatus('');
+        return;
+      }
+    }
+
+    // Offline/demo mode: just transition to dashboard with demo data
     setTimeout(() => {
       audioManager.play('sprint_complete');
       onLaunch(concept);
@@ -2651,6 +2731,15 @@ function MissionControl({ onLaunch }) {
           </h1>
         </div>
         <p className="text-slate-400 text-lg">Autonomous AI Executive Team</p>
+        {/* Live/Demo indicator */}
+        {isLive ? (
+          <span className="live-badge mt-3 inline-flex">
+            <span className="live-dot"></span>
+            CONNECTED TO SERVER
+          </span>
+        ) : (
+          <span className="offline-badge mt-3 inline-flex">DEMO MODE</span>
+        )}
       </div>
 
       {/* Input */}
@@ -2660,22 +2749,33 @@ function MissionControl({ onLaunch }) {
             type="text"
             value={concept}
             onChange={e => setConcept(e.target.value)}
-            placeholder="Enter your startup concept..."
+            placeholder={isLive ? "Enter your startup concept to run a live sprint..." : "Enter your startup concept..."}
             onKeyDown={e => e.key === 'Enter' && handleLaunch()}
             className="w-full px-6 py-4 rounded-xl bg-slate-900/80 border border-slate-600/30 text-white text-lg placeholder-slate-500 focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 backdrop-blur-sm mono mission-input"
             style={{ caretColor: '#6366f1' }}
           />
           <div className="absolute right-3 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-indigo-500 animate-pulse"></div>
         </div>
+        {/* Error message */}
+        {launchError && (
+          <div className="mt-3 text-red-400 text-sm mono text-center">{launchError}</div>
+        )}
+        {/* Server hint when not live */}
+        {!isLive && (
+          <div className="mt-3 text-slate-600 text-xs mono text-center">
+            Start the server with <span className="text-slate-400">python main.py --serve</span> for live mode
+          </div>
+        )}
       </div>
 
       {/* Launch button */}
       <div className="relative z-10 mt-8 fade-in fade-in-delay-2">
         <button onClick={handleLaunch}
-          className="group relative px-10 py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-lg transition-all hover:scale-105 hover:shadow-[0_0_40px_rgba(99,102,241,0.3)]">
+          disabled={launching}
+          className="group relative px-10 py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-lg transition-all hover:scale-105 hover:shadow-[0_0_40px_rgba(99,102,241,0.3)] disabled:opacity-50 disabled:hover:scale-100">
           <span className="relative z-10 flex items-center gap-2">
             <span className="text-xl">&#9673;</span>
-            LAUNCH SPRINT
+            {sprintStatus === 'starting' ? 'STARTING...' : isLive ? 'LAUNCH LIVE SPRINT' : 'LAUNCH SPRINT'}
           </span>
         </button>
       </div>
@@ -2693,8 +2793,12 @@ function MissionControl({ onLaunch }) {
       {launching && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/90 animate-pulse">
           <div className="text-center">
-            <div className="mono text-indigo-400 text-sm mb-2">$ ghost-board sprint --launch</div>
-            <div className="mono text-green-400 text-xs animate-pulse">Initializing agents...</div>
+            <div className="mono text-indigo-400 text-sm mb-2">
+              {isLive ? `$ ghost-board sprint --live --concept "${concept || 'startup'}"` : '$ ghost-board sprint --launch'}
+            </div>
+            <div className="mono text-green-400 text-xs animate-pulse">
+              {sprintStatus === 'running' ? 'Sprint started! Connecting to live feed...' : 'Initializing agents...'}
+            </div>
           </div>
         </div>
       )}
@@ -2710,10 +2814,44 @@ function App() {
   const [screen, setScreen] = useState('mission-control');
   const [tabTransition, setTabTransition] = useState('screen-enter');
   const [renderedTab, setRenderedTab] = useState('timeline');
+  const [isLive, setIsLive] = useState(false);
+  const [liveStatus, setLiveStatus] = useState('disconnected');
+  const [liveRunId, setLiveRunId] = useState(null);
+  const [liveDiscussion, setLiveDiscussion] = useState(null);
+  const [liveSimulation, setLiveSimulation] = useState(null);
+  const [wsEvents, setWsEvents] = useState([]); // Real-time events from WebSocket
 
+  // On mount: check if API server is reachable
+  useEffect(() => {
+    const init = async () => {
+      const connected = await liveConn.tryConnect();
+      setIsLive(connected);
+      setLiveStatus(liveConn.status);
+      if (connected && liveConn.runId) {
+        setLiveRunId(liveConn.runId);
+      }
+    };
+    init();
+    return () => { liveConn.destroy(); };
+  }, []);
+
+  // Load trace data (tries API first, then files, then demo)
   useEffect(() => {
     const tryLoad = async () => {
-      // 1. Server mode: try API endpoint first
+      // 1. If live and we have a runId, fetch from API
+      if (isLive && liveRunId) {
+        const data = await liveConn.fetchRunData(liveRunId);
+        if (data && data.trace.length > 0) {
+          setEvents(data.trace);
+          if (data.discussion && data.discussion.length > 0) setLiveDiscussion(data.discussion);
+          if (data.simulation) setLiveSimulation(data.simulation);
+          setLoading(false);
+          // Connect WebSocket for real-time updates
+          liveConn.connectWebSocket(liveRunId);
+          return;
+        }
+      }
+      // 2. Server mode: try API endpoint directly
       const apiPaths = ['/api/runs/latest/trace', '/api/trace'];
       for (const path of apiPaths) {
         try {
@@ -2728,7 +2866,7 @@ function App() {
           }
         } catch(e) {}
       }
-      // 2. File mode: try local file paths
+      // 3. File mode: try local file paths
       const filePaths = ['../outputs/trace.json', '../demo/cached_trace.json', 'trace.json'];
       for (const path of filePaths) {
         try {
@@ -2743,25 +2881,107 @@ function App() {
           }
         } catch(e) {}
       }
-      // 3. Offline mode: use embedded demo data
+      // 4. Offline mode: use embedded demo data
       setEvents(DEMO_DATA);
       setLoading(false);
     };
     tryLoad();
-  }, []);
+  }, [isLive, liveRunId]);
+
+  // WebSocket listener for real-time updates
+  useEffect(() => {
+    if (!isLive) return;
+    const unsub = liveConn.subscribe((msg) => {
+      setLiveStatus(liveConn.status);
+      if (msg.type === 'ws_event' && msg.data) {
+        const ev = msg.data;
+        // Append new event to the trace
+        if (ev.event_type || ev.type) {
+          setEvents(prev => {
+            const eventId = ev.event_id || ev.id;
+            // Avoid duplicates
+            if (eventId && prev.some(e => (e.event_id || e.id) === eventId)) return prev;
+            return [...prev, ev];
+          });
+          setWsEvents(prev => [...prev, ev]);
+          // Play sounds for significant events
+          if (ev.event_type === 'BLOCKER') audioManager.play('blocker');
+          else if (ev.event_type === 'PIVOT') audioManager.play('pivot');
+          else if (['PROTOTYPE_READY','FINANCIAL_MODEL_READY','GTM_READY','COMPLIANCE_REPORT_READY'].includes(ev.event_type)) {
+            audioManager.play('agent_complete');
+          }
+        }
+        // Also handle discussion updates
+        if (ev.event_type === 'BOARD_DISCUSSION' || ev.discussion) {
+          const entry = ev.discussion || ev;
+          setLiveDiscussion(prev => prev ? [...prev, entry] : [entry]);
+        }
+        // Handle simulation updates
+        if (ev.event_type === 'SIMULATION_RESULT' || ev.simulation) {
+          setLiveSimulation(ev.simulation || ev.payload);
+        }
+      }
+      if (msg.type === 'ws_connected') {
+        setLiveStatus('streaming');
+      }
+    });
+    return unsub;
+  }, [isLive]);
+
+  // Auto-refresh: poll for new runs every 5 seconds when live
+  useEffect(() => {
+    if (!isLive) return;
+    liveConn.startPolling(async (msg) => {
+      if (msg.type === 'new_run') {
+        // A new run appeared - switch to it
+        setLiveRunId(msg.runId);
+        liveConn.connectWebSocket(msg.runId);
+        // Fetch the new run's data
+        const data = await liveConn.fetchRunData(msg.runId);
+        if (data && data.trace.length > 0) {
+          setEvents(data.trace);
+          if (data.discussion && data.discussion.length > 0) setLiveDiscussion(data.discussion);
+          if (data.simulation) setLiveSimulation(data.simulation);
+        }
+      }
+      if (msg.type === 'run_status' && msg.run) {
+        // Refresh data if the run is still in progress
+        const status = msg.run.status;
+        if (status === 'running' || status === 'pending') {
+          const data = await liveConn.fetchRunData(msg.run.run_id || msg.run.id);
+          if (data && data.trace.length > 0) {
+            setEvents(data.trace);
+            if (data.discussion && data.discussion.length > 0) setLiveDiscussion(data.discussion);
+            if (data.simulation) setLiveSimulation(data.simulation);
+          }
+        }
+      }
+    }, 5000);
+    return () => liveConn.stopPolling();
+  }, [isLive]);
 
   const pivotCount = events.filter(e => e.event_type === 'PIVOT').length;
-  // Estimate API cost from event counts: ~$0.003 per LLM call event, $0.001 per other event
+  // Estimate API cost from event counts
   const llmCalls = events.filter(e => e.payload?.action === 'llm_call').length;
   const totalCost = llmCalls > 0 ? (llmCalls * 0.003 + (events.length - llmCalls) * 0.0001) : 0.19;
 
+  const handleLaunch = (concept, runId) => {
+    if (runId) {
+      setLiveRunId(runId);
+      liveConn.connectWebSocket(runId);
+    }
+    setScreen('dashboard');
+  };
+
   if (screen === 'mission-control') {
-    return <MissionControl onLaunch={() => setScreen('dashboard')} />;
+    return <MissionControl onLaunch={handleLaunch} isLive={isLive} />;
   }
 
   if (loading) return (
     <div className="flex items-center justify-center min-h-screen">
-      <div className="text-indigo-400 text-xl animate-pulse">Loading trace data...</div>
+      <div className="text-indigo-400 text-xl animate-pulse">
+        {isLive ? 'Loading live data from server...' : 'Loading trace data...'}
+      </div>
     </div>
   );
 
@@ -2778,7 +2998,7 @@ function App() {
 
   return (
     <div className="min-h-screen pb-12">
-      <Header events={events.length} pivots={pivotCount} cost={totalCost} />
+      <Header events={events.length} pivots={pivotCount} cost={totalCost} isLive={isLive} liveStatus={liveStatus} />
 
       <div className="max-w-7xl mx-auto px-6 mt-8 main-container">
         {/* Tab navigation */}
@@ -2805,8 +3025,8 @@ function App() {
           <div className="lg:col-span-2">
             <div className={`rounded-2xl border border-slate-700/30 bg-slate-900/40 backdrop-blur-sm p-6 glow content-card ${tabTransition}`}>
               {renderedTab === 'timeline' && <Timeline events={events} />}
-              {renderedTab === 'boardroom' && <BoardroomView events={events} />}
-              {renderedTab === 'arena' && <MarketArena events={events} />}
+              {renderedTab === 'boardroom' && <BoardroomView events={events} liveDiscussion={liveDiscussion} isLive={isLive} runId={liveRunId} />}
+              {renderedTab === 'arena' && <MarketArena events={events} liveSimulation={liveSimulation} isLive={isLive} runId={liveRunId} />}
               {renderedTab === 'pivots' && <PivotTrace events={events} />}
               {renderedTab === 'pivotflow' && <PivotFlow events={events} />}
               {renderedTab === 'sentiment' && <SentimentDashboard events={events} />}
@@ -2831,6 +3051,7 @@ function App() {
 
       <footer className="text-center text-xs text-slate-600 mt-12">
         Built at Ralphthon SF 2026 | Ghost Board v1.0
+        {isLive && liveRunId && <span className="ml-2 text-slate-700">| Run: {liveRunId.substring(0, 8)}...</span>}
       </footer>
     </div>
   );

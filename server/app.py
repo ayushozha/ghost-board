@@ -211,9 +211,10 @@ async def _run_sprint_background(run_id: str, concept: str, sim_scale: str) -> N
             os.chdir(original_cwd)
 
         # Persist events to database
-        trace_events = sprint_result.get("events", [])
-        if isinstance(trace_events, int):
-            # If events is just a count, try reading trace.json
+        # run_sprint() returns "trace" (list of event dicts) and "events" (int count).
+        # Prefer the actual trace list; fall back to reading trace.json from disk.
+        trace_events = sprint_result.get("trace", [])
+        if not isinstance(trace_events, list) or not trace_events:
             trace_data = _read_json_file(OUTPUTS_DIR / "trace.json")
             trace_events = trace_data if isinstance(trace_data, list) else []
 

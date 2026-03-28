@@ -139,8 +139,24 @@ class BaseAgent:
 
     _board_discussion: list[dict[str, Any]] = []
 
-    def log(self, message: str, action: str = "info", reasoning: str = "") -> None:
-        """Log an action to the trace logger and board discussion."""
+    def log(
+        self,
+        message: str,
+        action: str = "info",
+        reasoning: str = "",
+        addressed_to: str = "",
+        in_response_to: str = "",
+    ) -> None:
+        """Log an action to the trace logger and board discussion.
+
+        Args:
+            message: The main content/decision text.
+            action: Event type tag (strategy, pivot, blocker_found, etc.).
+            reasoning: WHY the agent made this decision. Must not be empty for
+                       board-visible actions.
+            addressed_to: Which agent(s) this is directed at, if any (e.g. "CEO", "all agents").
+            in_response_to: What event/action triggered this (e.g. "Legal BLOCKER: MSB licensing").
+        """
         event = AgentEvent(
             type=EventType.UPDATE,
             source=self.name,
@@ -157,15 +173,22 @@ class BaseAgent:
         if reasoning or action in ("strategy", "pivot", "blocker_found", "blocker_review",
                                      "compliance_scan", "financial_model", "gtm_generate",
                                      "codex_generate", "pivot_response", "simulation_review",
-                                     "simulation_response"):
+                                     "simulation_response", "pivot_decision"):
             BaseAgent._board_discussion.append({
                 "agent": self.name,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "event_type": action,
                 "message": message,
                 "reasoning": reasoning or message,
+                "addressed_to": addressed_to or "",
+                "in_response_to": in_response_to or "",
                 "iteration": self._current_iteration,
             })
+
+    @classmethod
+    def clear_board_discussion(cls) -> None:
+        """Clear accumulated board discussion entries (call at start of each sprint)."""
+        cls._board_discussion.clear()
 
     @classmethod
     def save_board_discussion(cls) -> None:
@@ -218,7 +241,9 @@ Respond with ONLY your response text."""
         self.log(
             text,
             action="simulation_response",
-            reasoning=f"Responding to CEO's simulation findings with proposed adaptations for {self.name}'s domain.",
+            reasoning=f"Responding to CEO's simulation findings with proposed adaptations for {self.name}'s domain. Market sentiment and stakeholder concerns require adjustments to my deliverables.",
+            addressed_to="CEO",
+            in_response_to="CEO simulation debrief",
         )
         return text
 

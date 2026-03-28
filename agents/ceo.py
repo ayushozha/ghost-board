@@ -41,7 +41,12 @@ class CEOAgent(BaseAgent):
 
     async def set_strategy(self, startup_idea: str, context: dict[str, Any] | None = None) -> StrategyPayload:
         """Generate initial strategy using LLM."""
-        self.log("Setting initial strategy", action="strategy")
+        self.log(
+            "Setting initial strategy for the team",
+            action="strategy",
+            reasoning=f"Analyzing the startup concept '{startup_idea}' to determine optimal business model, target market, and key differentiators. This sets the direction for all agents.",
+            addressed_to="all agents",
+        )
 
         prompt = f"""You are the CEO of a startup. Define a clear strategy for:
 Idea: {startup_idea}
@@ -71,10 +76,18 @@ Respond in JSON with these exact fields:
             )
 
         self.current_strategy = strategy
+        differentiators_str = ', '.join(strategy.key_differentiators) if strategy.key_differentiators else 'not yet defined'
+        constraints_str = ', '.join(strategy.constraints) if strategy.constraints else 'none identified'
         self.log(
             f"Strategy: {strategy.startup_idea} - {strategy.business_model} for {strategy.target_market}",
             action="strategy",
-            reasoning=f"Chose {strategy.business_model} model because it aligns with {strategy.target_market}. Key differentiators: {', '.join(strategy.key_differentiators)}. Constraints to address: {', '.join(strategy.constraints)}.",
+            reasoning=(
+                f"Chose {strategy.business_model} model because it best serves {strategy.target_market}. "
+                f"Key differentiators: {differentiators_str}. "
+                f"Constraints to address: {constraints_str}. "
+                f"This model maximizes recurring revenue while minimizing upfront capital requirements."
+            ),
+            addressed_to="all agents",
         )
         await self.publish(AgentEvent(
             type=EventType.STRATEGY_SET,
@@ -92,7 +105,17 @@ Respond in JSON with these exact fields:
         if not isinstance(payload, BlockerPayload):
             return
 
-        self.log(f"Processing blocker: {payload.severity} - {payload.description}", action="blocker_review")
+        self.log(
+            f"Processing blocker: {payload.severity} - {payload.description}",
+            action="blocker_review",
+            reasoning=(
+                f"Legal has flagged a {payload.severity} severity blocker: {payload.description}. "
+                f"Citations: {', '.join(payload.citations) if payload.citations else 'none'}. "
+                f"Must evaluate whether this requires a strategic pivot or can be mitigated."
+            ),
+            addressed_to="Legal",
+            in_response_to=f"Legal BLOCKER: {payload.area}",
+        )
 
         if self.pivot_count >= self.MAX_PIVOTS:
             self.log(f"Max pivots ({self.MAX_PIVOTS}) reached, absorbing blocker", action="max_pivots")
@@ -199,6 +222,8 @@ Respond with ONLY the presentation text, no JSON."""
                 f"This is pivot #{self.pivot_count}. "
                 f"Evaluating 2-3 strategic alternatives before choosing direction."
             ),
+            addressed_to="all agents",
+            in_response_to=trigger_quote[:200] if trigger_quote else reason,
         )
 
         old_strategy_str = self.current_strategy.model_dump_json() if self.current_strategy else "{}"
