@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ghost Board - Sprint Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap');
+  * { font-family: 'Inter', sans-serif; }
+  code, .mono { font-family: 'JetBrains Mono', monospace; }
+  body { background: #0a0a0f; color: #e2e8f0; }
+
+  /* Gradient animations */
+  @keyframes gradient-shift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  .gradient-bg {
+    background: linear-gradient(-45deg, #0f172a, #1e1b4b, #0c1445, #172554);
+    background-size: 400% 400%;
+    animation: gradient-shift 15s ease infinite;
+  }
+  .glow { box-shadow: 0 0 30px rgba(99, 102, 241, 0.15); }
+  .glow-red { box-shadow: 0 0 20px rgba(239, 68, 68, 0.25); }
+  .glow-green { box-shadow: 0 0 20px rgba(34, 197, 94, 0.2); }
+
+  /* Pivot animation */
+  @keyframes pivot-pulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+    50% { transform: scale(1.05); box-shadow: 0 0 30px 10px rgba(239,68,68,0.2); }
+  }
+  .pivot-card { animation: pivot-pulse 2s ease-in-out infinite; }
+
+  /* Fade in */
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .fade-in { animation: fadeInUp 0.6s ease forwards; }
+  .fade-in-delay-1 { animation-delay: 0.1s; opacity: 0; }
+  .fade-in-delay-2 { animation-delay: 0.2s; opacity: 0; }
+  .fade-in-delay-3 { animation-delay: 0.3s; opacity: 0; }
+
+  /* Timeline */
+  .timeline-line { width: 2px; background: linear-gradient(to bottom, #6366f1, #8b5cf6, #a855f7); }
+  .timeline-dot { width: 12px; height: 12px; border-radius: 50%; position: relative; z-index: 2; }
+  .timeline-dot::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid currentColor; opacity: 0.3; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #1e1b4b; }
+  ::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 3px; }
+
+  /* Tabs */
+  .tab-active { border-bottom: 2px solid #6366f1; color: #a5b4fc; }
+  .tab-inactive { border-bottom: 2px solid transparent; color: #64748b; }
+  .tab-inactive:hover { color: #94a3b8; }
+</style>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: { extend: { colors: { brand: { 50:'#eef2ff',500:'#6366f1',600:'#4f46e5',900:'#1e1b4b' }}}}
+}
+</script>
+</head>
+<body class="gradient-bg min-h-screen">
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useMemo } = React;
+
+// ── Color map for agents ──
+const AGENT_COLORS = {
+  CEO: { bg: 'bg-yellow-500/20', border: 'border-yellow-500', text: 'text-yellow-400', hex: '#eab308', dot: 'bg-yellow-500' },
+  CTO: { bg: 'bg-blue-500/20', border: 'border-blue-500', text: 'text-blue-400', hex: '#3b82f6', dot: 'bg-blue-500' },
+  CFO: { bg: 'bg-green-500/20', border: 'border-green-500', text: 'text-green-400', hex: '#22c55e', dot: 'bg-green-500' },
+  CMO: { bg: 'bg-purple-500/20', border: 'border-purple-500', text: 'text-purple-400', hex: '#a855f7', dot: 'bg-purple-500' },
+  Legal: { bg: 'bg-red-500/20', border: 'border-red-500', text: 'text-red-400', hex: '#ef4444', dot: 'bg-red-500' },
+  Simulation: { bg: 'bg-cyan-500/20', border: 'border-cyan-500', text: 'text-cyan-400', hex: '#06b6d4', dot: 'bg-cyan-500' },
+};
+const getColor = (source) => AGENT_COLORS[source] || { bg:'bg-gray-500/20', border:'border-gray-500', text:'text-gray-400', hex:'#6b7280', dot:'bg-gray-500' };
+
+// ── Header ──
+function Header({ events, pivots, cost }) {
+  return (
+    <header className="p-6 fade-in">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-10 h-10 rounded-lg bg-indigo-500/30 flex items-center justify-center">
+            <span className="text-xl">&#9763;</span>
+          </div>
+          <h1 className="text-3xl font-black tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+            Ghost Board
+          </h1>
+        </div>
+        <p className="text-slate-400 text-sm ml-[52px]">Autonomous AI Executive Team Sprint Dashboard</p>
+        <div className="flex gap-6 mt-6 ml-[52px]">
+          <Stat label="Events" value={events} />
+          <Stat label="Pivots" value={pivots} accent={pivots > 0 ? 'text-red-400' : 'text-green-400'} />
+          <Stat label="API Cost" value={`$${cost.toFixed(4)}`} accent="text-green-400" />
+          <Stat label="Human Equiv." value="~$15,000" accent="text-slate-500" />
+        </div>
+      </div>
+    </header>
+  );
+}
+function Stat({ label, value, accent }) {
+  return (
+    <div className="text-center">
+      <div className={`text-2xl font-bold ${accent || 'text-white'}`}>{value}</div>
+      <div className="text-xs text-slate-500 uppercase tracking-wider">{label}</div>
+    </div>
+  );
+}
+
+// ── Event Timeline ──
+function Timeline({ events }) {
+  const significant = events.filter(e =>
+    ['STRATEGY_SET','BLOCKER','PIVOT','PROTOTYPE_READY','FINANCIAL_MODEL_READY','GTM_READY','COMPLIANCE_REPORT_READY','SIMULATION_RESULT'].includes(e.event_type)
+  );
+  return (
+    <div className="relative">
+      <div className="absolute left-5 top-0 bottom-0 timeline-line"></div>
+      <div className="space-y-4 pl-12">
+        {significant.map((ev, i) => (
+          <TimelineItem key={ev.event_id || i} event={ev} index={i} />
+        ))}
+      </div>
+    </div>
+  );
+}
+function TimelineItem({ event, index }) {
+  const c = getColor(event.source);
+  const isPivot = event.event_type === 'PIVOT';
+  const isBlocker = event.event_type === 'BLOCKER';
+  return (
+    <div className={`fade-in relative ${isPivot ? 'pivot-card' : ''}`} style={{ animationDelay: `${index * 0.08}s` }}>
+      <div className={`absolute -left-[38px] top-3 timeline-dot ${c.dot}`}></div>
+      <div className={`rounded-xl p-4 border ${c.border}/30 ${c.bg} backdrop-blur-sm ${isPivot ? 'glow-red border-red-500/50' : isBlocker ? 'glow-red' : 'glow'}`}>
+        <div className="flex items-center gap-2 mb-1">
+          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${c.bg} ${c.text} border ${c.border}/30`}>
+            {event.source}
+          </span>
+          <span className="text-xs text-slate-500 mono">{event.event_type}</span>
+          {isPivot && <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full border border-red-500/30 font-bold">PIVOT</span>}
+          {isBlocker && <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full border border-red-500/30">BLOCKER</span>}
+        </div>
+        <EventPayload event={event} />
+      </div>
+    </div>
+  );
+}
+function EventPayload({ event }) {
+  const p = event.payload || {};
+  switch(event.event_type) {
+    case 'STRATEGY_SET': return <div className="text-sm"><strong>{p.startup_idea}</strong><br/><span className="text-slate-400">{p.business_model} | {p.target_market}</span></div>;
+    case 'BLOCKER': return <div className="text-sm"><span className="text-red-400 font-bold">[{p.severity}]</span> {p.description}{p.citations?.length > 0 && <div className="mt-1 text-xs text-slate-500">{p.citations.map((c,i) => <div key={i} className="truncate">&#128279; {c}</div>)}</div>}</div>;
+    case 'PIVOT': return <div className="text-sm text-red-300">{p.reason}</div>;
+    case 'PROTOTYPE_READY': return <div className="text-sm text-blue-300">{p.files_generated?.length || 0} files generated</div>;
+    case 'FINANCIAL_MODEL_READY': return <div className="text-sm text-green-300">Y1: ${(p.revenue_year1||0).toLocaleString()} | Runway: {p.runway_months}mo</div>;
+    case 'GTM_READY': return <div className="text-sm text-purple-300">"{p.tagline}"</div>;
+    case 'COMPLIANCE_REPORT_READY': return <div className="text-sm">{p.risk_level} risk | {p.blockers_found} blockers</div>;
+    case 'SIMULATION_RESULT': return <div className="text-sm text-cyan-300">Sentiment: {p.overall_sentiment?.toFixed(2)} | Pivot: {p.pivot_recommended ? 'Yes' : 'No'}</div>;
+    default: return <div className="text-xs text-slate-500">{p.details || p.action || JSON.stringify(p).slice(0,100)}</div>;
+  }
+}
+
+// ── Cost Pie Chart ──
+function CostChart({ events }) {
+  const chartRef = useRef(null);
+  const chartInstance = useRef(null);
+  const costByAgent = useMemo(() => {
+    const counts = {};
+    events.forEach(e => { counts[e.source] = (counts[e.source] || 0) + 1; });
+    return counts;
+  }, [events]);
+
+  useEffect(() => {
+    if (!chartRef.current) return;
+    if (chartInstance.current) chartInstance.current.destroy();
+    const labels = Object.keys(costByAgent);
+    const data = Object.values(costByAgent);
+    const colors = labels.map(l => getColor(l).hex);
+    chartInstance.current = new Chart(chartRef.current, {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 0 }] },
+      options: {
+        responsive: true, cutout: '65%',
+        plugins: {
+          legend: { position: 'bottom', labels: { color: '#94a3b8', padding: 12, font: { size: 11 } } },
+        }
+      }
+    });
+    return () => { if (chartInstance.current) chartInstance.current.destroy(); };
+  }, [costByAgent]);
+
+  return <canvas ref={chartRef} />;
+}
+
+// ── Sentiment Chart ──
+function SentimentChart({ events }) {
+  const chartRef = useRef(null);
+  const chartInstance = useRef(null);
+  const simEvents = useMemo(() =>
+    events.filter(e => e.event_type === 'SIMULATION_RESULT')
+  , [events]);
+
+  useEffect(() => {
+    if (!chartRef.current || simEvents.length === 0) return;
+    if (chartInstance.current) chartInstance.current.destroy();
+    chartInstance.current = new Chart(chartRef.current, {
+      type: 'bar',
+      data: {
+        labels: simEvents.map((_, i) => `Sim ${i+1}`),
+        datasets: [{
+          label: 'Sentiment',
+          data: simEvents.map(e => e.payload?.overall_sentiment || 0),
+          backgroundColor: simEvents.map(e => (e.payload?.overall_sentiment || 0) > 0 ? 'rgba(34,197,94,0.6)' : 'rgba(239,68,68,0.6)'),
+          borderRadius: 8,
+        }]
+      },
+      options: {
+        responsive: true, scales: { y: { min: -1, max: 1, grid: { color: '#1e293b' }, ticks: { color: '#64748b' } }, x: { grid: { display: false }, ticks: { color: '#64748b' } } },
+        plugins: { legend: { display: false } },
+      }
+    });
+    return () => { if (chartInstance.current) chartInstance.current.destroy(); };
+  }, [simEvents]);
+
+  return <canvas ref={chartRef} />;
+}
+
+// ── Pivot Trace (the dramatic centerpiece) ──
+function PivotTrace({ events }) {
+  const pivots = events.filter(e => e.event_type === 'PIVOT');
+  const blockers = events.filter(e => e.event_type === 'BLOCKER');
+  if (pivots.length === 0) return <div className="text-slate-500 text-center py-8">No pivots in this run</div>;
+  return (
+    <div className="space-y-6">
+      {pivots.map((pivot, i) => {
+        const trigger = blockers.find(b => b.event_id === pivot.triggered_by) ||
+                       events.find(e => e.event_id === pivot.triggered_by);
+        return (
+          <div key={i} className="pivot-card rounded-2xl border border-red-500/30 bg-red-950/20 p-6 glow-red">
+            <div className="text-red-400 font-black text-lg mb-4 flex items-center gap-2">
+              <span className="text-2xl">&#9888;</span> Pivot #{i+1}
+            </div>
+            {trigger && (
+              <div className="mb-4 p-3 rounded-lg bg-red-900/20 border border-red-800/30">
+                <div className="text-xs text-red-300 font-bold mb-1">TRIGGER: {trigger.event_type}</div>
+                <div className="text-sm text-red-200">{trigger.payload?.description || trigger.payload?.pivot_suggestion || 'Market signal'}</div>
+                {trigger.payload?.citations?.map((c, j) => (
+                  <div key={j} className="text-xs text-red-400/60 mt-1 truncate">&#128279; {c}</div>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center gap-3 my-4">
+              <div className="flex-1 h-px bg-gradient-to-r from-red-500/50 to-transparent"></div>
+              <span className="text-red-400 text-xs font-bold uppercase tracking-widest">CEO Decision</span>
+              <div className="flex-1 h-px bg-gradient-to-l from-red-500/50 to-transparent"></div>
+            </div>
+            <div className="text-sm text-slate-300">{pivot.payload?.reason}</div>
+            {pivot.payload?.changes_required && (
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {Object.entries(pivot.payload.changes_required).map(([agent, change]) => (
+                  <div key={agent} className={`text-xs p-2 rounded-lg ${getColor(agent).bg} border ${getColor(agent).border}/20`}>
+                    <span className={`font-bold ${getColor(agent).text}`}>{agent}:</span>
+                    <span className="text-slate-400 ml-1">{change}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Artifact Viewer ──
+function ArtifactViewer() {
+  const [tab, setTab] = useState('prototype');
+  const tabs = [
+    { id: 'prototype', label: 'Prototype', icon: '&#128187;' },
+    { id: 'financial', label: 'Financial', icon: '&#128200;' },
+    { id: 'gtm', label: 'GTM', icon: '&#128640;' },
+    { id: 'compliance', label: 'Compliance', icon: '&#9878;' },
+  ];
+  return (
+    <div>
+      <div className="flex gap-1 mb-4 border-b border-slate-700/50">
+        {tabs.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${tab === t.id ? 'tab-active' : 'tab-inactive'}`}
+            dangerouslySetInnerHTML={{ __html: `${t.icon} ${t.label}` }} />
+        ))}
+      </div>
+      <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/30 min-h-[200px]">
+        <ArtifactContent tab={tab} />
+      </div>
+    </div>
+  );
+}
+function ArtifactContent({ tab }) {
+  const info = {
+    prototype: { title: 'CTO Prototype', desc: 'Generated FastAPI app with Pydantic models, fraud detection endpoints, and test suite. Each pivot produces a new version adapted to the updated strategy.', files: ['app.py', 'models.py', 'routes.py', 'test_app.py'] },
+    financial: { title: 'CFO Financial Model', desc: 'Three-year projections with monthly breakdown, unit economics (LTV/CAC), funding requirements, and risk analysis. Adjusted after each pivot.', files: ['model_v1.json', 'model_v1.md'] },
+    gtm: { title: 'CMO Go-to-Market', desc: 'Landing page copy, positioning statement, tagline, value propositions, competitive matrix, and launch plan. Rewritten on pivot.', files: ['landing_page_v1.md', 'launch_plan_v1.md', 'competitive_matrix_v1.md'] },
+    compliance: { title: 'Legal Compliance', desc: 'Regulatory analysis with REAL citations from CFPB, FinCEN, SEC, FTC, GDPR. Blockers include actual regulation numbers and URLs.', files: ['report_v1.md', 'report_v1.json'] },
+  };
+  const d = info[tab];
+  return (
+    <div>
+      <h3 className="text-lg font-bold text-white mb-2">{d.title}</h3>
+      <p className="text-sm text-slate-400 mb-3">{d.desc}</p>
+      <div className="flex gap-2 flex-wrap">
+        {d.files.map(f => (
+          <span key={f} className="px-3 py-1 rounded-lg bg-slate-800 text-xs mono text-slate-300 border border-slate-700/50">{f}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Main App ──
+function App() {
+  const [events, setEvents] = useState([]);
+  const [activeTab, setActiveTab] = useState('timeline');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Try multiple paths for trace data
+    const paths = ['../outputs/trace.json', '../demo/cached_trace.json', 'trace.json'];
+    const tryLoad = async () => {
+      for (const path of paths) {
+        try {
+          const res = await fetch(path);
+          if (res.ok) {
+            const data = await res.json();
+            setEvents(data);
+            setLoading(false);
+            return;
+          }
+        } catch(e) {}
+      }
+      // Load embedded demo data
+      setEvents(DEMO_DATA);
+      setLoading(false);
+    };
+    tryLoad();
+  }, []);
+
+  const pivotCount = events.filter(e => e.event_type === 'PIVOT').length;
+  const totalCost = 0.15; // Estimate from cached run
+
+  if (loading) return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="text-indigo-400 text-xl animate-pulse">Loading trace data...</div>
+    </div>
+  );
+
+  const mainTabs = [
+    { id: 'timeline', label: 'Event Timeline' },
+    { id: 'pivots', label: `Pivot Trace (${pivotCount})` },
+    { id: 'artifacts', label: 'Artifacts' },
+  ];
+
+  return (
+    <div className="min-h-screen pb-12">
+      <Header events={events.length} pivots={pivotCount} cost={totalCost} />
+
+      <div className="max-w-7xl mx-auto px-6 mt-8">
+        {/* Tab navigation */}
+        <div className="flex gap-1 mb-6 border-b border-slate-700/50">
+          {mainTabs.map(t => (
+            <button key={t.id} onClick={() => setActiveTab(t.id)}
+              className={`px-5 py-3 text-sm font-medium transition-colors ${activeTab === t.id ? 'tab-active' : 'tab-inactive'}`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main content */}
+          <div className="lg:col-span-2 fade-in fade-in-delay-1">
+            <div className="rounded-2xl border border-slate-700/30 bg-slate-900/40 backdrop-blur-sm p-6 glow">
+              {activeTab === 'timeline' && <Timeline events={events} />}
+              {activeTab === 'pivots' && <PivotTrace events={events} />}
+              {activeTab === 'artifacts' && <ArtifactViewer />}
+            </div>
+          </div>
+
+          {/* Sidebar */}
+          <div className="space-y-6 fade-in fade-in-delay-2">
+            <div className="rounded-2xl border border-slate-700/30 bg-slate-900/40 backdrop-blur-sm p-6 glow">
+              <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Agent Activity</h3>
+              <CostChart events={events} />
+            </div>
+            <div className="rounded-2xl border border-slate-700/30 bg-slate-900/40 backdrop-blur-sm p-6 glow">
+              <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Market Sentiment</h3>
+              <SentimentChart events={events} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <footer className="text-center text-xs text-slate-600 mt-12">
+        Built at Ralphthon SF 2026 | Ghost Board v1.0
+      </footer>
+    </div>
+  );
+}
+
+// ── Embedded demo data (fallback when files can't be fetched) ──
+const DEMO_DATA = [
+  {"event_id":"1","event_type":"STRATEGY_SET","source":"CEO","payload":{"startup_idea":"Anchrix: AI-powered identity verification","target_market":"Fintech startups","business_model":"Usage-based SaaS","key_differentiators":["real-time monitoring","auto-filing"],"constraints":["CFPB regulations"]},"triggered_by":"","timestamp":"2026-03-28T20:13:00Z","iteration":1},
+  {"event_id":"2","event_type":"PROTOTYPE_READY","source":"CTO","payload":{"files_generated":["app.py","models.py","routes.py"],"language":"python","description":"FastAPI compliance SaaS"},"triggered_by":"1","timestamp":"2026-03-28T20:13:15Z","iteration":1},
+  {"event_id":"3","event_type":"FINANCIAL_MODEL_READY","source":"CFO","payload":{"revenue_year1":250000,"revenue_year3":2000000,"burn_rate_monthly":50000,"runway_months":12,"funding_required":1500000},"triggered_by":"1","timestamp":"2026-03-28T20:13:20Z","iteration":1},
+  {"event_id":"4","event_type":"GTM_READY","source":"CMO","payload":{"positioning":"The compliance autopilot","tagline":"Compliance Simplified, Onboarding Accelerated","target_channels":["LinkedIn","Product Hunt"]},"triggered_by":"1","timestamp":"2026-03-28T20:13:25Z","iteration":1},
+  {"event_id":"5","event_type":"BLOCKER","source":"Legal","payload":{"severity":"CRITICAL","area":"Consumer Protection","description":"Must comply with EFTA and Regulation E - requires comprehensive consumer protection measures","citations":["https://www.consumerfinance.gov/compliance/compliance-resources/deposit-accounts-resources/electronic-fund-transfers/"],"recommended_action":"Implement EFTA-compliant disclosures and error resolution"},"triggered_by":"1","timestamp":"2026-03-28T20:13:30Z","iteration":1},
+  {"event_id":"6","event_type":"PIVOT","source":"CEO","payload":{"reason":"Legal blocker (CRITICAL): Must comply with EFTA and Regulation E","old_strategy":"Direct fund handling","new_strategy":"SaaS monitoring tool (no fund handling)","affected_agents":["CTO","CFO","CMO"],"changes_required":{"CTO":"Remove payment processing, add monitoring dashboard","CFO":"Lower CAC via B2B sales","CMO":"Target compliance officers"}},"triggered_by":"5","timestamp":"2026-03-28T20:13:35Z","iteration":2},
+  {"event_id":"7","event_type":"STRATEGY_SET","source":"CEO","payload":{"startup_idea":"Anchrix 2.0: AI-driven compliance monitoring SaaS","target_market":"Fintech companies needing compliance solutions","business_model":"Subscription SaaS","key_differentiators":["real-time alerts","regulatory database"]},"triggered_by":"5","timestamp":"2026-03-28T20:13:36Z","iteration":2},
+  {"event_id":"8","event_type":"BLOCKER","source":"Legal","payload":{"severity":"HIGH","area":"Data Portability","description":"CFPB Personal Financial Data Rights Rule requires data portability","citations":["https://www.gtlaw-financialservicesobserver.com/2024/11/cfpb-issues-personal-financial-data-rights-rule/"],"recommended_action":"Add data export APIs"},"triggered_by":"7","timestamp":"2026-03-28T20:14:00Z","iteration":2},
+  {"event_id":"9","event_type":"PIVOT","source":"CEO","payload":{"reason":"Legal blocker (HIGH): CFPB Data Rights Rule requires data portability","old_strategy":"Compliance monitoring","new_strategy":"Data portability + compliance platform","affected_agents":["CTO","CFO","CMO"],"changes_required":{"CTO":"Add data export APIs","CFO":"Adjust for enterprise pricing","CMO":"Emphasize data sovereignty"}},"triggered_by":"8","timestamp":"2026-03-28T20:14:05Z","iteration":3},
+  {"event_id":"10","event_type":"SIMULATION_RESULT","source":"Simulation","payload":{"overall_sentiment":0.10,"confidence":0.75,"num_rounds":2,"num_personas":5,"key_concerns":["Data privacy implications","Regulatory adherence vs cost-cutting","Market differentiation"],"key_strengths":["Innovation","Timing"],"pivot_recommended":true,"pivot_suggestion":"Enhance data privacy measures and differentiation strategy"},"triggered_by":"","timestamp":"2026-03-28T20:14:30Z","iteration":3},
+  {"event_id":"11","event_type":"COMPLIANCE_REPORT_READY","source":"Legal","payload":{"risk_level":"HIGH","regulations_checked":["EFTA","BSA","GDPR","CCPA"],"blockers_found":5},"triggered_by":"","timestamp":"2026-03-28T20:14:45Z","iteration":3},
+];
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
