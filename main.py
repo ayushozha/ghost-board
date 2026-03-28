@@ -67,13 +67,34 @@ async def run_sprint(
 
     agents = [ceo, cto, cfo, cmo, legal]
 
-    console.print(Panel.fit(
-        "[bold white]GHOST BOARD[/bold white]\n[dim]Autonomous AI Executive Team[/dim]",
-        border_style="bright_blue",
-    ))
+    sprint_start = time.time()
+
+    # Determine scale description for banner
+    if sim_scale and sim_scale in SCALE_PRESETS:
+        llm_n, light_n, rounds_n = SCALE_PRESETS[sim_scale]
+        scale_desc = f"{sim_scale} ({llm_n} LLM + {light_n:,} lightweight agents)"
+    else:
+        scale_desc = f"standard ({num_personas} personas, {num_rounds} rounds)"
+
+    # Truncate concept for display
+    concept_display = startup_idea if len(startup_idea) <= 60 else startup_idea[:57] + "..."
+
+    banner = (
+        "[bold white]"
+        "\n"
+        "          [bright_blue]+-----------------------------------------+[/bright_blue]\n"
+        "          [bright_blue]|[/bright_blue]          [bold bright_white]* GHOST BOARD *[/bold bright_white]           [bright_blue]|[/bright_blue]\n"
+        "          [bright_blue]|[/bright_blue]    Autonomous AI Executive Team    [bright_blue]|[/bright_blue]\n"
+        "          [bright_blue]+-----------------------------------------+[/bright_blue]\n"
+        "[/bold white]"
+    )
+    console.print(banner)
+    console.print(f"  [bold]Concept:[/bold] {concept_display}")
+    console.print(f"  [bold]Scale:[/bold]   {scale_desc}")
+    console.print()
 
     # ── Phase 1: Strategy + Build ──
-    console.print("\n[bold cyan]Phase 1: Strategy + Build[/bold cyan]")
+    console.print("[bold cyan]Phase 1:[/bold cyan] [white]Strategy + Build[/white]")
     console.print("[dim]" + "-" * 50 + "[/dim]")
 
     # CEO sets strategy
@@ -122,6 +143,8 @@ async def run_sprint(
                     return_exceptions=True,
                 )
 
+    console.print("[green]v[/green] Phase 1 complete\n")
+
     # ── Phase 2: Market Simulation ──
     hybrid_stats = None
     if not skip_simulation:
@@ -133,7 +156,7 @@ async def run_sprint(
         if sim_scale and sim_scale in SCALE_PRESETS:
             # Hybrid engine: LLM agents + lightweight crowd
             llm_n, light_n, rounds_n = SCALE_PRESETS[sim_scale]
-            console.print(f"\n[bold cyan]Phase 2: Hybrid Market Simulation[/bold cyan]")
+            console.print(f"[bold cyan]Phase 2:[/bold cyan] [white]Hybrid Market Simulation[/white]")
             console.print(f"  [bold]{llm_n} LLM agents + {light_n:,} lightweight agents, {rounds_n} rounds[/bold]")
             console.print("[dim]" + "-" * 50 + "[/dim]")
 
@@ -149,7 +172,7 @@ async def run_sprint(
             console.print(f"  Duration: {hybrid_stats['duration_seconds']:.1f}s")
         else:
             # Standard simulation via MiroFish bridge
-            console.print(f"\n[bold cyan]Phase 2: Market Simulation[/bold cyan] ({num_personas} personas, {num_rounds} rounds)")
+            console.print(f"[bold cyan]Phase 2:[/bold cyan] [white]Market Simulation[/white] ({num_personas} personas, {num_rounds} rounds)")
             console.print("[dim]" + "-" * 50 + "[/dim]")
 
             bridge = MiroFishBridge(client=ceo.client)
@@ -185,8 +208,10 @@ async def run_sprint(
         )
         await bus.publish(sim_event)
 
+        console.print("[green]v[/green] Phase 2 complete\n")
+
         # ── Board Discussion: CEO presents findings, agents respond ──
-        console.print(f"\n[bold cyan]Board Discussion: Simulation Debrief[/bold cyan]")
+        console.print("[bold cyan]Board Discussion:[/bold cyan] [white]Simulation Debrief[/white]")
         console.print("[dim]" + "-" * 50 + "[/dim]")
 
         sim_payload = sim_event.payload
@@ -208,7 +233,7 @@ async def run_sprint(
 
         # ── Phase 3: Pivot + Rebuild (if needed) ──
         if market_signal.pivot_recommended:
-            console.print(f"\n[bold cyan]Phase 3: Pivot + Rebuild[/bold cyan]")
+            console.print(f"\n[bold cyan]Phase 3:[/bold cyan] [white]Pivot + Rebuild[/white]")
             console.print("[dim]" + "-" * 50 + "[/dim]")
             console.print(f"  [bold yellow]CEO[/bold yellow]: Pivoting - {market_signal.pivot_suggestion}")
 
@@ -225,10 +250,11 @@ async def run_sprint(
                         return_exceptions=True,
                     )
                 console.print("  [green]Rebuild complete.[/green]")
+            console.print("[green]v[/green] Phase 3 complete\n")
         else:
-            console.print("\n[bold green]Phase 3: No pivot needed - market reception positive[/bold green]")
+            console.print("\n[green]v[/green] Phase 3: No pivot needed - market reception positive\n")
     else:
-        console.print("\n[dim]Phase 2-3: Skipped (--skip-simulation)[/dim]")
+        console.print("\n[dim]Phase 2-3: Skipped (--skip-simulation)[/dim]\n")
 
     # ── Summary ──
     trace = bus.get_trace()
@@ -653,10 +679,13 @@ def main(startup_idea: str, personas: int, rounds: int, sim_scale: str | None, s
         except OSError as e:
             console.print(f"[bold red]Could not start live server: {e}[/bold red]")
 
-    # Apply sim-scale presets
+    # Check for required API key
     if not os.environ.get("OPENAI_API_KEY"):
-        click.echo("ERROR: OPENAI_API_KEY not set. Run: export OPENAI_API_KEY='sk-...'")
-        sys.exit(1)
+        console.print("[bold red]Error:[/] OPENAI_API_KEY not set.")
+        console.print("Copy .env.example to .env and add your OpenAI API key:")
+        console.print("  [dim]cp .env.example .env[/dim]")
+        console.print("  [dim]# Then edit .env and set OPENAI_API_KEY=sk-...[/dim]")
+        raise SystemExit(1)
 
     sprint_start = time.time()
     result = asyncio.run(run_sprint(

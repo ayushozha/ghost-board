@@ -307,6 +307,15 @@ def test_websocket_connect_and_receive():
 
 
 @pytest.mark.asyncio
+async def test_get_concepts(client):
+    response = await client.get("/api/concepts")
+    assert response.status_code == 200
+    data = response.json()
+    assert "concepts" in data
+    assert len(data["concepts"]) >= 1
+
+
+@pytest.mark.asyncio
 async def test_websocket_endpoint_exists():
     """Verify the WebSocket endpoint path is registered in the FastAPI app."""
     if not HAS_SERVER:

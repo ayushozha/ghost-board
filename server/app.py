@@ -760,6 +760,23 @@ async def get_summary(run_id: str) -> Any:
     return {"summary": summary}
 
 
+@app.get("/api/concepts")
+async def list_concepts():
+    """List available demo concepts from demo/*.txt files."""
+    concepts_dir = Path(__file__).parent.parent / "demo"
+    concepts = []
+    for f in sorted(concepts_dir.glob("*_concept.txt")):
+        name = f.stem.replace("_concept", "")
+        content = f.read_text(encoding="utf-8").strip()
+        concepts.append({
+            "name": name,
+            "file": str(f.name),
+            "preview": content[:120] + ("..." if len(content) > 120 else ""),
+            "full_text": content,
+        })
+    return {"concepts": concepts}
+
+
 # ---------------------------------------------------------------------------
 # WebSocket for live event streaming
 # ---------------------------------------------------------------------------

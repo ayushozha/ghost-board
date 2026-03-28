@@ -406,6 +406,83 @@
   .agent-card-boardroom:hover {
     transform: scale(1.08);
   }
+
+  /* ── Cost Visualization Animations ── */
+
+  /* Bar grow animation */
+  @keyframes bar-grow {
+    from { height: 0; }
+    to { height: var(--bar-height); }
+  }
+  .cost-bar-animate {
+    animation: bar-grow 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  /* Multiplier badge pulse */
+  @keyframes multiplier-pulse {
+    0%, 100% { transform: scale(1); text-shadow: 0 0 20px rgba(34,197,94,0.4); }
+    50% { transform: scale(1.06); text-shadow: 0 0 40px rgba(34,197,94,0.7); }
+  }
+  .multiplier-badge {
+    animation: multiplier-pulse 2.5s ease-in-out infinite;
+  }
+
+  /* Gradient border card effect */
+  .gradient-border-card {
+    position: relative;
+    background: #0f172a;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .gradient-border-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    padding: 1.5px;
+    background: linear-gradient(135deg, #6366f1, #a855f7, #ec4899, #6366f1);
+    background-size: 300% 300%;
+    animation: gradient-shift 4s ease infinite;
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* Shimmer effect on token table rows */
+  @keyframes shimmer-row {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  .token-row:hover {
+    background: linear-gradient(90deg, transparent 0%, rgba(99,102,241,0.05) 50%, transparent 100%);
+    background-size: 200% 100%;
+    animation: shimmer-row 1.5s ease-in-out;
+  }
+
+  /* Cost bar label float */
+  @keyframes float-label {
+    0% { opacity: 0; transform: translateY(10px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  .cost-label-float {
+    animation: float-label 0.6s ease forwards;
+    animation-delay: 1s;
+    opacity: 0;
+  }
+
+  /* Dramatic arrow between bars */
+  @keyframes arrow-draw {
+    0% { width: 0; opacity: 0; }
+    50% { opacity: 1; }
+    100% { width: 100%; opacity: 1; }
+  }
+  .cost-arrow-line {
+    animation: arrow-draw 0.8s ease-out forwards;
+    animation-delay: 1.4s;
+    width: 0;
+    opacity: 0;
+  }
 </style>
 <script>
 tailwind.config = {
@@ -698,8 +775,9 @@ function TimelineItem({ event, index }) {
   }, []);
 
   return (
-    <div ref={itemRef} className={`fade-in relative ${isPivot ? 'pivot-card' : ''}`} style={{ animationDelay: `${index * 0.08}s` }}>
-      <div className={`absolute -left-[38px] top-3 timeline-dot ${c.dot}`}></div>
+    <div ref={itemRef} className={`fade-in relative timeline-item-hover ${isPivot ? 'pivot-card pivot-node-glow' : ''}`} style={{ animationDelay: `${index * 0.08}s` }}>
+      <div className={`absolute -left-[38px] top-3 timeline-dot ${c.dot} ${isPivot ? 'pivot-node-glow' : ''}`}
+        style={isPivot ? { width: '16px', height: '16px', marginLeft: '-2px', marginTop: '-2px' } : {}}></div>
       <div className={`rounded-xl p-4 border ${c.border}/30 ${c.bg} backdrop-blur-sm ${isPivot ? 'glow-red border-red-500/50' : isBlocker ? 'glow-red' : 'glow'}`}>
         <div className="flex items-center gap-2 mb-1">
           <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${c.bg} ${c.text} border ${c.border}/30`}>
@@ -805,7 +883,7 @@ function PivotTrace({ events }) {
         const trigger = blockers.find(b => b.event_id === pivot.triggered_by) ||
                        events.find(e => e.event_id === pivot.triggered_by);
         return (
-          <div key={i} className="pivot-card rounded-2xl border border-red-500/30 bg-red-950/20 p-6 glow-red">
+          <div key={i} className="pivot-card pivot-node-glow rounded-2xl border border-red-500/30 bg-red-950/20 p-6 glow-red timeline-item-hover">
             <div className="text-red-400 font-black text-lg mb-4 flex items-center gap-2">
               <span className="text-2xl">&#9888;</span> Pivot #{i+1}
             </div>
@@ -1202,24 +1280,99 @@ function BoardroomView({ events }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Agent circle - desktop: absolute positioned, mobile: flex wrap */}
         <div className="relative bg-slate-900/50 rounded-xl border border-slate-700/20 p-4 boardroom-agents boardroom-agents-desktop" style={{minHeight: '320px'}}>
+          {/* SVG connection lines between agents */}
+          <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none" style={{zIndex: 0}}>
+            {(() => {
+              const connections = [
+                ['CEO', 'CTO'], ['CEO', 'Legal'], ['CEO', 'CMO'], ['CEO', 'CFO'],
+                ['CTO', 'CMO'], ['Legal', 'CFO'], ['CMO', 'CFO'],
+              ];
+              return connections.map(([a, b], idx) => {
+                const ca = agentCfg[a];
+                const cb = agentCfg[b];
+                const isSource = current && (current.agent === a || current.agent === b);
+                let strokeColor = 'rgba(71,85,105,0.3)';
+                let strokeWidth = 0.3;
+                let dashArray = '';
+                if (isSource && connectionState === 'blocker') {
+                  strokeColor = '#ef4444';
+                  strokeWidth = 0.6;
+                } else if (isSource && connectionState === 'pivot') {
+                  strokeColor = '#eab308';
+                  strokeWidth = 0.6;
+                  dashArray = '2 1';
+                } else if (isSource && connectionState === 'active') {
+                  strokeColor = 'rgba(99,102,241,0.6)';
+                  strokeWidth = 0.4;
+                }
+                return (
+                  <line key={idx}
+                    x1={ca.x} y1={ca.y}
+                    x2={cb.x} y2={cb.y}
+                    stroke={strokeColor}
+                    strokeWidth={strokeWidth}
+                    strokeDasharray={dashArray}
+                    style={{
+                      transition: 'all 0.4s ease',
+                      filter: isSource && connectionState !== 'idle'
+                        ? `drop-shadow(0 0 1px ${connectionState === 'blocker' ? '#ef4444' : connectionState === 'pivot' ? '#eab308' : '#6366f1'})`
+                        : 'none',
+                    }}
+                  />
+                );
+              });
+            })()}
+            {/* Animated traveling dot along active connection */}
+            {current && (() => {
+              const src = agentCfg[current.agent];
+              if (!src) return null;
+              const targets = current.agent === 'CEO' ? ['CTO','Legal','CMO','CFO'] :
+                              current.agent === 'Legal' ? ['CEO','CFO'] :
+                              [current.agent === 'CTO' ? 'CMO' : 'CEO'];
+              return targets.map((tgt, idx) => {
+                const dst = agentCfg[tgt];
+                if (!dst) return null;
+                const dotColor = connectionState === 'blocker' ? '#ef4444' : connectionState === 'pivot' ? '#eab308' : '#6366f1';
+                return (
+                  <circle key={`dot-${idx}`} r="1" fill={dotColor} style={{ filter: `drop-shadow(0 0 1px ${dotColor})` }}>
+                    <animateMotion dur={`${1.2 + idx * 0.3}s`} repeatCount="indefinite"
+                      path={`M${src.x} ${src.y} L${dst.x} ${dst.y}`}
+                      keyPoints="0;1" keyTimes="0;1" calcMode="linear" />
+                  </circle>
+                );
+              });
+            })()}
+          </svg>
+
           {agents.map(name => {
             const cfg = agentCfg[name];
             const state = getState(name);
-            const borderColor = state === 'blocker' ? '#ef4444' : state === 'pivot' ? '#eab308' : state === 'speaking' ? cfg.color : '#334155';
+            const borderColor = state === 'blocked' ? '#ef4444' : state === 'pivot' ? '#eab308' : state === 'working' ? cfg.color : state === 'done' ? '#22c55e' : '#334155';
             const glowStyle = state !== 'idle' ? { boxShadow: `0 0 20px ${borderColor}40` } : {};
 
+            // Map state to CSS class for the status dot
+            const statusDotClass = {
+              idle: 'status-dot-idle',
+              working: 'status-dot-working',
+              done: 'status-dot-done',
+              blocked: 'status-dot-blocked',
+              pivot: 'status-dot-working', // pivot uses yellow working glow
+            }[state] || 'status-dot-idle';
+
             return (
-              <div key={name} className="absolute flex flex-col items-center agent-card-wrap" style={{ left: `${cfg.x}%`, top: `${cfg.y}%`, transform: 'translate(-50%, -50%)' }}>
-                <div className={`rounded-xl border-2 p-3 text-center transition-all duration-500 ${state !== 'idle' ? 'scale-105' : ''}`}
+              <div key={name} className="absolute flex flex-col items-center agent-card-wrap" style={{ left: `${cfg.x}%`, top: `${cfg.y}%`, transform: 'translate(-50%, -50%)', zIndex: 1 }}>
+                <div className={`agent-card-boardroom rounded-xl border-2 p-3 text-center transition-all duration-500 ${state !== 'idle' ? 'scale-105' : ''}`}
                   style={{ borderColor, backgroundColor: cfg.color + '10', ...glowStyle, width: '90px' }}>
                   <div className="text-2xl mb-0.5">{cfg.icon}</div>
                   <div className="text-xs font-bold" style={{ color: cfg.color }}>{name}</div>
-                  <div className="w-2 h-2 rounded-full mx-auto mt-1"
-                    style={{ backgroundColor: state === 'idle' ? '#475569' : state === 'blocker' ? '#ef4444' : state === 'pivot' ? '#eab308' : '#22c55e' }}></div>
+                  <div className={`w-3 h-3 rounded-full mx-auto mt-1 relative ${statusDotClass}`}
+                    style={state === 'pivot' ? { backgroundColor: '#eab308', boxShadow: '0 0 8px rgba(234,179,8,0.5)' } : {}}></div>
+                  <div className="text-[8px] mt-0.5 uppercase tracking-wider" style={{
+                    color: state === 'blocked' ? '#ef4444' : state === 'working' ? '#22c55e' : state === 'pivot' ? '#eab308' : state === 'done' ? '#22c55e' : '#475569'
+                  }}>{state}</div>
                 </div>
                 {current && current.agent === name && (
-                  <div className="absolute top-full mt-2 w-40 p-2 rounded-lg bg-black/80 border border-white/10 text-[10px] text-slate-300 leading-relaxed z-10"
-                    style={{ animation: 'fadeInUp 0.3s ease' }}>
+                  <div className="absolute top-full mt-2 w-40 p-2 rounded-lg bg-black/80 border border-white/10 text-[10px] text-slate-300 leading-relaxed z-10 detail-panel-enter">
                     {(current.message || '').substring(0, 80)}...
                   </div>
                 )}
@@ -1458,7 +1611,7 @@ function PivotFlow({ events }) {
           {sequence.slice(0, step + 1).map((s, i) => (
             <React.Fragment key={i}>
               <div onClick={() => setStep(i)}
-                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs cursor-pointer transition-all ${i === step ? 'ring-2 ring-white/20 scale-105' : 'opacity-60'}`}
+                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs cursor-pointer transition-all pivot-trail-node ${i === step ? 'ring-2 ring-white/20 scale-105' : 'opacity-60'}`}
                 style={{ backgroundColor: s.color + '20', color: s.color, borderColor: s.color }}>
                 <span>{s.icon}</span>
                 <span className="font-medium">{s.label}</span>
@@ -2109,6 +2262,8 @@ function App() {
   const [activeTab, setActiveTab] = useState('timeline');
   const [loading, setLoading] = useState(true);
   const [screen, setScreen] = useState('mission-control');
+  const [tabTransition, setTabTransition] = useState('screen-enter');
+  const [renderedTab, setRenderedTab] = useState('timeline');
 
   useEffect(() => {
     // Try multiple paths for trace data
@@ -2164,7 +2319,16 @@ function App() {
         {/* Tab navigation */}
         <div className="flex gap-1 mb-6 border-b border-slate-700/50 tab-nav-wrap">
           {mainTabs.map(t => (
-            <button key={t.id} onClick={() => { setActiveTab(t.id); audioManager.play('tab_switch'); }}
+            <button key={t.id} onClick={() => {
+              if (t.id === activeTab) return;
+              audioManager.play('tab_switch');
+              setTabTransition('screen-exit');
+              setTimeout(() => {
+                setActiveTab(t.id);
+                setRenderedTab(t.id);
+                setTabTransition('screen-enter');
+              }, 250);
+            }}
               className={`px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${activeTab === t.id ? 'tab-active' : 'tab-inactive'}`}>
               {t.label}
             </button>
@@ -2173,16 +2337,16 @@ function App() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 main-grid">
           {/* Main content */}
-          <div className="lg:col-span-2 fade-in fade-in-delay-1">
-            <div className="rounded-2xl border border-slate-700/30 bg-slate-900/40 backdrop-blur-sm p-6 glow content-card">
-              {activeTab === 'timeline' && <Timeline events={events} />}
-              {activeTab === 'boardroom' && <BoardroomView events={events} />}
-              {activeTab === 'arena' && <MarketArena events={events} />}
-              {activeTab === 'pivots' && <PivotTrace events={events} />}
-              {activeTab === 'pivotflow' && <PivotFlow events={events} />}
-              {activeTab === 'sentiment' && <SentimentDashboard events={events} />}
-              {activeTab === 'analytics' && <AdvancedCharts events={events} />}
-              {activeTab === 'report' && <SprintReport events={events} />}
+          <div className="lg:col-span-2">
+            <div className={`rounded-2xl border border-slate-700/30 bg-slate-900/40 backdrop-blur-sm p-6 glow content-card ${tabTransition}`}>
+              {renderedTab === 'timeline' && <Timeline events={events} />}
+              {renderedTab === 'boardroom' && <BoardroomView events={events} />}
+              {renderedTab === 'arena' && <MarketArena events={events} />}
+              {renderedTab === 'pivots' && <PivotTrace events={events} />}
+              {renderedTab === 'pivotflow' && <PivotFlow events={events} />}
+              {renderedTab === 'sentiment' && <SentimentDashboard events={events} />}
+              {renderedTab === 'analytics' && <AdvancedCharts events={events} />}
+              {renderedTab === 'report' && <SprintReport events={events} />}
             </div>
           </div>
 

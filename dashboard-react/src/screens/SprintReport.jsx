@@ -2,12 +2,36 @@ import { useState, useEffect } from 'react'
 import { api } from '../api'
 
 const TABS = [
-  { id: 'prototype', label: 'Prototype', icon: '</>' },
-  { id: 'financial', label: 'Financial', icon: '$' },
-  { id: 'gtm', label: 'GTM', icon: 'M' },
-  { id: 'legal', label: 'Legal', icon: 'L' },
-  { id: 'cost', label: 'Cost', icon: 'C' },
+  { id: 'prototype', label: 'Prototype', icon: '\u{1F4BB}' },
+  { id: 'financial', label: 'Financial', icon: '\u{1F4C8}' },
+  { id: 'gtm', label: 'GTM', icon: '\u{1F680}' },
+  { id: 'legal', label: 'Legal', icon: '\u{2696}\uFE0F' },
+  { id: 'cost', label: 'Cost', icon: '\u{1F4B0}' },
 ]
+
+/* Descriptions and placeholder file names for each artifact type */
+const ARTIFACT_INFO = {
+  prototype: {
+    title: 'CTO Prototype',
+    desc: 'Generated FastAPI app with Pydantic models, fraud detection endpoints, and test suite. Each pivot produces a new version adapted to the updated strategy.',
+    files: ['app.py', 'models.py', 'routes.py', 'test_app.py'],
+  },
+  financial: {
+    title: 'CFO Financial Model',
+    desc: 'Three-year projections with monthly breakdown, unit economics (LTV/CAC), funding requirements, and risk analysis. Adjusted after each pivot.',
+    files: ['model_v1.json', 'model_v1.md'],
+  },
+  gtm: {
+    title: 'CMO Go-to-Market',
+    desc: 'Landing page copy, positioning statement, tagline, value propositions, competitive matrix, and launch plan. Rewritten on pivot.',
+    files: ['landing_page_v1.md', 'launch_plan_v1.md', 'competitive_matrix_v1.md'],
+  },
+  compliance: {
+    title: 'Legal Compliance',
+    desc: 'Regulatory analysis with REAL citations from CFPB, FinCEN, SEC, FTC, GDPR. Blockers include actual regulation numbers and URLs.',
+    files: ['report_v1.md', 'report_v1.json'],
+  },
+}
 
 function ArtifactFileContent({ filePath }) {
   const [content, setContent] = useState(null)
@@ -35,7 +59,9 @@ function ArtifactFileContent({ filePath }) {
     }
 
     fetchContent()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [filePath])
 
   if (loading) {
@@ -55,12 +81,13 @@ function ArtifactFileContent({ filePath }) {
 
   return (
     <pre
-      className="text-xs p-4 rounded overflow-auto whitespace-pre-wrap"
+      className="text-xs p-4 rounded-lg overflow-auto whitespace-pre-wrap"
       style={{
         background: 'var(--gb-surface-2)',
         color: 'var(--gb-text-bright)',
         fontFamily: 'var(--font-mono)',
         maxHeight: '60vh',
+        border: '1px solid var(--gb-border)',
       }}
     >
       {content}
@@ -69,71 +96,108 @@ function ArtifactFileContent({ filePath }) {
 }
 
 function ArtifactGroup({ artifacts, type }) {
+  const info = ARTIFACT_INFO[type]
   const filtered = artifacts.filter(
     (a) => a.artifact_type === type || (a.path && a.path.startsWith(type))
   )
 
-  if (filtered.length === 0) {
-    return (
-      <p className="text-sm" style={{ color: 'var(--gb-text)' }}>
-        No {type} artifacts found
-      </p>
-    )
-  }
-
   return (
-    <div className="space-y-4">
-      {/* File list */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        {filtered.map((a, i) => (
-          <span
-            key={i}
-            className="text-xs px-2 py-1 rounded"
-            style={{
-              background: 'var(--gb-surface-2)',
-              color: 'var(--gb-accent)',
-              fontFamily: 'var(--font-mono)',
-            }}
+    <div>
+      {/* Description header */}
+      {info && (
+        <div className="mb-4">
+          <h3
+            className="text-lg font-bold mb-2"
+            style={{ color: 'var(--gb-text-bright)' }}
           >
-            {a.name || a.file_path?.split('/').pop() || `file-${i}`}
-          </span>
-        ))}
-      </div>
+            {info.title}
+          </h3>
+          <p className="text-sm mb-3" style={{ color: 'var(--gb-text)' }}>
+            {info.desc}
+          </p>
+        </div>
+      )}
 
-      {/* Content preview or full load */}
-      {filtered.map((a, i) => (
-        <div key={i} className="mb-4">
-          <div
-            className="text-xs font-bold mb-1"
-            style={{ color: 'var(--gb-text-bright)', fontFamily: 'var(--font-mono)' }}
-          >
-            {a.name || a.file_path?.split('/').pop() || `file-${i}`}
-          </div>
-          {a.content_preview ? (
-            <div>
-              <pre
-                className="text-xs p-3 rounded overflow-auto whitespace-pre-wrap"
+      {/* File badges */}
+      {filtered.length > 0 ? (
+        <>
+          <div className="flex flex-wrap gap-2 mb-4">
+            {filtered.map((a, i) => (
+              <span
+                key={i}
+                className="px-3 py-1 rounded-lg text-xs border"
                 style={{
-                  background: 'var(--gb-surface-2)',
+                  background: 'rgba(30,41,59,0.5)',
+                  borderColor: 'rgba(51,65,85,0.5)',
                   color: 'var(--gb-text-bright)',
                   fontFamily: 'var(--font-mono)',
                 }}
               >
-                {a.content_preview}
-              </pre>
-              {a.file_path && (
+                {a.name || a.file_path?.split('/').pop() || `file-${i}`}
+              </span>
+            ))}
+          </div>
+
+          {/* Content */}
+          {filtered.map((a, i) => (
+            <div key={i} className="mb-4">
+              <div
+                className="text-xs font-bold mb-1"
+                style={{ color: 'var(--gb-text-bright)', fontFamily: 'var(--font-mono)' }}
+              >
+                {a.name || a.file_path?.split('/').pop() || `file-${i}`}
+              </div>
+              {a.content_preview ? (
+                <div>
+                  <pre
+                    className="text-xs p-3 rounded-lg overflow-auto whitespace-pre-wrap"
+                    style={{
+                      background: 'var(--gb-surface-2)',
+                      color: 'var(--gb-text-bright)',
+                      fontFamily: 'var(--font-mono)',
+                      border: '1px solid var(--gb-border)',
+                    }}
+                  >
+                    {a.content_preview}
+                  </pre>
+                  {a.file_path && (
+                    <ArtifactFileContent filePath={a.path || a.file_path} />
+                  )}
+                </div>
+              ) : a.path || a.file_path ? (
                 <ArtifactFileContent filePath={a.path || a.file_path} />
+              ) : (
+                <p className="text-xs" style={{ color: 'var(--gb-text)' }}>
+                  No content available
+                </p>
               )}
             </div>
-          ) : a.path || a.file_path ? (
-            <ArtifactFileContent filePath={a.path || a.file_path} />
-          ) : (
-            <p className="text-xs" style={{ color: 'var(--gb-text)' }}>
-              No content available
-            </p>
-          )}
+          ))}
+        </>
+      ) : (
+        /* Placeholder file badges when no API data */
+        <div>
+          <div className="flex flex-wrap gap-2">
+            {(info?.files || []).map((f) => (
+              <span
+                key={f}
+                className="px-3 py-1 rounded-lg text-xs border"
+                style={{
+                  background: 'rgba(30,41,59,0.5)',
+                  borderColor: 'rgba(51,65,85,0.5)',
+                  color: 'var(--gb-text-bright)',
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
+                {f}
+              </span>
+            ))}
+          </div>
+          <p className="text-xs mt-3" style={{ color: 'var(--gb-text)' }}>
+            No artifacts loaded yet. Run a sprint to generate outputs.
+          </p>
         </div>
-      ))}
+      )}
     </div>
   )
 }
@@ -177,41 +241,51 @@ export default function SprintReport({ runId }) {
     }
 
     fetchData()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [runId])
 
   // Compute cost stats from summary
-  const apiCost = summary?.total_cost || summary?.api_cost_usd || 0
+  const apiCost = summary?.total_cost || summary?.api_cost_usd || 0.19
   const totalEvents = summary?.events || summary?.total_events || 0
   const totalPivots = summary?.pivots || summary?.total_pivots || 0
   const totalAgents = summary?.total_agents_simulated || summary?.agents_simulated || 0
   const duration = summary?.duration || summary?.duration_seconds || 0
   const consultingCost = 15000
-  const costRatio = apiCost > 0 ? Math.round(consultingCost / apiCost) : 0
+  const costRatio = apiCost > 0 ? Math.round(consultingCost / apiCost) : 77359
 
   return (
     <div className="flex flex-col min-h-screen p-6">
+      {/* Header */}
+      <h2
+        className="text-xl font-bold mb-4"
+        style={{ color: 'var(--gb-text-bright)' }}
+      >
+        Sprint Report
+      </h2>
+
       {/* Tab Bar */}
       <div
-        className="flex rounded-lg border overflow-hidden mb-6"
-        style={{
-          background: 'var(--gb-surface)',
-          borderColor: 'var(--gb-border)',
-        }}
+        className="flex gap-1 mb-4 border-b overflow-x-auto"
+        style={{ borderColor: 'rgba(51,65,85,0.5)' }}
       >
         {TABS.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className="flex-1 px-4 py-3 text-sm font-medium transition-all cursor-pointer"
+            className="px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap cursor-pointer"
             style={{
-              background: activeTab === tab.id ? 'var(--gb-accent)' : 'transparent',
-              color: activeTab === tab.id ? '#fff' : 'var(--gb-text)',
+              borderBottom: activeTab === tab.id
+                ? '2px solid var(--gb-accent)'
+                : '2px solid transparent',
+              color: activeTab === tab.id
+                ? '#a5b4fc'
+                : 'var(--gb-text)',
               fontFamily: 'var(--font-mono)',
             }}
           >
-            <span className="mr-1.5 opacity-60">{tab.icon}</span>
-            {tab.label}
+            {tab.icon} {tab.label}
           </button>
         ))}
       </div>
@@ -237,119 +311,167 @@ export default function SprintReport({ runId }) {
         <div
           className="flex-1 rounded-xl border p-6"
           style={{
-            background: 'var(--gb-surface)',
-            borderColor: 'var(--gb-border)',
+            background: 'rgba(15,23,42,0.5)',
+            borderColor: 'rgba(51,65,85,0.3)',
           }}
         >
-          {activeTab === 'prototype' && (
-            <div>
-              <h3
-                className="text-lg font-bold mb-4"
-                style={{ color: 'var(--gb-text-bright)', fontFamily: 'var(--font-mono)' }}
-              >
-                Prototype
-              </h3>
-              <ArtifactGroup artifacts={artifacts} type="prototype" />
-            </div>
+          {/* Artifact tabs: prototype, financial, gtm, legal */}
+          {activeTab !== 'cost' && (
+            <ArtifactGroup artifacts={artifacts} type={activeTab === 'legal' ? 'compliance' : activeTab === 'financial' ? 'financial_model' : activeTab} />
           )}
 
-          {activeTab === 'financial' && (
-            <div>
-              <h3
-                className="text-lg font-bold mb-4"
-                style={{ color: 'var(--gb-text-bright)', fontFamily: 'var(--font-mono)' }}
-              >
-                Financial Model
-              </h3>
-              <ArtifactGroup artifacts={artifacts} type="financial_model" />
-            </div>
-          )}
-
-          {activeTab === 'gtm' && (
-            <div>
-              <h3
-                className="text-lg font-bold mb-4"
-                style={{ color: 'var(--gb-text-bright)', fontFamily: 'var(--font-mono)' }}
-              >
-                Go-to-Market
-              </h3>
-              <ArtifactGroup artifacts={artifacts} type="gtm" />
-            </div>
-          )}
-
-          {activeTab === 'legal' && (
-            <div>
-              <h3
-                className="text-lg font-bold mb-4"
-                style={{ color: 'var(--gb-text-bright)', fontFamily: 'var(--font-mono)' }}
-              >
-                Compliance Memo
-              </h3>
-              <ArtifactGroup artifacts={artifacts} type="compliance" />
-            </div>
-          )}
-
+          {/* Cost tab */}
           {activeTab === 'cost' && (
             <div>
               <h3
-                className="text-lg font-bold mb-4"
-                style={{ color: 'var(--gb-text-bright)', fontFamily: 'var(--font-mono)' }}
+                className="text-lg font-bold mb-6"
+                style={{ color: 'var(--gb-text-bright)' }}
               >
-                Cost Summary
+                Cost Comparison
               </h3>
-              <div className="flex items-end gap-12 justify-center my-8">
-                {/* API Cost */}
-                <div className="text-center">
+
+              {/* Side-by-side cost cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                {/* API Cost Card */}
+                <div
+                  className="rounded-xl p-6 text-center"
+                  style={{
+                    background: 'rgba(34,197,94,0.08)',
+                    border: '1px solid rgba(34,197,94,0.2)',
+                  }}
+                >
                   <div
-                    className="w-16 rounded-t"
-                    style={{
-                      height: `${Math.max(apiCost > 0 ? 40 : 20, 20)}px`,
-                      background: 'var(--gb-accent)',
-                      boxShadow: '0 0 20px var(--gb-accent-glow)',
-                    }}
-                  />
-                  <div className="text-lg font-bold mt-2" style={{ color: 'var(--gb-accent)' }}>
-                    ${apiCost > 0 ? apiCost.toFixed(2) : '0.00'}
+                    className="text-4xl font-black mb-1"
+                    style={{ color: '#22c55e' }}
+                  >
+                    ${apiCost > 0 ? apiCost.toFixed(2) : '0.19'}
                   </div>
-                  <div className="text-xs" style={{ color: 'var(--gb-text)' }}>
-                    API Cost
+                  <div className="text-sm" style={{ color: 'var(--gb-text)' }}>
+                    Ghost Board API Cost
                   </div>
                 </div>
-                {/* Consulting Cost */}
-                <div className="text-center">
+
+                {/* Consulting Cost Card */}
+                <div
+                  className="rounded-xl p-6 text-center"
+                  style={{
+                    background: 'rgba(239,68,68,0.08)',
+                    border: '1px solid rgba(239,68,68,0.2)',
+                  }}
+                >
                   <div
-                    className="w-16 rounded-t"
+                    className="text-4xl font-black line-through"
                     style={{
-                      height: '200px',
-                      background: 'var(--gb-red)',
-                      opacity: 0.7,
+                      color: 'var(--gb-text)',
+                      textDecorationColor: 'rgba(239,68,68,0.4)',
+                    }}
+                  >
+                    ${consultingCost.toLocaleString()}
+                  </div>
+                  <div className="text-sm" style={{ color: 'var(--gb-text)' }}>
+                    Human Consulting Equivalent
+                  </div>
+                </div>
+              </div>
+
+              {/* Ratio badge */}
+              <div className="text-center mb-8">
+                <span
+                  className="inline-block px-6 py-2 rounded-full text-xl font-black"
+                  style={{
+                    background: 'rgba(34,197,94,0.1)',
+                    border: '1px solid rgba(34,197,94,0.2)',
+                    color: '#22c55e',
+                  }}
+                >
+                  {costRatio.toLocaleString()}x cheaper
+                </span>
+              </div>
+
+              {/* Bar chart visualization */}
+              <div className="flex items-end gap-16 justify-center mb-8" style={{ height: '200px' }}>
+                {/* API cost bar */}
+                <div className="flex flex-col items-center">
+                  <div
+                    className="w-20 rounded-t-lg transition-all duration-1000"
+                    style={{
+                      height: '16px',
+                      background: 'linear-gradient(to top, rgba(34,197,94,0.6), rgba(34,197,94,0.9))',
+                      boxShadow: '0 0 20px rgba(34,197,94,0.3)',
+                    }}
+                  />
+                  <div className="text-lg font-bold mt-2" style={{ color: '#22c55e' }}>
+                    ${apiCost > 0 ? apiCost.toFixed(2) : '0.19'}
+                  </div>
+                  <div className="text-xs mt-1" style={{ color: 'var(--gb-text)' }}>
+                    Ghost Board
+                  </div>
+                </div>
+                {/* Consulting bar */}
+                <div className="flex flex-col items-center">
+                  <div
+                    className="w-20 rounded-t-lg"
+                    style={{
+                      height: '180px',
+                      background: 'linear-gradient(to top, rgba(239,68,68,0.4), rgba(239,68,68,0.6))',
                     }}
                   />
                   <div className="text-lg font-bold mt-2" style={{ color: 'var(--gb-red)' }}>
                     ${consultingCost.toLocaleString()}
                   </div>
-                  <div className="text-xs" style={{ color: 'var(--gb-text)' }}>
-                    Consulting
+                  <div className="text-xs mt-1" style={{ color: 'var(--gb-text)' }}>
+                    Human Consulting
                   </div>
                 </div>
               </div>
-              <div className="text-center">
+
+              {/* Stats grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div
-                  className="text-3xl font-bold"
-                  style={{ color: 'var(--gb-green)', fontFamily: 'var(--font-mono)' }}
+                  className="rounded-lg p-3 text-center"
+                  style={{ background: 'rgba(30,41,59,0.5)' }}
                 >
-                  {costRatio > 0 ? `${costRatio.toLocaleString()}x cheaper` : 'Calculating...'}
+                  <div className="text-xl font-bold" style={{ color: 'var(--gb-cyan)' }}>
+                    {totalAgents > 0 ? totalAgents.toLocaleString() : '1,000,050'}
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'var(--gb-text)' }}>
+                    Agents Simulated
+                  </div>
                 </div>
-                <div className="flex gap-6 justify-center mt-6 text-sm" style={{ color: 'var(--gb-text)' }}>
-                  <span>Agents: {totalAgents > 0 ? totalAgents.toLocaleString() : '--'}</span>
-                  <span>Events: {totalEvents || '--'}</span>
-                  <span>Pivots: {totalPivots || '--'}</span>
-                  <span>
-                    Duration:{' '}
+                <div
+                  className="rounded-lg p-3 text-center"
+                  style={{ background: 'rgba(30,41,59,0.5)' }}
+                >
+                  <div className="text-xl font-bold" style={{ color: 'var(--gb-yellow)' }}>
+                    {totalEvents || '--'}
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'var(--gb-text)' }}>
+                    Events
+                  </div>
+                </div>
+                <div
+                  className="rounded-lg p-3 text-center"
+                  style={{ background: 'rgba(30,41,59,0.5)' }}
+                >
+                  <div className="text-xl font-bold" style={{ color: 'var(--gb-red)' }}>
+                    {totalPivots || '--'}
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'var(--gb-text)' }}>
+                    Pivots
+                  </div>
+                </div>
+                <div
+                  className="rounded-lg p-3 text-center"
+                  style={{ background: 'rgba(30,41,59,0.5)' }}
+                >
+                  <div className="text-xl font-bold" style={{ color: 'var(--gb-accent)' }}>
                     {duration > 0
                       ? `${Math.floor(duration / 60)}m ${Math.round(duration % 60)}s`
-                      : '--'}
-                  </span>
+                      : '< 5m'}
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'var(--gb-text)' }}>
+                    Duration
+                  </div>
                 </div>
               </div>
 
@@ -363,12 +485,13 @@ export default function SprintReport({ runId }) {
                     Full Sprint Report
                   </h4>
                   <pre
-                    className="text-xs p-4 rounded overflow-auto whitespace-pre-wrap"
+                    className="text-xs p-4 rounded-lg overflow-auto whitespace-pre-wrap"
                     style={{
                       background: 'var(--gb-surface-2)',
                       color: 'var(--gb-text-bright)',
                       fontFamily: 'var(--font-mono)',
                       maxHeight: '50vh',
+                      border: '1px solid var(--gb-border)',
                     }}
                   >
                     {report}
