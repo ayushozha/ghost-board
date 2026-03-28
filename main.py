@@ -320,10 +320,11 @@ def _play_cached_demo() -> None:
 @click.argument("startup_idea", default="AI-powered regulatory compliance automation for fintech startups")
 @click.option("--personas", "-p", default=30, help="Number of simulation personas")
 @click.option("--rounds", "-r", default=5, help="Number of simulation rounds")
+@click.option("--sim-scale", type=click.Choice(["demo", "standard", "large"]), default=None, help="Simulation scale preset")
 @click.option("--skip-simulation", is_flag=True, help="Skip market simulation phase")
 @click.option("--demo", is_flag=True, help="Run with the Anchrix demo concept")
 @click.option("--cached", is_flag=True, help="Play back cached demo results (no API calls)")
-def main(startup_idea: str, personas: int, rounds: int, skip_simulation: bool, demo: bool, cached: bool):
+def main(startup_idea: str, personas: int, rounds: int, sim_scale: str | None, skip_simulation: bool, demo: bool, cached: bool):
     """Ghost Board - Autonomous AI executive team sprint.
 
     Runs five AI agents (CEO, CTO, CFO, CMO, Legal) that coordinate to build
@@ -345,6 +346,16 @@ def main(startup_idea: str, personas: int, rounds: int, skip_simulation: bool, d
                 "regulatory monitoring across CFPB, FinCEN, and state regulations."
             )
             print("[Demo mode] Using built-in Anchrix concept")
+
+    # Apply sim-scale presets
+    SCALE_PRESETS = {
+        "demo": (30, 5),
+        "standard": (100, 10),
+        "large": (500, 15),
+    }
+    if sim_scale:
+        personas, rounds = SCALE_PRESETS[sim_scale]
+        click.echo(f"[Sim scale: {sim_scale}] {personas} personas, {rounds} rounds")
 
     if not os.environ.get("OPENAI_API_KEY"):
         click.echo("ERROR: OPENAI_API_KEY not set. Run: export OPENAI_API_KEY='sk-...'")
