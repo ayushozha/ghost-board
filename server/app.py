@@ -504,14 +504,51 @@ async def get_run(run_id: str) -> dict[str, Any]:
     # Handle "latest" virtual run
     if run_id == "latest":
         summary = _read_json_file(OUTPUTS_DIR / "sprint_summary.json") or {}
+        trace_data = _read_json_file(OUTPUTS_DIR / "trace.json")
+        trace_event_count = len(trace_data) if isinstance(trace_data, list) else summary.get("events", 0)
+        pivot_count = summary.get("pivots", 0)
+        if isinstance(trace_data, list) and pivot_count == 0:
+            pivot_count = sum(1 for e in trace_data if isinstance(e, dict) and e.get("event_type") == "PIVOT")
+
+        # Count artifact files from filesystem
+        artifact_count = 0
+        for folder in ("prototype", "financial_model", "gtm", "compliance"):
+            artifact_count += len(_list_artifact_files(OUTPUTS_DIR / folder))
+
+        # Build simulation summary from file
+        sim_results = _read_json_file(OUTPUTS_DIR / "simulation_results.json")
+        simulations = []
+        if isinstance(sim_results, dict):
+            simulations.append({
+                "id": "latest-sim",
+                "llm_agents": sim_results.get("total_llm_agents", 0),
+                "lightweight_agents": sim_results.get("total_lightweight_agents", 0),
+                "rounds": sim_results.get("rounds", 0),
+                "duration_seconds": sim_results.get("duration_seconds", 0.0),
+                "overall_sentiment": (sim_results.get("final_signal") or {}).get("overall_sentiment", 0.0)
+                    if isinstance(sim_results.get("final_signal"), dict) else 0.0,
+            })
+
+        total_agents_sim = sim_results.get("total_agents", 0) if isinstance(sim_results, dict) else 0
+
         return {
             "run_id": "latest",
             "id": "latest",
-            "concept": summary.get("concept", "Unknown"),
+            "concept": summary.get("concept") or "Latest Sprint (from outputs/)",
             "status": "completed",
-            "events_count": summary.get("events", 0),
-            "artifacts_count": 0,
-            "simulations": [],
+            "started_at": None,
+            "finished_at": None,
+            "completed_at": None,
+            "created_at": None,
+            "total_events": trace_event_count,
+            "total_pivots": pivot_count,
+            "total_agents_simulated": total_agents_sim,
+            "api_cost_usd": summary.get("total_cost", 0.0),
+            "total_cost": summary.get("total_cost", 0.0),
+            "wandb_url": summary.get("wandb_url"),
+            "events_count": trace_event_count,
+            "artifacts_count": artifact_count,
+            "simulations": simulations,
         }
 
     async with get_session() as session:

@@ -707,7 +707,7 @@
     </div>
 
     <!-- Stat grid -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-6">
       <div class="rounded-2xl glass p-8 text-center reveal transition-all duration-300 hover:scale-105">
         <div id="stat-agents" class="text-4xl md:text-5xl font-black text-ghost-400 mb-2" data-count="1000050" data-default="1,000,050">1,000,050</div>
         <div class="text-slate-500 text-sm">Agents Simulated</div>
@@ -715,7 +715,7 @@
       </div>
       <div class="rounded-2xl glass p-8 text-center reveal reveal-delay-1 transition-all duration-300 hover:scale-105">
         <div id="stat-runs" class="text-4xl md:text-5xl font-black text-yellow-400 mb-2" data-default="35+">35+</div>
-        <div class="text-slate-500 text-sm">Simulations Run</div>
+        <div class="text-slate-500 text-sm">Events Traced</div>
         <div id="stat-runs-sub" class="text-slate-600 text-xs mt-1">Full causal chain in W&B</div>
       </div>
       <div class="rounded-2xl glass p-8 text-center reveal reveal-delay-2 transition-all duration-300 hover:scale-105">
@@ -724,9 +724,14 @@
         <div class="text-slate-600 text-xs mt-1">Legal blockers + market signals</div>
       </div>
       <div class="rounded-2xl glass p-8 text-center reveal reveal-delay-3 transition-all duration-300 hover:scale-105">
+        <div id="stat-time" class="text-4xl md:text-5xl font-black text-emerald-400 mb-2" data-default="< 5 min">&lt; 5 min</div>
+        <div class="text-slate-500 text-sm">Sprint Duration</div>
+        <div class="text-slate-600 text-xs mt-1">Concept to full deliverables</div>
+      </div>
+      <div class="rounded-2xl glass p-8 text-center reveal reveal-delay-4 transition-all duration-300 hover:scale-105 col-span-2 md:col-span-1">
         <div id="stat-cost" class="text-4xl md:text-5xl font-black text-cyan-400 mb-2" data-default="$0.19">$0.19</div>
-        <div class="text-slate-500 text-sm">Avg Cost / Sprint</div>
-        <div class="text-slate-600 text-xs mt-1">From concept to deliverables</div>
+        <div class="text-slate-500 text-sm">Total API Cost</div>
+        <div class="text-slate-600 text-xs mt-1">77,359x cheaper than consulting</div>
       </div>
     </div>
   </div>

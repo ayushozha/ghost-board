@@ -137,6 +137,14 @@ class MarketSignal(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
     key_concerns: list[str] = Field(default_factory=list)
     key_strengths: list[str] = Field(default_factory=list)
+    objections: list[str] = Field(
+        default_factory=list,
+        description="Specific objections raised by personas (regulatory, market, technical)"
+    )
+    pricing_signal: str = Field(
+        default="",
+        description="Aggregated pricing feedback from personas"
+    )
     pivot_recommended: bool = False
     pivot_suggestion: str = ""
     archetype_breakdown: dict[str, float] = Field(
@@ -208,6 +216,8 @@ Respond in JSON:
 {{
   "key_concerns": ["top 3-5 concerns raised"],
   "key_strengths": ["top 3-5 strengths identified"],
+  "objections": ["specific objections raised by personas, e.g. regulatory issues, market fit doubts, technical feasibility concerns - include persona name and archetype"],
+  "pricing_signal": "summary of pricing-related feedback from personas - willingness to pay, cost concerns, pricing model suggestions. If no pricing feedback, say 'No explicit pricing feedback'",
   "pivot_recommended": true/false,
   "pivot_suggestion": "if pivot recommended, what should change",
   "confidence": 0.0-1.0 (how confident in this analysis),
@@ -224,15 +234,23 @@ Recommend pivot only if sentiment is strongly negative (<-0.3) OR if regulators/
                 {"role": "user", "content": prompt},
             ],
             temperature=0.3,
-            max_tokens=1000,
+            max_tokens=1500,
         )
 
         content = response.choices[0].message.content or "{}"
         data = json.loads(content.strip().removeprefix("```json").removesuffix("```").strip())
     except Exception:
+        # Build objections from negative messages as fallback
+        negative_msgs = [m for m in all_messages if m.sentiment < -0.2]
+        fallback_objections = [
+            f"{m.persona_name} ({m.archetype}): {m.content[:100]}"
+            for m in negative_msgs[:5]
+        ]
         data = {
             "key_concerns": ["Unable to analyze - using quantitative data only"],
             "key_strengths": [],
+            "objections": fallback_objections,
+            "pricing_signal": "No explicit pricing feedback available",
             "pivot_recommended": overall_sentiment < -0.3,
             "pivot_suggestion": "Consider adjusting based on negative market feedback" if overall_sentiment < -0.3 else "",
             "confidence": 0.5,
@@ -244,6 +262,8 @@ Recommend pivot only if sentiment is strongly negative (<-0.3) OR if regulators/
         confidence=data.get("confidence", 0.5),
         key_concerns=data.get("key_concerns", []),
         key_strengths=data.get("key_strengths", []),
+        objections=data.get("objections", []),
+        pricing_signal=data.get("pricing_signal", "No explicit pricing feedback"),
         pivot_recommended=data.get("pivot_recommended", False),
         pivot_suggestion=data.get("pivot_suggestion", ""),
         archetype_breakdown=archetype_breakdown,

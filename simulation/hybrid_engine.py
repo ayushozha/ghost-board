@@ -228,6 +228,7 @@ def _save_hybrid_outputs(
                 "sentiment_score": cat["sentiment"],
                 "key_phrases": cat["key_phrases"],
                 "references": m.references,
+                "stance_change": m.stance_change,
             })
             if m.archetype not in sentiment_by_archetype:
                 sentiment_by_archetype[m.archetype] = []
@@ -252,8 +253,13 @@ def _save_hybrid_outputs(
             "confidence": signal.confidence,
             "key_concerns": signal.key_concerns,
             "key_strengths": signal.key_strengths,
+            "objections": signal.objections,
+            "pricing_signal": signal.pricing_signal,
             "pivot_recommended": signal.pivot_recommended,
             "pivot_suggestion": signal.pivot_suggestion,
+            "archetype_breakdown": signal.archetype_breakdown,
+            "stance_shifts": signal.stance_shifts,
+            "summary": signal.summary,
         },
         "final_stances": sim_result.final_stances,
         "total_messages": sim_result.total_messages,
