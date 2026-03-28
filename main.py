@@ -283,6 +283,18 @@ async def run_sprint(
     from agents.base import BaseAgent
     BaseAgent.save_board_discussion()
 
+    # Generate sprint report
+    _generate_sprint_report(
+        startup_idea=startup_idea,
+        trace=trace,
+        pivots=pivots,
+        costs=costs,
+        total_cost=total_cost,
+        total_tokens=total_tokens,
+        human_equivalent=human_equivalent,
+        board_discussion=BaseAgent.get_board_discussion(),
+    )
+
     console.print(f"\n  Outputs: [link=file://outputs/]outputs/[/link]")
     console.print(f"  Trace: [link=file://outputs/trace.json]outputs/trace.json[/link]")
     console.print(f"  Board: [link=file://outputs/board_discussion.json]outputs/board_discussion.json[/link]")
@@ -327,6 +339,137 @@ async def run_sprint(
         "trace": [e.to_trace_dict() for e in trace],
         "wandb_url": getattr(logger, 'wandb_url', None),
     }
+
+
+def _generate_sprint_report(
+    startup_idea: str,
+    trace: list,
+    pivots: int,
+    costs: dict,
+    total_cost: float,
+    total_tokens: int,
+    human_equivalent: float,
+    board_discussion: list[dict],
+) -> None:
+    """Generate outputs/sprint_report.md with full sprint analysis."""
+    os.makedirs("outputs", exist_ok=True)
+
+    # Collect strategy evolution from trace
+    strategies = [e for e in trace if e.type.name == "STRATEGY_SET"]
+    blockers = [e for e in trace if e.type.name == "BLOCKER"]
+    pivot_events = [e for e in trace if e.type.name == "PIVOT"]
+    sim_results = [e for e in trace if e.type.name == "SIMULATION_RESULT"]
+
+    lines = []
+    lines.append(f"# Ghost Board Sprint Report")
+    lines.append(f"## Concept: {startup_idea}\n")
+
+    # Executive summary
+    lines.append("## Executive Summary\n")
+    lines.append(f"Ghost Board ran an autonomous AI executive sprint for: **{startup_idea}**.")
+    lines.append(f"Five AI agents (CEO, CTO, CFO, CMO, Legal) coordinated through {len(trace)} events,")
+    lines.append(f"executing {pivots} strategic pivot(s) in response to regulatory blockers and market simulation feedback.")
+    lines.append(f"Total API cost: **${total_cost:.4f}** ({total_tokens:,} tokens) vs estimated **${human_equivalent:,.0f}** consulting equivalent")
+    lines.append(f"— **{human_equivalent / max(total_cost, 0.01):,.0f}x cheaper**.\n")
+
+    # Strategy evolution
+    lines.append("## Strategy Evolution\n")
+    for i, strat in enumerate(strategies):
+        p = strat.payload
+        label = "Initial Strategy" if i == 0 else f"Post-Pivot #{i} Strategy"
+        lines.append(f"### {label}")
+        lines.append(f"- **Idea:** {getattr(p, 'startup_idea', 'N/A')}")
+        lines.append(f"- **Market:** {getattr(p, 'target_market', 'N/A')}")
+        lines.append(f"- **Model:** {getattr(p, 'business_model', 'N/A')}")
+        diffs = getattr(p, 'key_differentiators', [])
+        if diffs:
+            lines.append(f"- **Differentiators:** {', '.join(diffs)}")
+        lines.append("")
+
+    # Pivot decisions
+    if pivot_events:
+        lines.append("## Pivot Decisions\n")
+        for i, pev in enumerate(pivot_events):
+            p = pev.payload
+            lines.append(f"### Pivot #{i + 1}")
+            lines.append(f"- **Reason:** {getattr(p, 'reason', 'N/A')}")
+            lines.append(f"- **Affected agents:** {', '.join(getattr(p, 'affected_agents', []))}")
+            changes = getattr(p, 'changes_required', {})
+            if changes:
+                for agent, change in changes.items():
+                    lines.append(f"  - **{agent}:** {change}")
+            lines.append("")
+
+    # Regulatory blockers
+    if blockers:
+        lines.append("## Compliance Risks\n")
+        for b in blockers:
+            p = b.payload
+            lines.append(f"- **[{getattr(p, 'severity', 'N/A')}]** {getattr(p, 'description', 'N/A')}")
+            cites = getattr(p, 'citations', [])
+            if cites:
+                for c in cites[:3]:
+                    lines.append(f"  - Citation: {c}")
+        lines.append("")
+
+    # Market simulation
+    if sim_results:
+        lines.append("## Market Simulation Results\n")
+        for sr in sim_results:
+            p = sr.payload
+            lines.append(f"- **Overall sentiment:** {getattr(p, 'overall_sentiment', 0):.2f}")
+            lines.append(f"- **Confidence:** {getattr(p, 'confidence', 0):.2f}")
+            lines.append(f"- **Pivot recommended:** {'Yes' if getattr(p, 'pivot_recommended', False) else 'No'}")
+            concerns = getattr(p, 'key_concerns', [])
+            if concerns:
+                lines.append(f"- **Key concerns:** {', '.join(concerns[:5])}")
+            strengths = getattr(p, 'key_strengths', [])
+            if strengths:
+                lines.append(f"- **Key strengths:** {', '.join(strengths[:5])}")
+        lines.append("")
+
+    # Board discussion highlights
+    if board_discussion:
+        lines.append("## Board Discussion Highlights\n")
+        for entry in board_discussion:
+            agent = entry.get("agent", "?")
+            etype = entry.get("event_type", "")
+            msg = entry.get("message", "")
+            if len(msg) > 300:
+                msg = msg[:300] + "..."
+            lines.append(f"- **[{agent}]** ({etype}): {msg}")
+        lines.append("")
+
+    # Cost breakdown
+    lines.append("## Cost Breakdown\n")
+    lines.append("| Agent | Tokens | Cost |")
+    lines.append("|-------|--------|------|")
+    for name, cost in costs.items():
+        lines.append(f"| {name} | {cost['total_tokens']:,} | ${cost['estimated_cost_usd']:.4f} |")
+    lines.append(f"| **Total** | **{total_tokens:,}** | **${total_cost:.4f}** |")
+    lines.append("")
+
+    # Artifacts produced
+    lines.append("## Artifacts Produced\n")
+    for folder in ["prototype", "financial_model", "gtm", "compliance"]:
+        folder_path = Path("outputs") / folder
+        if folder_path.exists():
+            files = list(folder_path.iterdir())
+            lines.append(f"### {folder.replace('_', ' ').title()}")
+            for fp in files:
+                if fp.name.startswith("."):
+                    continue
+                size = fp.stat().st_size if fp.is_file() else 0
+                lines.append(f"- `{fp.name}` ({size:,} bytes)")
+            lines.append("")
+
+    lines.append("---")
+    lines.append(f"*Generated by Ghost Board — Autonomous AI Executive Team*")
+    lines.append(f"*Sprint cost: ${total_cost:.4f} | Events: {len(trace)} | Pivots: {pivots}*\n")
+
+    report = "\n".join(lines)
+    with open("outputs/sprint_report.md", "w", encoding="utf-8") as f:
+        f.write(report)
 
 
 def _play_cached_demo() -> None:
