@@ -1,0 +1,11 @@
+Anchrix is a compliance-aware stablecoin payout control plane targeting US fintechs.
+
+It provides APIs for USDC and USDT disbursements with built-in KYC/AML screening, state-level money transmitter compliance, and real-time transaction monitoring. Fintechs integrate Anchrix to send stablecoin payouts to contractors, vendors, and end users without building their own compliance infrastructure.
+
+Target market: US-based fintechs, neobanks, and payroll platforms that want to offer stablecoin payouts but lack the regulatory expertise and infrastructure to do it compliantly.
+
+Revenue model: Per-transaction fees (0.1-0.5% of payout volume) plus monthly platform access fees ($500-$5,000/month based on volume tier).
+
+Key differentiator: Anchrix handles the compliance layer that no one else wants to build. Competitors either offer crypto rails without compliance (risky) or compliance without crypto rails (incomplete). Anchrix combines both in a single API.
+
+Regulatory complexity: Money transmission is regulated at both federal (FinCEN) and state levels. Operating in all 50 states requires 48+ individual licenses (most states plus DC, Puerto Rico, USVI). Each license costs $10K-$100K and takes 6-18 months to obtain. This is the core barrier Anchrix helps fintechs navigate.

@@ -1,0 +1,18 @@
+## Ghost Board - Build Progress
+
+[ ] PRD-01: Project skeleton, requirements.txt, .env loading, empty main.py with click CLI and --help
+[ ] PRD-02: coordination/events.py - EventType enum, AgentEvent model, typed payload models (StrategyPayload, BlockerPayload, PivotPayload, SimulationResultPayload, UpdatePayload)
+[ ] PRD-03: coordination/state.py - StateBus async pub/sub with subscribe/publish/get_trace/get_state + tests/test_events.py
+[ ] PRD-04: coordination/trace.py - TraceLogger that writes to W&B if available, falls back to outputs/trace.json
+[ ] PRD-05: agents/base.py - BaseAgent class with async call_llm(), log(), publish(), handle_event() + cost estimation
+[ ] PRD-06: agents/ceo.py - CEOAgent: set_strategy(), process_blockers(), process_simulation_result(), pivot logic with real reasoning
+[ ] PRD-07: agents/cto.py - CTOAgent: use OpenAI API to generate prototype code, save to outputs/prototype/, handle PIVOT by modifying code
+[ ] PRD-08: agents/legal.py - LegalAgent: analyze regulatory risks, use web search for real citations, publish BLOCKER events with citations field
+[ ] PRD-09: agents/cfo.py - CFOAgent: generate financial model JSON + markdown, sanity checks, handle PIVOT by adjusting numbers
+[ ] PRD-10: agents/cmo.py - CMOAgent: generate positioning, taglines, landing page copy, handle PIVOT by rewriting
+[ ] PRD-11: simulation/personas.py - MarketPersona model, generate_personas() with archetype distribution, gpt-4o-mini
+[ ] PRD-12: simulation/engine.py - run_simulation() turn-based, agents reference each other, shared feed, stance tracking
+[ ] PRD-13: simulation/analyzer.py - MarketSignal model, analyze_simulation() structured output
+[ ] PRD-14: main.py - Full orchestration: Phase 1 (strategy+build) -> Phase 2 (simulate) -> Phase 3 (pivot+rebuild) + W&B logging
+[ ] PRD-15: tests/test_e2e.py - End-to-end test with mocked LLM calls verifying the full cascade
+[ ] PRD-16: README.md with architecture diagram, quick start, credits (Ralph Loop, MiroFish, W&B, oh-my-opencode, oh-my-claude-code, OpenClaw) + demo/anchrix_concept.txt + --demo flag
