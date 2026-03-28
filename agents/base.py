@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
+from datetime import datetime, timezone
 from typing import Any
 
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from pydantic import BaseModel
 
-from coordination.events import AgentEvent, EventType
+from coordination.events import AgentEvent, EventType, UpdatePayload
 from coordination.state import StateBus
 from coordination.trace import TraceLogger
 
@@ -135,12 +137,10 @@ class BaseAgent:
         self.log(f"Tool call failed after {retries} attempts: {last_error}", action="error")
         return None
 
-    _board_discussion: list[dict] = []
+    _board_discussion: list[dict[str, Any]] = []
 
     def log(self, message: str, action: str = "info", reasoning: str = "") -> None:
         """Log an action to the trace logger and board discussion."""
-        from coordination.events import UpdatePayload
-
         event = AgentEvent(
             type=EventType.UPDATE,
             source=self.name,
@@ -158,7 +158,6 @@ class BaseAgent:
                                      "compliance_scan", "financial_model", "gtm_generate",
                                      "codex_generate", "pivot_response", "simulation_review",
                                      "simulation_response"):
-            from datetime import datetime, timezone
             BaseAgent._board_discussion.append({
                 "agent": self.name,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -171,13 +170,13 @@ class BaseAgent:
     @classmethod
     def save_board_discussion(cls) -> None:
         """Save board discussion to JSON file."""
-        import json, os
         os.makedirs("outputs", exist_ok=True)
         with open("outputs/board_discussion.json", "w", encoding="utf-8") as f:
             json.dump(cls._board_discussion, f, indent=2)
 
     @classmethod
-    def get_board_discussion(cls) -> list[dict]:
+    def get_board_discussion(cls) -> list[dict[str, Any]]:
+        """Return a copy of the board discussion log."""
         return list(cls._board_discussion)
 
     async def publish(self, event: AgentEvent) -> None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from typing import Any
 
 from coordination.events import (
@@ -331,7 +332,6 @@ Be SPECIFIC. Reference concrete numbers, regulations, market segments, and techn
         self._current_iteration += 1
 
         # --- Write structured board discussion entry with all 5 reasoning fields ---
-        from datetime import datetime, timezone
         option_names = [
             opt.get("option", str(opt)) if isinstance(opt, dict) else str(opt)
             for opt in options_considered

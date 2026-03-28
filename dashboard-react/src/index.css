@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+/* ── Ghost Board Dark Theme ── */
+
+:root {
+  --gb-bg: #0a0a0f;
+  --gb-surface: #12121a;
+  --gb-surface-2: #1a1a25;
+  --gb-border: #2a2a3a;
+  --gb-text: #9ca3af;
+  --gb-text-bright: #e5e7eb;
+  --gb-accent: #8b5cf6;
+  --gb-accent-glow: rgba(139, 92, 246, 0.3);
+  --gb-green: #10b981;
+  --gb-red: #ef4444;
+  --gb-yellow: #f59e0b;
+  --gb-blue: #3b82f6;
+  --gb-purple: #a855f7;
+  --gb-cyan: #06b6d4;
+
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--gb-bg);
+  color: var(--gb-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--gb-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--gb-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gb-accent);
+}
+
+/* ── Glow effects ── */
+.glow-accent {
+  box-shadow: 0 0 20px var(--gb-accent-glow), 0 0 60px rgba(139, 92, 246, 0.1);
+}
+
+.glow-green {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+}
+
+.glow-red {
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+}
+
+/* ── Terminal cursor blink ── */
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+.cursor-blink {
+  animation: blink 1s step-end infinite;
+}
+
+/* ── Pulse animation ── */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 5px var(--gb-accent-glow); }
+  50% { box-shadow: 0 0 20px var(--gb-accent-glow), 0 0 40px rgba(139, 92, 246, 0.15); }
+}
+
+.pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* ── Scan line effect ── */
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}

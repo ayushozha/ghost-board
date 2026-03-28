@@ -10,3 +10,9 @@ wandb/
 *.egg-info/
 dist/
 build/
+
+# Sensitive / local-only files
+VPS.md
+CLAUDE_APPEND.md
+.claude/
+demo/wandb_url.txt

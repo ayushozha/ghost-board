@@ -1,9 +1,11 @@
-# Ghost Board
+![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)
+![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
+![Tests](https://img.shields.io/badge/tests-68%20passed-brightgreen.svg)
+![W&B](https://img.shields.io/badge/W%26B-enabled-yellow.svg)
+![Agents](https://img.shields.io/badge/agents-1%2C000%2C050-purple.svg)
+![Built at Ralphthon SF 2026](https://img.shields.io/badge/built%20at-Ralphthon%20SF%202026-ff69b4.svg)
 
-![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
-![Tests](https://img.shields.io/badge/tests-39%20passed-brightgreen)
-![License: MIT](https://img.shields.io/badge/license-MIT-green)
-![Built at](https://img.shields.io/badge/built%20at-Ralphthon%20SF%202026-purple)
+# Ghost Board
 
 Autonomous AI executive team that builds AND validates a startup in a single sprint.
 
@@ -52,26 +54,23 @@ flowchart TD
 ## Quick Start
 
 ```bash
-# 1. Set API keys
-export OPENAI_API_KEY="sk-..."
-export WANDB_API_KEY="..."  # optional, falls back to JSON
-
-# 2. Install dependencies
+git clone https://github.com/ayushozha/ghost-board.git
+cd ghost-board
 pip install -r requirements.txt
+cp .env.example .env  # Add your OpenAI API key
+python main.py "Your startup idea here"
+```
 
-# 3. Run with default idea
-python main.py
+### More Options
 
-# 4. Run with custom idea
-python main.py "AI-powered supply chain optimization for restaurants"
-
-# 5. Run demo (Anchrix concept)
+```bash
+# Run demo (Anchrix fintech concept)
 python main.py --demo
 
-# 6. Customize simulation
+# Customize simulation scale
 python main.py --personas 15 --rounds 5
 
-# 7. Skip simulation (build only)
+# Skip simulation (build only)
 python main.py --skip-simulation
 ```
 
@@ -151,11 +150,12 @@ ghost-board/
 python -m pytest tests/ -x --tb=short
 ```
 
-39 tests covering:
+68 tests covering:
 - Event bus pub/sub mechanics (19 tests including edge cases)
 - Agent behavior with mocked LLM responses (9 tests including max pivot, retry)
 - Simulation personas, engine, and analyzer (7 tests)
 - Full cascade E2E: strategy -> build -> blocker -> pivot -> rebuild (4 tests)
+- API server endpoints, WebSocket streaming, and database integration (29 tests)
 
 ## Demo Concept
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from typing import Any
 
@@ -11,7 +12,6 @@ from coordination.events import (
     BlockerPayload,
     CompliancePayload,
     EventType,
-    PivotPayload,
     StrategyPayload,
 )
 from coordination.state import StateBus
@@ -581,7 +581,6 @@ SEVERITY GUIDE:
 
     def _save_report(self, data: dict[str, Any]) -> None:
         """Save compliance report to outputs/compliance/ with structured regulatory concerns."""
-        import os
         os.makedirs("outputs/compliance", exist_ok=True)
 
         # Save full structured JSON

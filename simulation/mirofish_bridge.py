@@ -22,6 +22,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from openai import AsyncOpenAI
+
 from simulation.personas import MarketPersona, generate_personas
 from simulation.engine import run_simulation, SimulationResult
 from simulation.analyzer import analyze_simulation, MarketSignal
@@ -46,10 +48,10 @@ class MiroFishConfigAdapter:
     Replaces Zep Cloud entity reading with our own persona generation.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._available = False
-        self._config_generator_cls = None
-        self._agent_action_cls = None
+        self._config_generator_cls: type | None = None
+        self._agent_action_cls: type | None = None
         self._init_mirofish()
 
     def _init_mirofish(self) -> None:
@@ -142,9 +144,9 @@ class BettaFishSentiment:
     Falls back to OpenAI-based sentiment on failure.
     """
 
-    def __init__(self):
-        self._analyzer = None
-        self._available = False
+    def __init__(self) -> None:
+        self._analyzer: Any = None
+        self._available: bool = False
         self._init_bettafish()
 
     def _init_bettafish(self) -> None:
@@ -241,7 +243,7 @@ class MiroFishBridge:
       - Falls back to OpenAI if model can't load
     """
 
-    def __init__(self, client=None):
+    def __init__(self, client: AsyncOpenAI | None = None) -> None:
         self.client = client
         self._mirofish = MiroFishConfigAdapter()
         self._bettafish = BettaFishSentiment()
@@ -306,10 +308,9 @@ class MiroFishBridge:
 
         return sim_result, signal
 
-    def _save_geo_data(self, personas: list, sim_result: SimulationResult) -> None:
+    def _save_geo_data(self, personas: list[MarketPersona], sim_result: SimulationResult) -> None:
         """Save persona geographic data for 3D globe visualization."""
-        import os as _os
-        _os.makedirs("outputs", exist_ok=True)
+        os.makedirs("outputs", exist_ok=True)
         geo_data = []
         for p in personas:
             geo = getattr(p, 'geographic_location', None)
@@ -334,11 +335,10 @@ class MiroFishBridge:
             json.dump(geo_data, f, indent=2)
 
     def _save_simulation_results(
-        self, sim_result: SimulationResult, signal: MarketSignal, personas: list
+        self, sim_result: SimulationResult, signal: MarketSignal, personas: list[MarketPersona]
     ) -> None:
         """Save structured simulation results for dashboard visualization."""
-        import os as _os
-        _os.makedirs("outputs", exist_ok=True)
+        os.makedirs("outputs", exist_ok=True)
 
         rounds_data = []
         for rd in sim_result.rounds:
@@ -413,7 +413,6 @@ class MiroFishBridge:
         return await self._openai_sentiment(text)
 
     async def _openai_sentiment(self, text: str) -> dict[str, Any]:
-        from openai import AsyncOpenAI
         client = self.client or AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
         response = await client.chat.completions.create(
             model="gpt-4o-mini",

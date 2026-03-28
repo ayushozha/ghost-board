@@ -13,7 +13,6 @@ from coordination.events import (
     PivotPayload,
     PrototypePayload,
     StrategyPayload,
-    UpdatePayload,
 )
 from coordination.state import StateBus
 from coordination.trace import TraceLogger

@@ -7,6 +7,7 @@ import functools
 import json
 import os
 import sys
+import time
 import threading
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, HTTPServer
@@ -476,6 +477,29 @@ def _generate_sprint_report(
         f.write(report)
 
 
+async def _send_webhook(url: str, payload: dict) -> None:
+    """POST a JSON payload to the webhook URL. Logs warning on failure."""
+    import aiohttp
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=aiohttp.ClientTimeout(total=15),
+            ) as resp:
+                if resp.status < 300:
+                    console.print(f"  Webhook notification sent to {url}")
+                else:
+                    body = await resp.text()
+                    console.print(
+                        f"  [yellow]Webhook returned HTTP {resp.status}: {body[:200]}[/yellow]"
+                    )
+    except Exception as exc:
+        console.print(f"  [yellow]Webhook failed ({type(exc).__name__}): {exc}[/yellow]")
+
+
 def _play_cached_demo() -> None:
     """Play back cached demo results without API calls."""
     import time
@@ -571,12 +595,24 @@ def _open_dashboard(live: bool = False, port: int = 8080) -> str:
 @click.option("--concept", type=click.Choice(["anchrix", "coforge", "medpulse", "learnloop", "saas"]), default=None, help="Load a named demo concept")
 @click.option("--no-browser", is_flag=True, help="Do not auto-open the dashboard in a browser after sprint")
 @click.option("--live", is_flag=True, help="Start an HTTP server on port 8080 serving the dashboard with live updates")
-def main(startup_idea: str, personas: int, rounds: int, sim_scale: str | None, skip_simulation: bool, demo: bool, cached: bool, json_output: bool, concept: str | None, no_browser: bool, live: bool):
+@click.option("--webhook-url", default=None, help="POST a JSON summary to this URL after sprint completes")
+@click.option("--serve", is_flag=True, help="Start the FastAPI API server (uvicorn) instead of running a sprint")
+@click.option("--serve-port", default=8000, type=int, help="Port for --serve (default: 8000)")
+def main(startup_idea: str, personas: int, rounds: int, sim_scale: str | None, skip_simulation: bool, demo: bool, cached: bool, json_output: bool, concept: str | None, no_browser: bool, live: bool, webhook_url: str | None, serve: bool, serve_port: int):
     """Ghost Board - Autonomous AI executive team sprint.
 
     Runs five AI agents (CEO, CTO, CFO, CMO, Legal) that coordinate to build
     and validate a startup in a single sprint.
     """
+    # --serve: start the FastAPI server and exit
+    if serve:
+        import uvicorn
+        console.print(f"[bold green]Starting Ghost Board API server on port {serve_port}...[/bold green]")
+        console.print(f"  API docs: http://localhost:{serve_port}/docs")
+        console.print(f"  Dashboard: http://localhost:{serve_port}/")
+        uvicorn.run("server.app:app", host="0.0.0.0", port=serve_port, reload=False)
+        return
+
     if cached or (demo and not os.environ.get("OPENAI_API_KEY")):
         _play_cached_demo()
         return
@@ -622,6 +658,7 @@ def main(startup_idea: str, personas: int, rounds: int, sim_scale: str | None, s
         click.echo("ERROR: OPENAI_API_KEY not set. Run: export OPENAI_API_KEY='sk-...'")
         sys.exit(1)
 
+    sprint_start = time.time()
     result = asyncio.run(run_sprint(
         startup_idea=startup_idea,
         num_personas=personas,
@@ -629,6 +666,7 @@ def main(startup_idea: str, personas: int, rounds: int, sim_scale: str | None, s
         skip_simulation=skip_simulation,
         sim_scale=sim_scale,
     ))
+    sprint_duration = time.time() - sprint_start
 
     # Save final summary
     os.makedirs("outputs", exist_ok=True)
@@ -637,6 +675,47 @@ def main(startup_idea: str, personas: int, rounds: int, sim_scale: str | None, s
 
     if json_output:
         click.echo(json.dumps(result, indent=2, default=str))
+
+    # Send webhook notification if URL provided
+    if webhook_url:
+        # Collect output artifact paths
+        artifact_paths: list[str] = []
+        for folder in ["prototype", "financial_model", "gtm", "compliance"]:
+            folder_path = Path("outputs") / folder
+            if folder_path.exists():
+                for fp in folder_path.iterdir():
+                    if fp.is_file() and not fp.name.startswith("."):
+                        artifact_paths.append(str(fp))
+        for extra in ["outputs/trace.json", "outputs/sprint_report.md", "outputs/board_discussion.json"]:
+            if Path(extra).exists():
+                artifact_paths.append(extra)
+
+        # Determine total agents simulated
+        agents_simulated = personas
+        if sim_scale and sim_scale in SCALE_PRESETS:
+            llm_n, light_n, _ = SCALE_PRESETS[sim_scale]
+            agents_simulated = llm_n + light_n
+
+        # Extract final sentiment from result trace
+        final_sentiment: float | None = None
+        for evt in reversed(result.get("trace", [])):
+            if evt.get("event_type") == "SIMULATION_RESULT":
+                final_sentiment = evt.get("payload", {}).get("overall_sentiment")
+                break
+
+        webhook_payload = {
+            "concept": startup_idea,
+            "status": "completed",
+            "pivots": result.get("pivots", 0),
+            "events": result.get("events", 0),
+            "agents_simulated": agents_simulated,
+            "cost_usd": result.get("total_cost", 0.0),
+            "sentiment": final_sentiment,
+            "artifacts": artifact_paths,
+            "wandb_url": result.get("wandb_url"),
+            "duration_seconds": round(sprint_duration, 2),
+        }
+        asyncio.run(_send_webhook(webhook_url, webhook_payload))
 
     # Auto-open dashboard in browser
     if not no_browser:

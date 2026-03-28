@@ -216,6 +216,157 @@ tailwind.config = {
 <div id="root"></div>
 
 <script type="text/babel">
+// ── AudioManager: Web Audio API sound effects ──
+class AudioManager {
+  constructor() {
+    this.ctx = null;
+    this.muted = false;
+    this._initialized = false;
+  }
+
+  _init() {
+    if (this._initialized) return;
+    try {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      this._initialized = true;
+    } catch(e) { console.warn('AudioManager: Web Audio not available'); }
+  }
+
+  _tone(freq, duration, type = 'sine', gain = 0.08) {
+    if (!this.ctx || this.muted) return null;
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+    g.gain.setValueAtTime(gain, this.ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+    osc.connect(g);
+    g.connect(this.ctx.destination);
+    osc.start();
+    osc.stop(this.ctx.currentTime + duration);
+    return { osc, gain: g };
+  }
+
+  play(sound) {
+    this._init();
+    if (!this.ctx || this.muted) return;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+
+    const t = this.ctx.currentTime;
+
+    switch(sound) {
+      case 'agent_complete': {
+        // Soft ascending chime: 440Hz -> 880Hz over 200ms
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, t);
+        osc.frequency.exponentialRampToValueAtTime(880, t + 0.2);
+        g.gain.setValueAtTime(0.06, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+        osc.connect(g); g.connect(this.ctx.destination);
+        osc.start(t); osc.stop(t + 0.3);
+        break;
+      }
+      case 'blocker': {
+        // Low alert tone: 220Hz, 400ms, slight distortion
+        const osc = this.ctx.createOscillator();
+        const dist = this.ctx.createWaveShaper();
+        const g = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(220, t);
+        osc.frequency.setValueAtTime(200, t + 0.2);
+        // Subtle distortion curve
+        const curve = new Float32Array(256);
+        for (let i = 0; i < 256; i++) {
+          const x = (i * 2) / 256 - 1;
+          curve[i] = (Math.PI + 3) * x / (Math.PI + 3 * Math.abs(x));
+        }
+        dist.curve = curve;
+        g.gain.setValueAtTime(0.07, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+        osc.connect(dist); dist.connect(g); g.connect(this.ctx.destination);
+        osc.start(t); osc.stop(t + 0.5);
+        break;
+      }
+      case 'pivot': {
+        // Dramatic descending tone: 660Hz -> 330Hz over 500ms
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(660, t);
+        osc.frequency.exponentialRampToValueAtTime(330, t + 0.5);
+        g.gain.setValueAtTime(0.08, t);
+        g.gain.setValueAtTime(0.08, t + 0.3);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+        osc.connect(g); g.connect(this.ctx.destination);
+        osc.start(t); osc.stop(t + 0.6);
+        break;
+      }
+      case 'sim_tick': {
+        // Quick tick: 1000Hz, 50ms
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1000, t);
+        g.gain.setValueAtTime(0.04, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+        osc.connect(g); g.connect(this.ctx.destination);
+        osc.start(t); osc.stop(t + 0.06);
+        break;
+      }
+      case 'sprint_complete': {
+        // Triumphant chord: 440 + 554 + 659Hz for 800ms
+        [440, 554.37, 659.25].forEach((freq, i) => {
+          const osc = this.ctx.createOscillator();
+          const g = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, t);
+          g.gain.setValueAtTime(0.05, t + i * 0.05);
+          g.gain.setValueAtTime(0.05, t + 0.5);
+          g.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
+          osc.connect(g); g.connect(this.ctx.destination);
+          osc.start(t + i * 0.05); osc.stop(t + 0.9);
+        });
+        break;
+      }
+      case 'launch': {
+        // Rising sweep for warp launch
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(200, t);
+        osc.frequency.exponentialRampToValueAtTime(1200, t + 1.0);
+        g.gain.setValueAtTime(0.05, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 1.1);
+        osc.connect(g); g.connect(this.ctx.destination);
+        osc.start(t); osc.stop(t + 1.1);
+        break;
+      }
+      case 'tab_switch': {
+        // Gentle click: very short sine pip
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, t);
+        g.gain.setValueAtTime(0.03, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+        osc.connect(g); g.connect(this.ctx.destination);
+        osc.start(t); osc.stop(t + 0.04);
+        break;
+      }
+    }
+  }
+
+  toggleMute() {
+    this.muted = !this.muted;
+    return this.muted;
+  }
+}
+
+const audioManager = new AudioManager();
+window.audioManager = audioManager;
+
 const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
 // ── Debounce utility for resize handlers ──
@@ -257,6 +408,12 @@ const getColor = (source) => AGENT_COLORS[source] || { bg:'bg-gray-500/20', bord
 
 // ── Header ──
 function Header({ events, pivots, cost }) {
+  const [muted, setMuted] = useState(audioManager.muted);
+  const handleToggleMute = () => {
+    audioManager._init();
+    const nowMuted = audioManager.toggleMute();
+    setMuted(nowMuted);
+  };
   return (
     <header className="p-6 fade-in">
       <div className="max-w-7xl mx-auto">
@@ -267,6 +424,14 @@ function Header({ events, pivots, cost }) {
           <h1 className="text-3xl font-black tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
             Ghost Board
           </h1>
+          <button onClick={handleToggleMute} title={muted ? 'Unmute sounds' : 'Mute sounds'}
+            className="ml-auto w-9 h-9 rounded-lg bg-slate-800/60 border border-slate-700/40 flex items-center justify-center hover:bg-slate-700/60 transition-colors text-slate-400 hover:text-slate-200"
+            style={{ fontSize: '16px' }}>
+            {muted
+              ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
+              : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+            }
+          </button>
         </div>
         <p className="text-slate-400 text-sm ml-[52px]">Autonomous AI Executive Team Sprint Dashboard</p>
         <div className="flex gap-6 mt-6 ml-[52px] stats-row flex-wrap">
@@ -308,8 +473,30 @@ function TimelineItem({ event, index }) {
   const c = getColor(event.source);
   const isPivot = event.event_type === 'PIVOT';
   const isBlocker = event.event_type === 'BLOCKER';
+  const isSimResult = event.event_type === 'SIMULATION_RESULT';
+  const isComplete = ['PROTOTYPE_READY','FINANCIAL_MODEL_READY','GTM_READY','COMPLIANCE_REPORT_READY'].includes(event.event_type);
+
+  // Play sound when timeline item scrolls into view
+  const itemRef = useRef(null);
+  const soundPlayed = useRef(false);
+  useEffect(() => {
+    if (soundPlayed.current || !itemRef.current) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && !soundPlayed.current) {
+        soundPlayed.current = true;
+        if (isPivot) audioManager.play('pivot');
+        else if (isBlocker) audioManager.play('blocker');
+        else if (isSimResult) audioManager.play('sim_tick');
+        else if (isComplete) audioManager.play('agent_complete');
+        observer.disconnect();
+      }
+    }, { threshold: 0.5 });
+    observer.observe(itemRef.current);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div className={`fade-in relative ${isPivot ? 'pivot-card' : ''}`} style={{ animationDelay: `${index * 0.08}s` }}>
+    <div ref={itemRef} className={`fade-in relative ${isPivot ? 'pivot-card' : ''}`} style={{ animationDelay: `${index * 0.08}s` }}>
       <div className={`absolute -left-[38px] top-3 timeline-dot ${c.dot}`}></div>
       <div className={`rounded-xl p-4 border ${c.border}/30 ${c.bg} backdrop-blur-sm ${isPivot ? 'glow-red border-red-500/50' : isBlocker ? 'glow-red' : 'glow'}`}>
         <div className="flex items-center gap-2 mb-1">
@@ -452,26 +639,108 @@ function PivotTrace({ events }) {
   );
 }
 
-// ── Artifact Viewer ──
-function ArtifactViewer() {
+// ── Sprint Report (Artifact Viewer + Cost) ──
+function SprintReport({ events }) {
   const [tab, setTab] = useState('prototype');
+  const costChartRef = useRef(null);
+  const costChartInstance = useRef(null);
   const tabs = [
     { id: 'prototype', label: 'Prototype', icon: '&#128187;' },
     { id: 'financial', label: 'Financial', icon: '&#128200;' },
     { id: 'gtm', label: 'GTM', icon: '&#128640;' },
     { id: 'compliance', label: 'Compliance', icon: '&#9878;' },
+    { id: 'cost', label: 'Cost', icon: '&#128176;' },
   ];
+
+  useEffect(() => {
+    if (tab !== 'cost' || !costChartRef.current) return;
+    if (costChartInstance.current) costChartInstance.current.destroy();
+    costChartInstance.current = new Chart(costChartRef.current, {
+      type: 'bar',
+      data: {
+        labels: ['Ghost Board (AI)', 'Human Consulting'],
+        datasets: [{
+          label: 'Cost ($)',
+          data: [0.19, 15000],
+          backgroundColor: ['rgba(34,197,94,0.7)', 'rgba(239,68,68,0.5)'],
+          borderRadius: 8,
+          barThickness: 80,
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: {
+            type: 'logarithmic',
+            grid: { color: '#1e293b' },
+            ticks: { color: '#64748b', callback: v => '$' + v.toLocaleString() },
+          },
+          x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 12, weight: 'bold' } } }
+        },
+        plugins: { legend: { display: false } },
+      }
+    });
+    return () => { if (costChartInstance.current) costChartInstance.current.destroy(); };
+  }, [tab]);
+
+  const pivotCount = events.filter(e => e.event_type === 'PIVOT').length;
+  const simEvent = events.find(e => e.event_type === 'SIMULATION_RESULT');
+  const totalAgents = simEvent?.payload?.total_agents || simEvent?.payload?.num_personas || 0;
+
   return (
     <div>
-      <div className="flex gap-1 mb-4 border-b border-slate-700/50">
+      <h2 className="text-xl font-bold text-white mb-4">Sprint Report</h2>
+      <div className="flex gap-1 mb-4 border-b border-slate-700/50 overflow-x-auto">
         {tabs.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${tab === t.id ? 'tab-active' : 'tab-inactive'}`}
+            className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${tab === t.id ? 'tab-active' : 'tab-inactive'}`}
             dangerouslySetInnerHTML={{ __html: `${t.icon} ${t.label}` }} />
         ))}
       </div>
       <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/30 min-h-[200px]">
-        <ArtifactContent tab={tab} />
+        {tab === 'cost' ? (
+          <div>
+            <h3 className="text-lg font-bold text-white mb-4">Cost Comparison</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <div className="rounded-xl bg-green-500/10 border border-green-500/20 p-6 text-center">
+                <div className="text-4xl font-black text-green-400 mb-1">$0.19</div>
+                <div className="text-sm text-slate-400">Ghost Board API Cost</div>
+              </div>
+              <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-6 text-center">
+                <div className="text-4xl font-black text-slate-500 line-through decoration-red-500/40">$15,000</div>
+                <div className="text-sm text-slate-400">Human Consulting Equivalent</div>
+              </div>
+            </div>
+            <div className="text-center mb-6">
+              <span className="inline-block px-4 py-2 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 font-black text-xl">
+                77,359x cheaper
+              </span>
+            </div>
+            <div className="mb-6">
+              <canvas ref={costChartRef}></canvas>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="rounded-lg bg-slate-800/50 p-3 text-center">
+                <div className="text-xl font-bold text-cyan-400">{totalAgents.toLocaleString()}</div>
+                <div className="text-[10px] text-slate-500">Agents Simulated</div>
+              </div>
+              <div className="rounded-lg bg-slate-800/50 p-3 text-center">
+                <div className="text-xl font-bold text-yellow-400">{events.length}</div>
+                <div className="text-[10px] text-slate-500">Events</div>
+              </div>
+              <div className="rounded-lg bg-slate-800/50 p-3 text-center">
+                <div className="text-xl font-bold text-red-400">{pivotCount}</div>
+                <div className="text-[10px] text-slate-500">Pivots</div>
+              </div>
+              <div className="rounded-lg bg-slate-800/50 p-3 text-center">
+                <div className="text-xl font-bold text-indigo-400">&lt; 5m</div>
+                <div className="text-[10px] text-slate-500">Duration</div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <ArtifactContent tab={tab} />
+        )}
       </div>
     </div>
   );
@@ -664,6 +933,19 @@ function BoardroomView({ events }) {
   }, [events]);
 
   useEffect(() => { setPlayIndex(Math.min(playIndex, discussion.length - 1)); }, [discussion]);
+
+  // Play sound when boardroom discussion step changes
+  const prevBoardIdx = useRef(-1);
+  useEffect(() => {
+    if (prevBoardIdx.current === playIndex) return;
+    prevBoardIdx.current = playIndex;
+    const entry = discussion[playIndex];
+    if (!entry) return;
+    const et = (entry.event_type || '').toLowerCase();
+    if (et.includes('blocker')) audioManager.play('blocker');
+    else if (et.includes('pivot')) audioManager.play('pivot');
+    else audioManager.play('sim_tick');
+  }, [playIndex, discussion]);
 
   const current = discussion[playIndex];
   const agents = ['CEO', 'CTO', 'CFO', 'CMO', 'Legal'];
@@ -903,6 +1185,21 @@ function PivotFlow({ events }) {
   }, [isPlaying, sequence.length]);
 
   const currentStep = sequence[step] || sequence[0];
+
+  // Play sound on step change
+  const prevStepRef = useRef(-1);
+  useEffect(() => {
+    if (prevStepRef.current === step) return;
+    prevStepRef.current = step;
+    const s = sequence[step];
+    if (!s) return;
+    if (s.type === 'trigger' && s.color === '#ef4444') audioManager.play('blocker');
+    else if (s.type === 'ceo') audioManager.play('pivot');
+    else if (s.type === 'result') audioManager.play('agent_complete');
+    else if (s.type === 'signal') audioManager.play('sim_tick');
+    else if (s.type === 'agent') audioManager.play('sim_tick');
+    else audioManager.play('tab_switch');
+  }, [step, sequence]);
 
   return (
     <div>
@@ -1504,8 +1801,12 @@ function MissionControl({ onLaunch }) {
   const [launching, setLaunching] = useState(false);
 
   const handleLaunch = () => {
+    audioManager.play('launch');
     setLaunching(true);
-    setTimeout(() => onLaunch(concept), 1200);
+    setTimeout(() => {
+      audioManager.play('sprint_complete');
+      onLaunch(concept);
+    }, 1200);
   };
 
   return (
@@ -1629,7 +1930,7 @@ function App() {
     { id: 'pivotflow', label: 'Pivot Flow' },
     { id: 'sentiment', label: 'Sentiment' },
     { id: 'analytics', label: 'Analytics' },
-    { id: 'artifacts', label: 'Artifacts' },
+    { id: 'report', label: 'Sprint Report' },
   ];
 
   return (
@@ -1640,7 +1941,7 @@ function App() {
         {/* Tab navigation */}
         <div className="flex gap-1 mb-6 border-b border-slate-700/50 tab-nav-wrap">
           {mainTabs.map(t => (
-            <button key={t.id} onClick={() => setActiveTab(t.id)}
+            <button key={t.id} onClick={() => { setActiveTab(t.id); audioManager.play('tab_switch'); }}
               className={`px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${activeTab === t.id ? 'tab-active' : 'tab-inactive'}`}>
               {t.label}
             </button>
@@ -1658,7 +1959,7 @@ function App() {
               {activeTab === 'pivotflow' && <PivotFlow events={events} />}
               {activeTab === 'sentiment' && <SentimentDashboard events={events} />}
               {activeTab === 'analytics' && <AdvancedCharts events={events} />}
-              {activeTab === 'artifacts' && <ArtifactViewer />}
+              {activeTab === 'report' && <SprintReport events={events} />}
             </div>
           </div>
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -154,7 +154,7 @@ class AgentEvent(BaseModel):
     type: EventType
     source: str = Field(description="Agent that produced this event")
     payload: BaseModel
-    triggered_by: Optional[str] = Field(default=None, description="ID of the event that caused this one")
+    triggered_by: str | None = Field(default=None, description="ID of the event that caused this one")
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     iteration: int = 1
 

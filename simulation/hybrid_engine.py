@@ -184,7 +184,7 @@ async def run_hybrid_simulation(
 def _save_hybrid_outputs(
     sim_result: SimulationResult,
     signal: MarketSignal,
-    personas: list,
+    personas: list[MarketPersona],
     hybrid_stats: dict[str, Any],
 ) -> None:
     """Save simulation geo and results data for dashboard."""
