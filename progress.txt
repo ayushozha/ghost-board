@@ -145,3 +145,8 @@ PostgreSQL on our VPS for database (see VPS.md for connection details)
 [x] PRD-124: Add outputs/.gitkeep files for each subdirectory (prototype, financial_model, gtm, compliance) so git tracks empty dirs.
 [x] PRD-125: Add a --list-concepts flag that lists available concepts with their file paths and first 80 chars of content.
 [x] PRD-126: Add agent reasoning quality test. Mock CEO pivot response and verify it contains specific fields: reason, affected_agents, changes_required with non-empty values for each agent.
+[x] PRD-127: Add outputs/.gitkeep files so git tracks empty output directories. Create outputs/prototype/.gitkeep, outputs/financial_model/.gitkeep, outputs/gtm/.gitkeep, outputs/compliance/.gitkeep.
+[x] PRD-128: Add test for CEO pivot quality. Create mock BLOCKER with specific citation. Verify PIVOT payload has non-empty reason, affected_agents list of 3, and changes_required dict with CTO/CFO/CMO keys. The pivot must reference the original blocker description.
+[x] PRD-129: Add test for lightweight agent determinism. Spawn swarm with same seed twice. Verify identical stances. This ensures reproducible simulation results.
+[x] PRD-130: Verify main.py --help shows all flags correctly formatted. Add assertion for --concept list showing all 5 concept names.
+[x] PRD-131: Add git log count to dashboard footer. Show "X commits" from git history to prove continuous development. Add build timestamp.

@@ -396,3 +396,62 @@ class TestRetryLogic:
 
         assert result == "{}"
         assert mock_client.chat.completions.create.call_count == 2
+
+
+class TestPivotQuality:
+    @pytest.mark.asyncio
+    @patch("agents.base.AsyncOpenAI")
+    async def test_pivot_payload_has_required_fields(self, mock_openai_cls):
+        """Verify PIVOT event contains specific, non-empty fields."""
+        mock_client = AsyncMock()
+        pivot_json = json.dumps({
+            "startup_idea": "B2B compliance API",
+            "target_market": "enterprise banks",
+            "business_model": "API licensing",
+            "key_differentiators": ["enterprise SLA"],
+            "constraints": ["SOC2"],
+            "pivot_reason": "CFPB money transmitter requirement",
+            "changes_for_cto": "Remove payment flow, add API gateway",
+            "changes_for_cfo": "Switch to enterprise pricing tiers",
+            "changes_for_cmo": "Target compliance officers at banks",
+        })
+        mock_client.chat.completions.create = AsyncMock(
+            side_effect=[
+                MockResponse(make_strategy_json()),
+                MockResponse(pivot_json),
+            ]
+        )
+
+        bus, logger = make_bus_and_logger()
+        from agents.ceo import CEOAgent
+        ceo = CEOAgent(bus, logger)
+        ceo.client = mock_client
+
+        await ceo.set_strategy("test")
+
+        blocker = AgentEvent(
+            type=EventType.BLOCKER,
+            source="Legal",
+            payload=BlockerPayload(
+                severity="CRITICAL",
+                area="money transmission",
+                description="Requires state MSB registration per 31 CFR 1022",
+                citations=["31 CFR 1022", "https://www.fincen.gov/msb-registrant-search"],
+            ),
+        )
+        await ceo.process_blocker(blocker)
+
+        pivot_events = bus.get_events_by_type(EventType.PIVOT)
+        assert len(pivot_events) == 1
+        payload = pivot_events[0].payload
+        # Must have non-empty fields
+        assert payload.reason and len(payload.reason) > 10
+        assert len(payload.affected_agents) == 3
+        assert "CTO" in payload.changes_required
+        assert "CFO" in payload.changes_required
+        assert "CMO" in payload.changes_required
+        # Changes must be non-trivial
+        for agent, change in payload.changes_required.items():
+            assert len(change) > 3, f"{agent} change too short: {change}"
+        # Must reference the blocker
+        assert pivot_events[0].triggered_by == blocker.id

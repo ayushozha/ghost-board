@@ -103,3 +103,16 @@ class TestLightweightAgents:
         assert summary["total_agents"] == 1000
         assert -1.0 <= summary["avg_sentiment"] <= 1.0
         assert summary["std_sentiment"] >= 0
+
+    def test_determinism_same_seed(self):
+        """Same seed should produce identical swarms."""
+        swarm1 = spawn_swarm(5000, seed=999)
+        swarm2 = spawn_swarm(5000, seed=999)
+        assert np.array_equal(swarm1.stances, swarm2.stances)
+        assert np.array_equal(swarm1.archetypes, swarm2.archetypes)
+
+    def test_different_seeds_differ(self):
+        """Different seeds should produce different swarms."""
+        swarm1 = spawn_swarm(5000, seed=1)
+        swarm2 = spawn_swarm(5000, seed=2)
+        assert not np.array_equal(swarm1.stances, swarm2.stances)
