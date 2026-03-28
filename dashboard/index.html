@@ -330,6 +330,251 @@ function ArtifactContent({ tab }) {
   );
 }
 
+// ── Pivot Flow Animated Sequence ──
+function PivotFlow({ events }) {
+  const [step, setStep] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const timerRef = useRef(null);
+  const [discussion, setDiscussion] = useState([]);
+
+  useEffect(() => {
+    const paths = ['../outputs/board_discussion.json', 'board_discussion.json'];
+    const tryLoad = async () => {
+      for (const p of paths) {
+        try {
+          const res = await fetch(p);
+          if (res.ok) { setDiscussion(await res.json()); return; }
+        } catch(e) {}
+      }
+    };
+    tryLoad();
+  }, []);
+
+  // Build the animated sequence steps
+  const sequence = useMemo(() => {
+    const steps = [];
+    const simEvents = events.filter(e => e.event_type === 'SIMULATION_RESULT');
+    const pivotEvents = events.filter(e => e.event_type === 'PIVOT');
+    const blockerEvents = events.filter(e => e.event_type === 'BLOCKER');
+
+    // For each pivot, build the causal chain
+    pivotEvents.forEach((pivot, pi) => {
+      const triggeredBy = pivot.triggered_by;
+      const trigger = events.find(e => e.event_id === triggeredBy);
+
+      // Step 1: The trigger (blocker or simulation)
+      if (trigger) {
+        if (trigger.event_type === 'BLOCKER') {
+          steps.push({
+            type: 'trigger',
+            label: 'Regulatory Blocker',
+            icon: '🛡️',
+            source: trigger.source || 'Legal',
+            color: '#ef4444',
+            content: trigger.payload?.description || 'Compliance blocker detected',
+            detail: `Severity: ${trigger.payload?.severity || 'HIGH'}`,
+            citations: trigger.payload?.citations || [],
+          });
+        } else if (trigger.event_type === 'SIMULATION_RESULT') {
+          const concerns = trigger.payload?.key_concerns || [];
+          steps.push({
+            type: 'trigger',
+            label: 'Market Signal',
+            icon: '📊',
+            source: 'Simulation',
+            color: '#06b6d4',
+            content: `Sentiment: ${(trigger.payload?.overall_sentiment || 0).toFixed(2)} | ${concerns.length} concerns flagged`,
+            detail: concerns.slice(0, 3).join(', '),
+            citations: [],
+          });
+        }
+      }
+
+      // Step 2: Signal aggregation
+      steps.push({
+        type: 'signal',
+        label: 'Signal Aggregation',
+        icon: '🔍',
+        source: 'System',
+        color: '#a855f7',
+        content: `Analyzing ${trigger?.event_type === 'SIMULATION_RESULT' ? 'market feedback' : 'regulatory risk'} for strategic impact...`,
+        detail: `Pivot recommended: Yes | Confidence: ${(trigger?.payload?.confidence || 0.8).toFixed(2)}`,
+        citations: [],
+      });
+
+      // Step 3: CEO reasoning
+      const ceoDiscussion = discussion.filter(d => d.agent === 'CEO' && (d.event_type || '').includes('pivot'));
+      const ceoReasoning = ceoDiscussion.length > 0 ? ceoDiscussion[ceoDiscussion.length - 1] : null;
+      steps.push({
+        type: 'ceo',
+        label: 'CEO Decision',
+        icon: '👑',
+        source: 'CEO',
+        color: '#eab308',
+        content: pivot.payload?.reason || 'Strategic pivot decision',
+        detail: ceoReasoning?.reasoning || `Pivot #${pi + 1}: Adjusting strategy to address ${trigger?.event_type === 'BLOCKER' ? 'compliance risk' : 'market feedback'}`,
+        citations: [],
+      });
+
+      // Step 4: Agent impact
+      const changes = pivot.payload?.changes_required || {};
+      const affected = pivot.payload?.affected_agents || Object.keys(changes);
+      const agentIcons = { CTO: '💻', CFO: '📊', CMO: '🚀', Legal: '🛡️' };
+      const agentColors = { CTO: '#3b82f6', CFO: '#22c55e', CMO: '#a855f7', Legal: '#ef4444' };
+
+      affected.forEach(agent => {
+        steps.push({
+          type: 'agent',
+          label: `${agent} Adapts`,
+          icon: agentIcons[agent] || '⚙️',
+          source: agent,
+          color: agentColors[agent] || '#6366f1',
+          content: changes[agent] || `${agent} adjusting to new strategy`,
+          detail: '',
+          citations: [],
+        });
+      });
+
+      // Step 5: New strategy
+      steps.push({
+        type: 'result',
+        label: 'New Strategy',
+        icon: '🎯',
+        source: 'CEO',
+        color: '#22c55e',
+        content: (() => {
+          try { return JSON.parse(pivot.payload?.new_strategy || '{}').startup_idea || 'Updated strategy'; }
+          catch(e) { return pivot.payload?.new_strategy || 'Updated strategy'; }
+        })(),
+        detail: 'All agents aligned on new direction',
+        citations: [],
+      });
+    });
+
+    // If no pivots, show a simple flow
+    if (steps.length === 0) {
+      steps.push(
+        { type: 'trigger', label: 'Strategy Set', icon: '🎯', source: 'CEO', color: '#eab308', content: 'Initial strategy defined', detail: '', citations: [] },
+        { type: 'signal', label: 'Analysis', icon: '🔍', source: 'System', color: '#a855f7', content: 'Evaluating regulatory and market landscape...', detail: '', citations: [] },
+        { type: 'result', label: 'No Pivot Needed', icon: '✅', source: 'System', color: '#22c55e', content: 'Strategy validated - proceeding to execution', detail: '', citations: [] },
+      );
+    }
+
+    return steps;
+  }, [events, discussion]);
+
+  // Auto-play
+  useEffect(() => {
+    if (isPlaying) {
+      timerRef.current = setInterval(() => {
+        setStep(s => {
+          if (s >= sequence.length - 1) { setIsPlaying(false); return s; }
+          return s + 1;
+        });
+      }, 2000);
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [isPlaying, sequence.length]);
+
+  const currentStep = sequence[step] || sequence[0];
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-bold text-white">Pivot Flow</h2>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setStep(s => Math.max(0, s - 1))}
+            className="px-3 py-1.5 rounded text-xs bg-white/5 hover:bg-white/10 text-slate-400">◀ Prev</button>
+          <button onClick={() => setIsPlaying(!isPlaying)}
+            className={`px-4 py-1.5 rounded text-xs font-semibold ${isPlaying ? 'bg-red-500/20 text-red-400' : 'bg-indigo-500/20 text-indigo-400'}`}>
+            {isPlaying ? '⏸ Pause' : '▶ Play'}
+          </button>
+          <button onClick={() => setStep(s => Math.min(sequence.length - 1, s + 1))}
+            className="px-3 py-1.5 rounded text-xs bg-white/5 hover:bg-white/10 text-slate-400">Next ▶</button>
+          <span className="text-xs text-slate-500 ml-2">Step {step + 1}/{sequence.length}</span>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="flex gap-1 mb-6">
+        {sequence.map((s, i) => (
+          <button key={i} onClick={() => setStep(i)}
+            className={`flex-1 h-2 rounded-full transition-all ${i <= step ? 'opacity-100' : 'opacity-20'}`}
+            style={{ backgroundColor: s.color }}
+          ></button>
+        ))}
+      </div>
+
+      {/* Animated step display */}
+      <div className="relative">
+        {/* Arrow trail */}
+        <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-2">
+          {sequence.slice(0, step + 1).map((s, i) => (
+            <React.Fragment key={i}>
+              <div onClick={() => setStep(i)}
+                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs cursor-pointer transition-all ${i === step ? 'ring-2 ring-white/20 scale-105' : 'opacity-60'}`}
+                style={{ backgroundColor: s.color + '20', color: s.color, borderColor: s.color }}>
+                <span>{s.icon}</span>
+                <span className="font-medium">{s.label}</span>
+              </div>
+              {i < step && <span className="text-slate-600 flex-shrink-0">→</span>}
+            </React.Fragment>
+          ))}
+        </div>
+
+        {/* Main content card */}
+        <div className="rounded-xl border p-6 transition-all duration-500"
+          style={{ borderColor: currentStep.color + '40', backgroundColor: currentStep.color + '08' }}>
+          <div className="flex items-start gap-4">
+            <div className="text-4xl">{currentStep.icon}</div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-lg font-bold" style={{ color: currentStep.color }}>{currentStep.label}</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-white/5 text-slate-400">{currentStep.source}</span>
+              </div>
+              <p className="text-slate-300 text-sm leading-relaxed mb-2">{currentStep.content}</p>
+              {currentStep.detail && (
+                <p className="text-slate-500 text-xs leading-relaxed italic border-l-2 pl-3 mt-2"
+                  style={{ borderColor: currentStep.color + '40' }}>
+                  {currentStep.detail}
+                </p>
+              )}
+              {currentStep.citations && currentStep.citations.length > 0 && (
+                <div className="mt-3">
+                  <span className="text-xs text-slate-500">Citations:</span>
+                  {currentStep.citations.map((c, ci) => (
+                    <a key={ci} href={c} target="_blank" rel="noopener noreferrer"
+                      className="block text-xs text-indigo-400 hover:text-indigo-300 truncate mt-1">{c}</a>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Arrow to next */}
+        {step < sequence.length - 1 && (
+          <div className="flex justify-center my-3">
+            <div className="text-slate-600 text-2xl animate-bounce">↓</div>
+          </div>
+        )}
+
+        {/* Preview of next step */}
+        {step < sequence.length - 1 && (
+          <div className="rounded-xl border border-slate-700/20 bg-slate-800/20 p-4 opacity-40 cursor-pointer hover:opacity-60 transition-opacity"
+            onClick={() => setStep(step + 1)}>
+            <div className="flex items-center gap-2">
+              <span className="text-xl">{sequence[step + 1].icon}</span>
+              <span className="text-sm text-slate-400">{sequence[step + 1].label}</span>
+              <span className="text-xs text-slate-600">Click or press Next to continue</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Advanced Charts ──
 function AdvancedCharts({ events }) {
   const sankeyRef = useRef(null);
@@ -860,6 +1105,7 @@ function App() {
   const mainTabs = [
     { id: 'timeline', label: 'Event Timeline' },
     { id: 'pivots', label: `Pivot Trace (${pivotCount})` },
+    { id: 'pivotflow', label: 'Pivot Flow' },
     { id: 'sentiment', label: 'Sentiment' },
     { id: 'analytics', label: 'Analytics' },
     { id: 'artifacts', label: 'Artifacts' },
@@ -886,6 +1132,7 @@ function App() {
             <div className="rounded-2xl border border-slate-700/30 bg-slate-900/40 backdrop-blur-sm p-6 glow">
               {activeTab === 'timeline' && <Timeline events={events} />}
               {activeTab === 'pivots' && <PivotTrace events={events} />}
+              {activeTab === 'pivotflow' && <PivotFlow events={events} />}
               {activeTab === 'sentiment' && <SentimentDashboard events={events} />}
               {activeTab === 'analytics' && <AdvancedCharts events={events} />}
               {activeTab === 'artifacts' && <ArtifactViewer />}
