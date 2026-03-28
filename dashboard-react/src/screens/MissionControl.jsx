@@ -1,21 +1,64 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { api } from '../api'
 
-export default function MissionControl({ onLaunch }) {
+export default function MissionControl({ onLaunch, onResumeRun, launchError }) {
   const [concept, setConcept] = useState('')
   const [launching, setLaunching] = useState(false)
+  const [pastRuns, setPastRuns] = useState([])
+  const [loadingRuns, setLoadingRuns] = useState(true)
+  const [stats, setStats] = useState(null)
 
-  const handleLaunch = () => {
+  // Fetch past runs and stats on mount
+  useEffect(() => {
+    let cancelled = false
+
+    async function fetchData() {
+      try {
+        const [runsData, statsData] = await Promise.all([
+          api.getRuns().catch(() => ({ runs: [] })),
+          api.getStats().catch(() => null),
+        ])
+        if (!cancelled) {
+          setPastRuns(runsData.runs || [])
+          setStats(statsData)
+        }
+      } catch {
+        // API may not be running; that is fine
+      } finally {
+        if (!cancelled) setLoadingRuns(false)
+      }
+    }
+
+    fetchData()
+    return () => { cancelled = true }
+  }, [])
+
+  const handleLaunch = async () => {
     if (!concept.trim()) return
     setLaunching(true)
-    onLaunch(concept.trim())
+    try {
+      await onLaunch(concept.trim())
+    } catch {
+      // Error is surfaced via launchError prop
+    } finally {
+      setLaunching(false)
+    }
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && e.ctrlKey) {
+      handleLaunch()
+    }
   }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen px-4">
       {/* Ghost Board Logo */}
       <div className="mb-8 text-center">
-        <div className="text-6xl font-bold tracking-tight mb-2"
-          style={{ color: 'var(--gb-accent)', fontFamily: 'var(--font-mono)' }}>
+        <div
+          className="text-6xl font-bold tracking-tight mb-2"
+          style={{ color: 'var(--gb-accent)', fontFamily: 'var(--font-mono)' }}
+        >
           GHOST BOARD
         </div>
         <p className="text-lg" style={{ color: 'var(--gb-text)' }}>
@@ -25,20 +68,25 @@ export default function MissionControl({ onLaunch }) {
 
       {/* Concept Input */}
       <div className="w-full max-w-2xl mb-6">
-        <div className="relative rounded-lg border p-1"
+        <div
+          className="relative rounded-lg border p-1"
           style={{
             background: 'var(--gb-surface)',
             borderColor: 'var(--gb-border)',
-          }}>
-          <div className="flex items-center px-3 py-1 text-xs"
-            style={{ color: 'var(--gb-accent)', fontFamily: 'var(--font-mono)' }}>
+          }}
+        >
+          <div
+            className="flex items-center px-3 py-1 text-xs"
+            style={{ color: 'var(--gb-accent)', fontFamily: 'var(--font-mono)' }}
+          >
             <span className="cursor-blink mr-1">$</span>
             <span>ghost-board launch</span>
           </div>
           <textarea
             value={concept}
             onChange={(e) => setConcept(e.target.value)}
-            placeholder="Describe your startup concept..."
+            onKeyDown={handleKeyDown}
+            placeholder="Describe your startup concept... (Ctrl+Enter to launch)"
             rows={3}
             className="w-full px-4 py-3 text-base rounded-md resize-none outline-none"
             style={{
@@ -50,6 +98,16 @@ export default function MissionControl({ onLaunch }) {
           />
         </div>
       </div>
+
+      {/* Error Message */}
+      {launchError && (
+        <div
+          className="mb-4 px-4 py-2 rounded text-sm"
+          style={{ background: 'rgba(239,68,68,0.15)', color: 'var(--gb-red)' }}
+        >
+          {launchError}
+        </div>
+      )}
 
       {/* Launch Button */}
       <button
@@ -74,7 +132,10 @@ export default function MissionControl({ onLaunch }) {
         {[
           { label: 'AI Executives', value: '5' },
           { label: 'Market Simulation', value: 'MiroFish' },
-          { label: 'Agent Simulations', value: '1,000,000+' },
+          {
+            label: 'Agent Simulations',
+            value: stats ? (stats.total_agents_simulated || 0).toLocaleString() + '+' : '1,000,000+',
+          },
         ].map((stat) => (
           <div key={stat.label}>
             <div className="text-xl font-bold" style={{ color: 'var(--gb-accent)' }}>
@@ -86,6 +147,70 @@ export default function MissionControl({ onLaunch }) {
           </div>
         ))}
       </div>
+
+      {/* Past Runs */}
+      {!loadingRuns && pastRuns.length > 0 && (
+        <div className="w-full max-w-2xl mt-12">
+          <div
+            className="text-sm font-semibold mb-3"
+            style={{ color: 'var(--gb-text-bright)', fontFamily: 'var(--font-mono)' }}
+          >
+            Previous Runs
+          </div>
+          <div className="space-y-2">
+            {pastRuns.slice(0, 5).map((run) => (
+              <button
+                key={run.run_id || run.id}
+                onClick={() => onResumeRun(run.run_id || run.id, run.status)}
+                className="w-full text-left px-4 py-3 rounded-lg border transition-all hover:opacity-80 cursor-pointer"
+                style={{
+                  background: 'var(--gb-surface)',
+                  borderColor: 'var(--gb-border)',
+                }}
+              >
+                <div className="flex items-center justify-between">
+                  <span
+                    className="text-sm truncate flex-1 mr-4"
+                    style={{ color: 'var(--gb-text-bright)', fontFamily: 'var(--font-mono)' }}
+                  >
+                    {run.concept || 'Unknown concept'}
+                  </span>
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <span
+                      className="text-xs px-2 py-0.5 rounded"
+                      style={{
+                        background:
+                          run.status === 'completed'
+                            ? 'rgba(16,185,129,0.15)'
+                            : run.status === 'running'
+                              ? 'rgba(139,92,246,0.15)'
+                              : run.status === 'failed'
+                                ? 'rgba(239,68,68,0.15)'
+                                : 'rgba(107,114,128,0.15)',
+                        color:
+                          run.status === 'completed'
+                            ? 'var(--gb-green)'
+                            : run.status === 'running'
+                              ? 'var(--gb-accent)'
+                              : run.status === 'failed'
+                                ? 'var(--gb-red)'
+                                : 'var(--gb-text)',
+                      }}
+                    >
+                      {run.status}
+                    </span>
+                    {run.total_events != null && (
+                      <span className="text-xs" style={{ color: 'var(--gb-text)' }}>
+                        {run.total_events} events
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

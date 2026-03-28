@@ -1,0 +1,11 @@
+Placeholder for: Pivot Timeline - Causal Chain
+
+This file would be a 1920x1080 PNG screenshot
+of the Ghost Board dashboard.
+
+To generate real screenshots, install Playwright:
+  pip install playwright
+  playwright install chromium
+
+Then run:
+  python scripts/capture_demo.py

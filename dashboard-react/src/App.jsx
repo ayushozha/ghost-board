@@ -1,5 +1,6 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import './App.css'
+import { api } from './api'
 import MissionControl from './screens/MissionControl'
 import Boardroom from './screens/Boardroom'
 import MarketArena from './screens/MarketArena'
@@ -14,7 +15,7 @@ const SCREENS = [
   { id: 'report', label: 'Sprint Report', shortLabel: 'Report' },
 ]
 
-function NavBar({ currentScreen, onNavigate, sprintActive }) {
+function NavBar({ currentScreen, onNavigate, sprintActive, sprintStatus }) {
   return (
     <nav
       className="flex items-center justify-between px-6 py-2 border-b"
@@ -56,14 +57,33 @@ function NavBar({ currentScreen, onNavigate, sprintActive }) {
       {sprintActive && (
         <div className="flex items-center gap-2">
           <div
-            className="w-2 h-2 rounded-full pulse-glow"
-            style={{ background: 'var(--gb-green)' }}
+            className={`w-2 h-2 rounded-full ${sprintStatus === 'running' ? 'pulse-glow' : ''}`}
+            style={{
+              background:
+                sprintStatus === 'completed'
+                  ? 'var(--gb-green)'
+                  : sprintStatus === 'failed'
+                    ? 'var(--gb-red)'
+                    : 'var(--gb-green)',
+            }}
           />
           <span
             className="text-xs"
-            style={{ color: 'var(--gb-green)', fontFamily: 'var(--font-mono)' }}
+            style={{
+              color:
+                sprintStatus === 'completed'
+                  ? 'var(--gb-green)'
+                  : sprintStatus === 'failed'
+                    ? 'var(--gb-red)'
+                    : 'var(--gb-green)',
+              fontFamily: 'var(--font-mono)',
+            }}
           >
-            LIVE
+            {sprintStatus === 'completed'
+              ? 'DONE'
+              : sprintStatus === 'failed'
+                ? 'FAILED'
+                : 'LIVE'}
           </span>
         </div>
       )}
@@ -76,16 +96,93 @@ function NavBar({ currentScreen, onNavigate, sprintActive }) {
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState('mission')
   const [sprintActive, setSprintActive] = useState(false)
+  const [sprintStatus, setSprintStatus] = useState(null) // 'pending' | 'running' | 'completed' | 'failed'
   const [runId, setRunId] = useState(null)
+  const [launchError, setLaunchError] = useState(null)
+  const wsRef = useRef(null)
+  const [wsEvents, setWsEvents] = useState([])
 
-  const handleLaunch = useCallback((concept) => {
-    // TODO: POST /api/sprint with concept, get runId
-    // TODO: Connect WebSocket /ws/live/{runId}
-    console.log('Launching sprint with concept:', concept)
-    setSprintActive(true)
-    setRunId('demo') // Placeholder until API is connected
-    setCurrentScreen('boardroom')
+  // Clean up WebSocket on unmount or when runId changes
+  useEffect(() => {
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close()
+        wsRef.current = null
+      }
+    }
   }, [])
+
+  const connectToRun = useCallback((id) => {
+    // Close any existing connection
+    if (wsRef.current) {
+      wsRef.current.close()
+      wsRef.current = null
+    }
+
+    const ws = api.connectWebSocket(id)
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+
+        if (data.type === 'status') {
+          setSprintStatus(data.status)
+          if (data.status === 'completed' || data.status === 'failed') {
+            // Sprint finished - keep active so user can browse results
+          }
+        } else if (data.type === 'event') {
+          setWsEvents((prev) => [...prev, data.event])
+        } else if (data.type === 'initial_state') {
+          setSprintStatus(data.run?.status || 'pending')
+        }
+      } catch {
+        // Ignore malformed messages
+      }
+    }
+
+    ws.onerror = () => {
+      // WebSocket errors are non-fatal; data can still be fetched via REST
+    }
+
+    ws.onclose = () => {
+      wsRef.current = null
+    }
+
+    wsRef.current = ws
+  }, [])
+
+  const handleLaunch = useCallback(
+    async (concept, simScale) => {
+      setLaunchError(null)
+      try {
+        const result = await api.launchSprint(concept, simScale || 'demo')
+        const id = result.run_id
+        setRunId(id)
+        setSprintActive(true)
+        setSprintStatus('pending')
+        setWsEvents([])
+        setCurrentScreen('boardroom')
+        connectToRun(id)
+      } catch (err) {
+        setLaunchError(err.message || 'Failed to launch sprint')
+      }
+    },
+    [connectToRun]
+  )
+
+  const handleResumeRun = useCallback(
+    (id, status) => {
+      setRunId(id)
+      setSprintActive(true)
+      setSprintStatus(status || 'completed')
+      setWsEvents([])
+      setCurrentScreen('boardroom')
+      if (status === 'running' || status === 'pending') {
+        connectToRun(id)
+      }
+    },
+    [connectToRun]
+  )
 
   const handleNavigate = useCallback((screenId) => {
     setCurrentScreen(screenId)
@@ -99,19 +196,24 @@ export default function App() {
           currentScreen={currentScreen}
           onNavigate={handleNavigate}
           sprintActive={sprintActive}
+          sprintStatus={sprintStatus}
         />
       )}
 
       {/* Screen Content */}
       <main className="flex-1">
         {currentScreen === 'mission' && (
-          <MissionControl onLaunch={handleLaunch} />
+          <MissionControl
+            onLaunch={handleLaunch}
+            onResumeRun={handleResumeRun}
+            launchError={launchError}
+          />
         )}
         {currentScreen === 'boardroom' && (
-          <Boardroom runId={runId} />
+          <Boardroom runId={runId} wsEvents={wsEvents} sprintStatus={sprintStatus} />
         )}
         {currentScreen === 'arena' && (
-          <MarketArena runId={runId} />
+          <MarketArena runId={runId} sprintStatus={sprintStatus} />
         )}
         {currentScreen === 'timeline' && (
           <PivotTimeline runId={runId} />

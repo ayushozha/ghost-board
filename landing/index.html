@@ -196,6 +196,49 @@
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
   }
+
+  /* === Live badge === */
+  .live-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 9999px;
+    background: rgba(34, 197, 94, 0.1);
+    border: 1px solid rgba(34, 197, 94, 0.25);
+    font-size: 11px;
+    font-weight: 600;
+    color: #22c55e;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  .live-badge.connected {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #22c55e;
+    animation: live-pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes live-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.5); }
+    50% { box-shadow: 0 0 0 5px rgba(34,197,94,0); }
+  }
+
+  /* === Stat update flash === */
+  @keyframes stat-flash {
+    0% { color: #22c55e; text-shadow: 0 0 20px rgba(34,197,94,0.5); }
+    100% { text-shadow: none; }
+  }
+  .stat-updated {
+    animation: stat-flash 1.2s ease-out forwards;
+  }
 </style>
 </head>
 <body class="bg-surface-0 text-slate-200 overflow-x-hidden">
@@ -220,6 +263,11 @@
       <a href="#architecture" class="hover:text-white transition-colors">Architecture</a>
       <a href="#numbers" class="hover:text-white transition-colors">Numbers</a>
       <a href="#demo" class="hover:text-white transition-colors">Demo</a>
+      <a href="http://localhost:8000" id="nav-dashboard-link" target="_blank"
+         class="px-4 py-2 rounded-lg bg-surface-3 hover:bg-surface-4 text-slate-300 hover:text-white font-medium transition-colors flex items-center gap-2">
+        <span class="w-1.5 h-1.5 rounded-full bg-ghost-400 animate-pulse"></span>
+        Dashboard
+      </a>
       <a href="https://github.com/ayushozha/ghost-board" target="_blank" class="px-4 py-2 rounded-lg bg-ghost-600 hover:bg-ghost-500 text-white font-medium transition-colors">
         GitHub
       </a>
@@ -269,7 +317,7 @@
         <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
         View on GitHub
       </a>
-      <a href="../dashboard/index.html"
+      <a href="../dashboard/index.html" id="hero-dashboard-link"
          class="px-8 py-4 rounded-2xl glass text-slate-300 hover:text-white font-bold text-lg transition-all duration-300 flex items-center gap-3">
         <span class="w-2 h-2 rounded-full bg-ghost-400 animate-pulse"></span>
         Launch Dashboard
@@ -620,7 +668,10 @@
   <div class="absolute inset-0 hero-bg opacity-30"></div>
   <div class="max-w-6xl mx-auto relative z-10">
     <div class="text-center mb-20">
-      <h2 class="text-4xl md:text-5xl font-black mb-4 reveal">The Numbers</h2>
+      <h2 class="text-4xl md:text-5xl font-black mb-4 reveal">
+        The Numbers
+        <span id="live-badge" class="live-badge ml-3 align-middle"><span class="live-dot"></span>Live</span>
+      </h2>
       <p class="text-slate-400 text-lg reveal reveal-delay-1">What an autonomous AI executive team delivers for less than a cup of coffee.</p>
     </div>
 
@@ -658,23 +709,23 @@
     <!-- Stat grid -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
       <div class="rounded-2xl glass p-8 text-center reveal transition-all duration-300 hover:scale-105">
-        <div class="text-4xl md:text-5xl font-black text-ghost-400 mb-2" data-count="1000050">1,000,050</div>
+        <div id="stat-agents" class="text-4xl md:text-5xl font-black text-ghost-400 mb-2" data-count="1000050" data-default="1,000,050">1,000,050</div>
         <div class="text-slate-500 text-sm">Agents Simulated</div>
-        <div class="text-slate-600 text-xs mt-1">50 LLM + 1M lightweight</div>
+        <div id="stat-agents-sub" class="text-slate-600 text-xs mt-1">50 LLM + 1M lightweight</div>
       </div>
       <div class="rounded-2xl glass p-8 text-center reveal reveal-delay-1 transition-all duration-300 hover:scale-105">
-        <div class="text-4xl md:text-5xl font-black text-yellow-400 mb-2">35+</div>
-        <div class="text-slate-500 text-sm">Events Traced</div>
-        <div class="text-slate-600 text-xs mt-1">Full causal chain in W&B</div>
+        <div id="stat-runs" class="text-4xl md:text-5xl font-black text-yellow-400 mb-2" data-default="35+">35+</div>
+        <div class="text-slate-500 text-sm">Simulations Run</div>
+        <div id="stat-runs-sub" class="text-slate-600 text-xs mt-1">Full causal chain in W&B</div>
       </div>
       <div class="rounded-2xl glass p-8 text-center reveal reveal-delay-2 transition-all duration-300 hover:scale-105">
-        <div class="text-4xl md:text-5xl font-black text-red-400 mb-2">3</div>
+        <div id="stat-pivots" class="text-4xl md:text-5xl font-black text-red-400 mb-2" data-default="3">3</div>
         <div class="text-slate-500 text-sm">Strategic Pivots</div>
         <div class="text-slate-600 text-xs mt-1">Legal blockers + market signals</div>
       </div>
       <div class="rounded-2xl glass p-8 text-center reveal reveal-delay-3 transition-all duration-300 hover:scale-105">
-        <div class="text-4xl md:text-5xl font-black text-cyan-400 mb-2">&lt; 5m</div>
-        <div class="text-slate-500 text-sm">Total Sprint Time</div>
+        <div id="stat-cost" class="text-4xl md:text-5xl font-black text-cyan-400 mb-2" data-default="$0.19">$0.19</div>
+        <div class="text-slate-500 text-sm">Avg Cost / Sprint</div>
         <div class="text-slate-600 text-xs mt-1">From concept to deliverables</div>
       </div>
     </div>
@@ -846,7 +897,7 @@
         <span class="text-slate-700">|</span>
         <span>MIT License</span>
         <span class="text-slate-700">|</span>
-        <a href="../dashboard/index.html" class="hover:text-white transition-colors">Dashboard</a>
+        <a href="../dashboard/index.html" id="footer-dashboard-link" class="hover:text-white transition-colors">Dashboard</a>
       </div>
     </div>
 
@@ -930,6 +981,112 @@ window.addEventListener('scroll', () => {
     heroContent.style.opacity = 1 - (scrolled / (window.innerHeight * 0.8));
   }
 }, { passive: true });
+
+// === Live API Stats Fetching ===
+(function() {
+  const API_BASE = 'http://localhost:8000';
+  const STATS_URL = API_BASE + '/api/stats';
+
+  // Format large numbers with commas
+  function formatNumber(n) {
+    return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
+  // Animate a stat element update with a flash effect
+  function updateStat(id, value) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = value;
+    el.classList.add('stat-updated');
+    el.addEventListener('animationend', function handler() {
+      el.classList.remove('stat-updated');
+      el.removeEventListener('animationend', handler);
+    });
+  }
+
+  // Show the live badge
+  function showLiveBadge() {
+    const badge = document.getElementById('live-badge');
+    if (badge) badge.classList.add('connected');
+  }
+
+  // Update all dashboard links to point to the running server
+  function activateDashboardLink() {
+    ['nav-dashboard-link', 'hero-dashboard-link', 'footer-dashboard-link'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.href = API_BASE;
+    });
+    var navLink = document.getElementById('nav-dashboard-link');
+    if (navLink) navLink.style.borderColor = 'rgba(99,102,241,0.3)';
+  }
+
+  // Fetch stats from the API
+  async function fetchLiveStats() {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(function() { controller.abort(); }, 3000);
+
+      const response = await fetch(STATS_URL, {
+        signal: controller.signal,
+        headers: { 'Accept': 'application/json' }
+      });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) throw new Error('API returned ' + response.status);
+
+      const data = await response.json();
+
+      // Update stats with live data
+      if (data.total_agents_simulated || data.total_agents) {
+        var agents = data.total_agents_simulated || data.total_agents;
+        updateStat('stat-agents', formatNumber(agents));
+        var sub = document.getElementById('stat-agents-sub');
+        if (sub) sub.textContent = 'across ' + formatNumber(data.total_runs || 1) + ' sprint' + ((data.total_runs || 1) > 1 ? 's' : '');
+      }
+
+      if (data.total_runs !== undefined) {
+        updateStat('stat-runs', formatNumber(data.total_runs));
+        var runsSub = document.getElementById('stat-runs-sub');
+        if (runsSub) runsSub.textContent = 'total simulations completed';
+      }
+
+      if (data.total_pivots !== undefined) {
+        updateStat('stat-pivots', formatNumber(data.total_pivots));
+      }
+
+      if (data.avg_cost !== undefined) {
+        updateStat('stat-cost', '$' + data.avg_cost.toFixed(2));
+      }
+
+      // Show live indicator
+      showLiveBadge();
+      activateDashboardLink();
+
+      console.log('[Ghost Board] Live stats loaded from API:', data);
+    } catch (err) {
+      // Server not running or fetch failed -- keep static defaults
+      console.log('[Ghost Board] API not available, using static defaults.', err.message || '');
+
+      // Fallback: point dashboard links to local file
+      ['nav-dashboard-link', 'hero-dashboard-link', 'footer-dashboard-link'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.href = '../dashboard/index.html';
+      });
+    }
+  }
+
+  // Fetch on page load
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', fetchLiveStats);
+  } else {
+    fetchLiveStats();
+  }
+
+  // Optionally refresh stats every 30 seconds if the page stays open
+  setInterval(function() {
+    fetchLiveStats();
+  }, 30000);
+})();
 </script>
 
 </body>

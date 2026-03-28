@@ -74,6 +74,27 @@ python main.py --personas 15 --rounds 5
 python main.py --skip-simulation
 ```
 
+## Running the Server
+
+```bash
+# Start the API server
+python -m server.app
+# or
+uvicorn server.app:app --host 0.0.0.0 --port 8000 --reload
+
+# In another terminal, start the React dashboard dev server
+cd dashboard-react && npm run dev
+
+# API: http://localhost:8000
+# Dashboard: http://localhost:5173
+```
+
+### Docker
+
+```bash
+docker compose up --build
+```
+
 ## Output
 
 All artifacts are saved to `outputs/`:

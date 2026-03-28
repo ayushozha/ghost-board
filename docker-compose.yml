@@ -1,0 +1,28 @@
+version: '3.8'
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+    volumes:
+      - ./outputs:/app/outputs
+
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ghost_board
+      POSTGRES_PASSWORD: ghost_board_dev
+      POSTGRES_DB: ghost_board
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

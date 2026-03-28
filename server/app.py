@@ -848,3 +848,12 @@ if _static_dir.exists():
         return JSONResponse({"error": "Dashboard not found"}, status_code=404)
 
     app.mount("/", StaticFiles(directory=str(_static_dir), html=True), name="dashboard")
+
+
+# ---------------------------------------------------------------------------
+# Direct execution
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("server.app:app", host="0.0.0.0", port=8000, reload=True)

@@ -1,14 +1,134 @@
-"""Simulation result analyzer - produces structured MarketSignal."""
+"""Simulation result analyzer - produces structured MarketSignal.
+
+Includes BettaFish-inspired sentiment categorization:
+  - categorize_sentiment() scores each post as positive/negative/neutral
+  - Extracts key phrases (concerns, praise) via keyword matching
+  - Returns structured dict with sentiment float, category, and key phrases
+"""
 
 from __future__ import annotations
 
 import json
 import os
+import re
 
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
 from simulation.engine import SimulationResult
+
+
+# --- BettaFish-inspired keyword sentiment scoring ---
+
+_POSITIVE_KEYWORDS = [
+    "great", "excellent", "promising", "innovative", "smart", "strong",
+    "impressive", "brilliant", "excited", "opportunity", "growth",
+    "potential", "well-positioned", "compelling", "agree", "love",
+    "bullish", "optimistic", "solid", "fantastic", "game-changer",
+    "disruptive", "scalable", "efficient", "trust", "confident",
+    "valuable", "transformative", "advantage", "progress",
+]
+
+_NEGATIVE_KEYWORDS = [
+    "concern", "risk", "problem", "issue", "worry", "doubt", "fail",
+    "expensive", "costly", "regulatory", "compliance", "liability",
+    "threat", "unclear", "unproven", "fragile", "dangerous", "crowded",
+    "disagree", "skeptic", "bearish", "pessimistic", "vulnerable",
+    "weak", "overvalued", "naive", "questionable", "challenge",
+    "barrier", "obstacle",
+]
+
+_PRAISE_MARKERS = [
+    "well done", "smart move", "strong point", "great approach",
+    "impressive", "compelling", "innovative", "well-positioned",
+    "good strategy", "agree with", "solid foundation",
+]
+
+_CONCERN_MARKERS = [
+    "concerned about", "worry about", "risk of", "problem with",
+    "issue with", "question about", "challenge of", "threat of",
+    "unclear how", "doubt that", "skeptical about", "barrier to",
+]
+
+
+def categorize_sentiment(post_text: str) -> dict:
+    """Categorize a simulation post's sentiment using keyword analysis.
+
+    Inspired by BettaFish's WeiboMultilingualSentimentAnalyzer but uses
+    fast keyword matching instead of a transformer model, so it works
+    without torch/transformers dependencies.
+
+    Args:
+        post_text: The text content of a simulation post.
+
+    Returns:
+        dict with keys:
+          - sentiment (float): Score from -1.0 to 1.0
+          - category (str): "positive", "negative", or "neutral"
+          - key_phrases (list[str]): Extracted concerns and praise phrases
+    """
+    text_lower = post_text.lower()
+
+    # Count keyword hits
+    pos_count = sum(1 for kw in _POSITIVE_KEYWORDS if kw in text_lower)
+    neg_count = sum(1 for kw in _NEGATIVE_KEYWORDS if kw in text_lower)
+
+    # Compute raw score: normalized difference
+    total = pos_count + neg_count
+    if total > 0:
+        raw_score = (pos_count - neg_count) / total
+    else:
+        raw_score = 0.0
+
+    # Clamp to [-1, 1]
+    sentiment = max(-1.0, min(1.0, raw_score))
+
+    # Determine category with thresholds
+    if sentiment > 0.15:
+        category = "positive"
+    elif sentiment < -0.15:
+        category = "negative"
+    else:
+        category = "neutral"
+
+    # Extract key phrases
+    key_phrases: list[str] = []
+    for marker in _PRAISE_MARKERS:
+        if marker in text_lower:
+            # Try to extract a larger phrase around the marker
+            idx = text_lower.index(marker)
+            # Grab up to 80 chars from the start of the marker
+            end = min(idx + 80, len(post_text))
+            # Find sentence boundary
+            snippet = post_text[idx:end]
+            period = snippet.find(".")
+            if period > 0:
+                snippet = snippet[:period]
+            key_phrases.append(snippet.strip())
+
+    for marker in _CONCERN_MARKERS:
+        if marker in text_lower:
+            idx = text_lower.index(marker)
+            end = min(idx + 80, len(post_text))
+            snippet = post_text[idx:end]
+            period = snippet.find(".")
+            if period > 0:
+                snippet = snippet[:period]
+            key_phrases.append(snippet.strip())
+
+    # Deduplicate while preserving order
+    seen: set[str] = set()
+    unique_phrases: list[str] = []
+    for p in key_phrases:
+        if p.lower() not in seen:
+            seen.add(p.lower())
+            unique_phrases.append(p)
+
+    return {
+        "sentiment": round(sentiment, 3),
+        "category": category,
+        "key_phrases": unique_phrases,
+    }
 
 
 class MarketSignal(BaseModel):
