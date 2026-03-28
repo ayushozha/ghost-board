@@ -139,15 +139,9 @@ class TestCTOAgent:
     @patch("agents.base.AsyncOpenAI")
     async def test_generate_prototype(self, mock_openai_cls):
         mock_client = AsyncMock()
-        code_response = json.dumps({
-            "files": [
-                {"filename": "app.py", "content": "print('hello')", "description": "Main app"},
-                {"filename": "models.py", "content": "class User: pass", "description": "Models"},
-            ],
-            "description": "Test prototype",
-        })
+        # CTO now generates files one at a time; each LLM call returns raw content
         mock_client.chat.completions.create = AsyncMock(
-            return_value=MockResponse(code_response)
+            return_value=MockResponse("print('hello world')")
         )
         mock_openai_cls.return_value = mock_client
 
@@ -161,7 +155,10 @@ class TestCTOAgent:
         )
         result = await cto.generate_prototype(strategy)
 
-        assert len(result.files_generated) == 2
+        # 10 files: app.py, models.py, config.py, routes/__init__.py,
+        # routes/users.py, routes/transactions.py, routes/health.py,
+        # requirements.txt, test_app.py, README.md
+        assert len(result.files_generated) == 10
         events = bus.get_events_by_type(EventType.PROTOTYPE_READY)
         assert len(events) == 1
 
@@ -224,14 +221,25 @@ class TestCFOAgent:
     async def test_generate_financial_model(self, mock_openai_cls):
         mock_client = AsyncMock()
         model_response = json.dumps({
-            "revenue_year1": 120000,
-            "revenue_year3": 2500000,
-            "burn_rate_monthly": 45000,
-            "runway_months": 18,
-            "funding_required": 1500000,
-            "cac": 200,
-            "ltv": 3000,
-            "gross_margin": 75,
+            "scenarios": {
+                "base": {"year1_revenue": 120000, "description": "Base case"},
+                "optimistic": {"year1_revenue": 240000, "description": "2x growth"},
+                "pessimistic": {"year1_revenue": 60000, "description": "0.5x growth"},
+            },
+            "runway": {
+                "monthly_burn_rate": 45000,
+                "runway_months": 18,
+                "funding_required_series_a": 1500000,
+            },
+            "monthly_pnl": [{"month": i, "revenue": 10000 * i, "cogs": 2000, "opex": 40000} for i in range(1, 13)],
+            "unit_economics": {
+                "cac": 200,
+                "ltv": 3000,
+                "ltv_cac_ratio": 15,
+                "payback_period_months": 3,
+                "gross_margin_pct": 75,
+            },
+            "sensitivity": {},
         })
         mock_client.chat.completions.create = AsyncMock(
             return_value=MockResponse(model_response)

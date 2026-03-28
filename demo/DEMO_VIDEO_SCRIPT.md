@@ -1,51 +1,39 @@
-# Ghost Board - 1-Minute Demo Video Script
+# Ghost Board - 1-Minute Demo Script
 
-## [0:00-0:10] Hook
+## Setup (before recording)
+- Have dashboard/index.html open in browser
+- Have terminal ready with `python main.py` command
+- Have outputs/ populated from a cached Anchrix run
 
-"What if you could run a full executive team sprint - strategy, prototype, financials, compliance, marketing - in under 2 minutes, for 15 cents?"
+## Recording Script
 
-[Show: terminal running `python main.py --demo`]
+### 0-10s: INTRO
+**Screen**: Terminal with Ghost Board ASCII banner
+**Narration**: "Ghost Board. One command. Five AI executives. A full company sprint built by Ralph Loop."
+**Action**: Type `python main.py "Launch Anchrix, a stablecoin payout platform for US fintechs"` and hit enter
 
-## [0:10-0:20] Legal Blocker (The Drama)
+### 10-25s: THE BOARDROOM (Screen 2)
+**Screen**: Dashboard Screen 2 - Boardroom with 5 agent cards
+**Narration**: "Five autonomous agents coordinate via an async event bus. Watch: Legal discovers FinCEN MSB registration requirements - real regulation, 31 CFR 1022.380."
+**Action**: Show Legal card flashing red, red line to CEO. Show CEO card going yellow as it pivots. Show cascade to CTO, CFO, CMO.
+**Key moment**: CEO pivot with rationale: "MSB licensing in 50 states costs $2M+. Pivoting to B2B in 5 states."
 
-"Legal scans REAL regulations using web search. It finds an actual CFPB violation - Regulation E requires error resolution procedures for electronic fund transfers."
+### 25-40s: MARKET ARENA (Screen 3)
+**Screen**: Dashboard Screen 3 - 3D Globe with persona dots
+**Narration**: "MiroFish-inspired market stress test. Fifty LLM-powered personas - real VCs, journalists, competitors - plus one million lightweight crowd agents react to the business."
+**Action**: Show globe spinning with dots lighting up. Show sentiment chart shifting. Show VC quote: "B2B pivot is smart but pricing needs work."
+**Key moment**: Sentiment shift causes second pivot
 
-[Show: compliance/report_v1.md with real citation URLs]
+### 40-50s: PIVOT TIMELINE (Screen 4)
+**Screen**: Dashboard Screen 4 - Timeline with colored nodes
+**Narration**: "Every decision traced. Click any pivot to see the exact persona quote that triggered it, the CEO's reasoning, and how every agent adapted."
+**Action**: Click a pivot node, show the causal chain detail panel
 
-"This isn't a hallucinated reference. That's a real regulation at consumerfinance.gov."
+### 50-60s: RESULTS (Screen 5)
+**Screen**: Dashboard Screen 5 - Sprint Report with cost comparison
+**Narration**: "Nineteen cents of API cost. Fifteen thousand dollars of consulting equivalent. One million fifty agents. Working prototype, financial model, GTM strategy, compliance memo. All in under five minutes. Open source."
+**Action**: Show the $0.19 vs $15,000 bar chart. Flash GitHub URL.
 
-## [0:20-0:30] CEO Pivot (The Cascade)
-
-"CEO receives the BLOCKER through the async event bus. It reasons about the risk and pivots - restructuring from direct fund handling to a SaaS monitoring tool."
-
-[Show: terminal output with PIVOT event]
-
-"The PIVOT cascades to CTO, CFO, and CMO simultaneously. All three rebuild their outputs."
-
-## [0:30-0:40] Million Agent Simulation
-
-"Now the outer loop: 50 LLM-powered personas and up to 1,000,000 lightweight agents react to the startup."
-
-[Show: `python main.py --sim-scale demo` output showing agent counts]
-
-"VCs evaluate ROI. Skeptics poke holes. Journalists ask hard questions. The crowd shifts stances round by round."
-
-[Show: dashboard sentiment chart]
-
-## [0:40-0:50] Final Output + Cost
-
-"Result: working FastAPI prototype, 3-year financial model with monthly projections, landing page copy, competitive matrix, and compliance analysis with real citations."
-
-[Show: sprint summary table]
-
-"35 events. 3 pivots. $0.15 in API costs. The human equivalent? About $15,000."
-
-[Show: "98,232x cheaper" stat]
-
-## [0:50-1:00] Problem Statement Fit
-
-"Statement 1: CTO uses OpenAI Codex for code. Statement 2: agents are each other's customers - Legal's blocker feeds CEO, CEO's pivot feeds CTO. Zero human touch. Statement 3: real artifacts. Real product."
-
-[Show: landing page with Ralphthon section]
-
-"Ghost Board. Built at Ralphthon SF 2026."
+## End Card
+Ghost Board - Built at Ralphthon SF 2026
+GitHub: [URL]

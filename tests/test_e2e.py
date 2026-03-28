@@ -49,9 +49,19 @@ PROTOTYPE_RESPONSE = json.dumps({
 })
 
 FINANCIAL_RESPONSE = json.dumps({
-    "revenue_year1": 240000, "revenue_year3": 5000000,
-    "burn_rate_monthly": 50000, "runway_months": 18,
-    "funding_required": 2000000, "cac": 500, "ltv": 5000, "gross_margin": 80,
+    "scenarios": {
+        "base": {"year1_revenue": 240000, "description": "Base case"},
+        "optimistic": {"year1_revenue": 480000, "description": "2x growth"},
+        "pessimistic": {"year1_revenue": 120000, "description": "0.5x growth"},
+    },
+    "runway": {
+        "monthly_burn_rate": 50000,
+        "runway_months": 18,
+        "funding_required_series_a": 2000000,
+    },
+    "monthly_pnl": [{"month": i, "revenue": 20000 * i, "cogs": 3000, "opex": 45000} for i in range(1, 13)],
+    "unit_economics": {"cac": 500, "ltv": 5000, "ltv_cac_ratio": 10, "payback_period_months": 4, "gross_margin_pct": 80},
+    "sensitivity": {},
 })
 
 GTM_RESPONSE = json.dumps({
@@ -122,6 +132,29 @@ def make_mock_client(responses: list[str]) -> AsyncMock:
     return mock_client
 
 
+def make_content_aware_mock(response_map: dict[str, str], default: str | None = None) -> AsyncMock:
+    """Create a mock client that returns responses based on message content keywords.
+
+    response_map: maps keyword to JSON response string. The FIRST matching keyword wins.
+    default: fallback response if no keyword matches.
+    """
+    mock_client = AsyncMock()
+    mock_responses_api = MagicMock()
+    mock_responses_api.create = AsyncMock(side_effect=Exception("no responses API"))
+    mock_client.responses = mock_responses_api
+
+    async def create_side_effect(**kwargs):
+        messages = kwargs.get("messages", [])
+        content = " ".join(m.get("content", "") for m in messages if isinstance(m, dict)).lower()
+        for keyword, response_str in response_map.items():
+            if keyword.lower() in content:
+                return MockResponse(response_str)
+        return MockResponse(default or list(response_map.values())[0])
+
+    mock_client.chat.completions.create = create_side_effect
+    return mock_client
+
+
 class TestE2E:
     @pytest.mark.asyncio
     async def test_full_cascade_strategy_to_pivot(self):
@@ -139,18 +172,20 @@ class TestE2E:
         # 6. CEO pivot (triggered by BLOCKER event)
         # 7-10. CTO/CFO/CMO/Legal rebuild (triggered by PIVOT event)
         # 11+. Any further cascading (Legal may re-analyze after pivot)
-        mock_client = make_mock_client([
-            STRATEGY_RESPONSE,          # 1. CEO strategy
-            PROTOTYPE_RESPONSE,         # 2. CTO build
-            FINANCIAL_RESPONSE,         # 3. CFO build
-            GTM_RESPONSE,               # 4. CMO build
-            COMPLIANCE_RESPONSE,        # 5. Legal (finds CRITICAL blocker)
-            PIVOT_RESPONSE,             # 6. CEO pivot
-            PROTOTYPE_RESPONSE,         # 7. CTO rebuild
-            FINANCIAL_RESPONSE,         # 8. CFO rebuild
-            GTM_RESPONSE,               # 9. CMO rebuild
-            COMPLIANCE_CLEAN,           # 10. Legal re-analyze (clean this time)
-        ])
+        # Use content-aware mock that returns correct response based on prompt keywords.
+        # This avoids ordering issues when agents run concurrently via asyncio.gather.
+        mock_client = make_content_aware_mock({
+            "regulatory compliance": COMPLIANCE_RESPONSE,  # Legal agent
+            "compliance": COMPLIANCE_RESPONSE,
+            "prototype": PROTOTYPE_RESPONSE,               # CTO agent
+            "code": PROTOTYPE_RESPONSE,
+            "financial model": FINANCIAL_RESPONSE,          # CFO agent
+            "revenue": FINANCIAL_RESPONSE,
+            "positioning": GTM_RESPONSE,                    # CMO agent
+            "go-to-market": GTM_RESPONSE,
+            "pivot": PIVOT_RESPONSE,                        # CEO pivot
+            "strategy": STRATEGY_RESPONSE,                  # CEO strategy
+        }, default=STRATEGY_RESPONSE)
 
         # Initialize agents (they auto-subscribe to bus events)
         ceo = CEOAgent(bus, logger)

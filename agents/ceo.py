@@ -98,8 +98,16 @@ Respond in JSON with these exact fields:
             return
 
         if payload.severity in ("CRITICAL", "HIGH") and self.current_strategy:
+            # Build a precise trigger quote including citations
+            citations_str = "; ".join(payload.citations) if payload.citations else "no citations"
+            trigger_quote = (
+                f"[Legal BLOCKER - {payload.severity}] {payload.description} "
+                f"(Citations: {citations_str}). "
+                f"Recommended action: {payload.recommended_action}"
+            )
             await self._pivot(
                 reason=f"Legal blocker ({payload.severity}): {payload.description}",
+                trigger_quote=trigger_quote,
                 triggered_by=event.id,
             )
 
@@ -149,41 +157,107 @@ Respond with ONLY the presentation text, no JSON."""
             return
 
         if payload.pivot_recommended and self.current_strategy:
+            # Build a detailed trigger quote from simulation data
+            concerns = "; ".join(payload.key_concerns[:5]) if payload.key_concerns else "general negative sentiment"
+            strengths = "; ".join(payload.key_strengths[:3]) if payload.key_strengths else "none noted"
+            trigger_quote = (
+                f"[Market Simulation Result] Overall sentiment: {payload.overall_sentiment:.2f}, "
+                f"confidence: {payload.confidence:.2f}. "
+                f"Key concerns from stakeholders: {concerns}. "
+                f"Strengths noted: {strengths}. "
+                f"Pivot suggestion: {payload.pivot_suggestion}"
+            )
             await self._pivot(
                 reason=f"Market simulation: {payload.pivot_suggestion}",
+                trigger_quote=trigger_quote,
                 triggered_by=event.id,
             )
 
-    async def _pivot(self, reason: str, triggered_by: str | None = None) -> PivotPayload:
-        """Execute a strategy pivot using LLM reasoning."""
+    async def _pivot(
+        self,
+        reason: str,
+        trigger_quote: str = "",
+        triggered_by: str | None = None,
+    ) -> PivotPayload:
+        """Execute a strategy pivot using structured LLM reasoning.
+
+        The pivot produces rich reasoning with 5 components:
+        1. Exact trigger quote
+        2. Options considered (2-3 alternatives)
+        3. Chosen direction with rationale
+        4. Expected impact on each agent
+        5. Risk assessment
+        """
         self.pivot_count += 1
         self.log(
             f"Pivot #{self.pivot_count}: {reason}",
             action="pivot",
-            reasoning=f"Triggering pivot because: {reason}. This is pivot #{self.pivot_count}. Evaluating how to adjust strategy to address this while preserving core value proposition.",
+            reasoning=(
+                f"Triggering pivot because: {reason}. "
+                f"Exact trigger: \"{trigger_quote}\". "
+                f"This is pivot #{self.pivot_count}. "
+                f"Evaluating 2-3 strategic alternatives before choosing direction."
+            ),
         )
 
         old_strategy_str = self.current_strategy.model_dump_json() if self.current_strategy else "{}"
 
-        prompt = f"""You are a startup CEO. You need to pivot your strategy.
+        prompt = f"""You are a startup CEO. You need to pivot your strategy based on a critical signal.
 
-Current strategy: {old_strategy_str}
-Reason for pivot: {reason}
-Previous pivots: {self.pivot_count - 1}
+CURRENT STRATEGY:
+{old_strategy_str}
 
-Define the NEW strategy. Respond in JSON:
-- startup_idea: string (refined version)
-- target_market: string (may change)
-- business_model: string
-- key_differentiators: list of strings
-- constraints: list of strings
-- pivot_reason: string (one sentence summary of why)
-- changes_for_cto: string (what CTO needs to change)
-- changes_for_cfo: string (what CFO needs to change)
-- changes_for_cmo: string (what CMO needs to change)"""
+TRIGGER (exact text that forced this pivot):
+"{trigger_quote or reason}"
+
+PREVIOUS PIVOTS: {self.pivot_count - 1}
+
+You MUST think through this pivot carefully. Respond in JSON with ALL of the following fields:
+
+{{
+  "trigger_quote": "<copy the exact trigger text above that caused this pivot>",
+  "options_considered": [
+    {{
+      "option": "<brief name of alternative 1>",
+      "description": "<1-2 sentence description of this alternative>",
+      "pros": "<key advantages>",
+      "cons": "<key disadvantages>"
+    }},
+    {{
+      "option": "<brief name of alternative 2>",
+      "description": "<1-2 sentence description>",
+      "pros": "<key advantages>",
+      "cons": "<key disadvantages>"
+    }},
+    {{
+      "option": "<brief name of alternative 3>",
+      "description": "<1-2 sentence description>",
+      "pros": "<key advantages>",
+      "cons": "<key disadvantages>"
+    }}
+  ],
+  "chosen_option": "<name of the option you chose>",
+  "rationale": "<2-3 sentences explaining WHY you chose this option over the others>",
+  "risk_assessment": "<1-2 sentences on what could go wrong with this pivot and how to mitigate>",
+  "startup_idea": "<refined startup idea after pivot>",
+  "target_market": "<may change>",
+  "business_model": "<may change>",
+  "key_differentiators": ["<list of strings>"],
+  "constraints": ["<list of strings>"],
+  "impact_on_cto": "<specific changes CTO must make to prototype, endpoints, architecture>",
+  "impact_on_cfo": "<specific changes CFO must make to financial model, projections, costs>",
+  "impact_on_cmo": "<specific changes CMO must make to positioning, messaging, channels>",
+  "impact_on_legal": "<specific changes Legal must review or update in compliance analysis>"
+}}
+
+Be SPECIFIC. Reference concrete numbers, regulations, market segments, and technical changes. Do not use vague language like 'adjust accordingly'."""
 
         response = await self.call_llm([
-            {"role": "system", "content": "You are a startup CEO making a strategic pivot. Respond only with valid JSON."},
+            {"role": "system", "content": (
+                "You are a startup CEO making a strategic pivot. "
+                "You consider multiple alternatives before deciding. "
+                "Respond only with valid JSON. No markdown fences."
+            )},
             {"role": "user", "content": prompt},
         ])
 
@@ -192,6 +266,24 @@ Define the NEW strategy. Respond in JSON:
         except json.JSONDecodeError:
             data = {}
 
+        # --- Extract structured pivot reasoning ---
+        trigger_quote_from_llm = data.get("trigger_quote", trigger_quote or reason)
+        options_considered = data.get("options_considered", [
+            {"option": "Stay the course", "description": "Continue current strategy", "pros": "No disruption", "cons": "Does not address the trigger"},
+            {"option": "Minor adjustment", "description": "Small tweak to strategy", "pros": "Low risk", "cons": "May not fully address concern"},
+            {"option": "Major pivot", "description": "Significant strategic change", "pros": "Directly addresses trigger", "cons": "High disruption"},
+        ])
+        chosen_option = data.get("chosen_option", "Strategic pivot")
+        rationale = data.get("rationale", f"Pivoting to address: {reason}")
+        risk_assessment = data.get("risk_assessment", "Risk of disrupting current momentum; mitigated by clear communication to all agents.")
+
+        # Build per-agent impact map
+        impact_cto = data.get("impact_on_cto", data.get("changes_for_cto", "Update prototype"))
+        impact_cfo = data.get("impact_on_cfo", data.get("changes_for_cfo", "Update financial model"))
+        impact_cmo = data.get("impact_on_cmo", data.get("changes_for_cmo", "Update positioning"))
+        impact_legal = data.get("impact_on_legal", "Review updated compliance requirements")
+
+        # --- New strategy ---
         new_strategy = StrategyPayload(
             startup_idea=data.get("startup_idea", self.current_strategy.startup_idea if self.current_strategy else ""),
             target_market=data.get("target_market", ""),
@@ -201,21 +293,96 @@ Define the NEW strategy. Respond in JSON:
             iteration=self._current_iteration + 1,
         )
 
+        # --- Build enriched reason as structured JSON for PivotPayload ---
+        # This allows downstream consumers to parse reason as JSON for the full pivot context.
+        structured_reason = json.dumps({
+            "summary": reason,
+            "trigger_quote": trigger_quote_from_llm,
+            "options_considered": [
+                opt.get("option", str(opt)) if isinstance(opt, dict) else str(opt)
+                for opt in options_considered
+            ],
+            "chosen_option": chosen_option,
+            "rationale": rationale,
+            "risk": risk_assessment,
+        })
+
         pivot_payload = PivotPayload(
-            reason=reason,
+            reason=structured_reason,
             old_strategy=old_strategy_str,
             new_strategy=new_strategy.model_dump_json(),
             affected_agents=["CTO", "CFO", "CMO"],
             changes_required={
-                "CTO": data.get("changes_for_cto", "Update prototype"),
-                "CFO": data.get("changes_for_cfo", "Update financial model"),
-                "CMO": data.get("changes_for_cmo", "Update positioning"),
+                "CTO": impact_cto,
+                "CFO": impact_cfo,
+                "CMO": impact_cmo,
+                "Legal": impact_legal,
+                # Structured pivot metadata for consumers that inspect changes_required
+                "_trigger_quote": trigger_quote_from_llm,
+                "_options_considered": json.dumps(options_considered),
+                "_chosen_option": chosen_option,
+                "_rationale": rationale,
+                "_risk": risk_assessment,
             },
             iteration=self._current_iteration + 1,
         )
 
         self.current_strategy = new_strategy
         self._current_iteration += 1
+
+        # --- Write structured board discussion entry with all 5 reasoning fields ---
+        from datetime import datetime, timezone
+        option_names = [
+            opt.get("option", str(opt)) if isinstance(opt, dict) else str(opt)
+            for opt in options_considered
+        ]
+        options_detail = []
+        for opt in options_considered:
+            if isinstance(opt, dict):
+                options_detail.append(
+                    f"  - {opt.get('option', '?')}: {opt.get('description', '')} "
+                    f"(Pros: {opt.get('pros', 'N/A')}, Cons: {opt.get('cons', 'N/A')})"
+                )
+            else:
+                options_detail.append(f"  - {opt}")
+        options_text = "\n".join(options_detail) if options_detail else "No alternatives recorded"
+
+        board_entry = {
+            "agent": self.name,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "event_type": "pivot_decision",
+            "message": f"PIVOT #{self.pivot_count}: {chosen_option}",
+            "reasoning": (
+                f"Exact trigger: \"{trigger_quote_from_llm}\"\n\n"
+                f"Options considered:\n{options_text}\n\n"
+                f"Chosen direction: {chosen_option}\n"
+                f"Rationale: {rationale}\n\n"
+                f"Expected impact on each agent:\n"
+                f"  - CTO: {impact_cto}\n"
+                f"  - CFO: {impact_cfo}\n"
+                f"  - CMO: {impact_cmo}\n"
+                f"  - Legal: {impact_legal}\n\n"
+                f"Risk assessment: {risk_assessment}"
+            ),
+            "iteration": self._current_iteration,
+            # Structured fields for programmatic access
+            "pivot_reasoning": {
+                "exact_trigger": trigger_quote_from_llm,
+                "options_considered": options_considered,
+                "chosen_direction": {
+                    "option": chosen_option,
+                    "rationale": rationale,
+                },
+                "expected_impact": {
+                    "CTO": impact_cto,
+                    "CFO": impact_cfo,
+                    "CMO": impact_cmo,
+                    "Legal": impact_legal,
+                },
+                "risk_assessment": risk_assessment,
+            },
+        }
+        BaseAgent._board_discussion.append(board_entry)
 
         await self.publish(AgentEvent(
             type=EventType.PIVOT,

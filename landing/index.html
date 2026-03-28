@@ -5,264 +5,932 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ghost Board - Autonomous AI Executive Team</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
+        colors: {
+          ghost: { 50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe', 300: '#a5b4fc', 400: '#818cf8', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca', 800: '#3730a3', 900: '#312e81', 950: '#1e1b4b' },
+          surface: { 0: '#06060a', 1: '#0a0a12', 2: '#0f0f1a', 3: '#141422', 4: '#1a1a2e' }
+        }
+      }
+    }
+  }
+</script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap');
-  * { font-family: 'Inter', sans-serif; }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  /* === Base === */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', system-ui, sans-serif; }
   code, .mono { font-family: 'JetBrains Mono', monospace; }
 
-  @keyframes gradient-shift {
+  /* === Scrollbar === */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #06060a; }
+  ::-webkit-scrollbar-thumb { background: #312e81; border-radius: 3px; }
+
+  /* === Hero gradient === */
+  @keyframes hero-gradient {
     0% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
     100% { background-position: 0% 50%; }
   }
   .hero-bg {
-    background: linear-gradient(-45deg, #0a0a0f, #1e1b4b, #0c1445, #0a0a0f);
+    background: linear-gradient(-45deg, #06060a, #1e1b4b, #0c1445, #1a0533, #06060a);
     background-size: 400% 400%;
-    animation: gradient-shift 20s ease infinite;
+    animation: hero-gradient 25s ease infinite;
   }
 
-  @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
-  .float { animation: float 3s ease-in-out infinite; }
-  .float-delay { animation: float 3s ease-in-out infinite; animation-delay: 1.5s; }
+  /* === Grid background === */
+  .grid-bg {
+    background-image:
+      linear-gradient(rgba(99,102,241,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(99,102,241,0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+  }
 
+  /* === Floating animation === */
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-12px); }
+  }
+  .float { animation: float 4s ease-in-out infinite; }
+  .float-d1 { animation: float 4s ease-in-out infinite 0.5s; }
+  .float-d2 { animation: float 4s ease-in-out infinite 1.0s; }
+  .float-d3 { animation: float 4s ease-in-out infinite 1.5s; }
+  .float-d4 { animation: float 4s ease-in-out infinite 2.0s; }
+
+  /* === Pulse glow === */
   @keyframes pulse-glow {
-    0%,100% { box-shadow: 0 0 20px rgba(99,102,241,0.2); }
-    50% { box-shadow: 0 0 40px rgba(99,102,241,0.4); }
+    0%, 100% { box-shadow: 0 0 20px rgba(99,102,241,0.3), 0 0 60px rgba(99,102,241,0.1); }
+    50% { box-shadow: 0 0 40px rgba(99,102,241,0.5), 0 0 80px rgba(99,102,241,0.2); }
   }
   .pulse-glow { animation: pulse-glow 3s ease infinite; }
 
-  @keyframes pivot-flash {
-    0%,100% { opacity: 0.6; } 50% { opacity: 1; }
+  /* === Title shimmer === */
+  @keyframes shimmer {
+    0% { background-position: -200% center; }
+    100% { background-position: 200% center; }
   }
-  .pivot-flash { animation: pivot-flash 1.5s ease infinite; }
+  .text-shimmer {
+    background: linear-gradient(90deg, #818cf8, #c084fc, #f472b6, #c084fc, #818cf8);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: shimmer 4s linear infinite;
+  }
 
-  .reveal { opacity: 0; transform: translateY(30px); transition: all 0.8s ease; }
-  .reveal.visible { opacity: 1; transform: translateY(0); }
+  /* === Reveal on scroll === */
+  .reveal {
+    opacity: 0;
+    transform: translateY(40px);
+    transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .reveal-delay-1 { transition-delay: 0.1s; }
+  .reveal-delay-2 { transition-delay: 0.2s; }
+  .reveal-delay-3 { transition-delay: 0.3s; }
+  .reveal-delay-4 { transition-delay: 0.4s; }
 
-  /* Particles */
+  /* === Particles === */
   .particle {
-    position: absolute; width: 3px; height: 3px; border-radius: 50%;
-    background: rgba(99,102,241,0.4); pointer-events: none;
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    background: radial-gradient(circle, rgba(99,102,241,0.6), transparent);
+  }
+  @keyframes particle-drift {
+    0% { transform: translateY(0) translateX(0); opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { transform: translateY(-100vh) translateX(50px); opacity: 0; }
+  }
+
+  /* === Connection line pulse === */
+  @keyframes line-pulse {
+    0%, 100% { stroke-opacity: 0.15; }
+    50% { stroke-opacity: 0.5; }
+  }
+  .line-pulse { animation: line-pulse 3s ease infinite; }
+
+  /* === Typing cursor === */
+  @keyframes blink-cursor {
+    0%, 100% { border-color: #818cf8; }
+    50% { border-color: transparent; }
+  }
+  .typing-cursor {
+    border-right: 2px solid #818cf8;
+    animation: blink-cursor 1s step-end infinite;
+    padding-right: 2px;
+  }
+
+  /* === Glass morphism card === */
+  .glass {
+    background: rgba(15, 15, 26, 0.6);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(99, 102, 241, 0.1);
+  }
+  .glass:hover {
+    border-color: rgba(99, 102, 241, 0.25);
+    background: rgba(15, 15, 26, 0.75);
+  }
+
+  /* === Flow connector arrow === */
+  .flow-arrow {
+    position: relative;
+  }
+  .flow-arrow::after {
+    content: '';
+    position: absolute;
+    right: -28px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(99,102,241,0.6), rgba(99,102,241,0.1));
+  }
+  .flow-arrow::before {
+    content: '';
+    position: absolute;
+    right: -28px;
+    top: 50%;
+    transform: translateY(-50%) rotate(45deg);
+    width: 8px;
+    height: 8px;
+    border-top: 2px solid rgba(99,102,241,0.4);
+    border-right: 2px solid rgba(99,102,241,0.4);
+  }
+
+  /* === Stat counter === */
+  @keyframes count-up {
+    from { opacity: 0; transform: scale(0.5); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  .stat-reveal {
+    animation: count-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  /* === Glow ring on architecture === */
+  @keyframes glow-ring {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(99,102,241,0); }
+  }
+  .glow-ring { animation: glow-ring 2.5s ease infinite; }
+
+  /* === Blocker flash === */
+  @keyframes blocker-flash {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+    50% { box-shadow: 0 0 20px 4px rgba(239,68,68,0.3); }
+  }
+  .blocker-flash { animation: blocker-flash 2s ease infinite; }
+
+  /* === Smooth nav === */
+  .nav-blur {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
   }
 </style>
 </head>
-<body class="bg-[#0a0a0f] text-slate-200 overflow-x-hidden">
+<body class="bg-surface-0 text-slate-200 overflow-x-hidden">
 
-<!-- ═══ HERO ═══ -->
-<section class="hero-bg min-h-screen flex items-center relative overflow-hidden">
+<!-- ============================== -->
+<!--          NAVIGATION            -->
+<!-- ============================== -->
+<nav class="fixed top-0 left-0 right-0 z-50 nav-blur bg-surface-0/80 border-b border-slate-800/50">
+  <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+    <a href="#" class="flex items-center gap-2 text-white font-bold text-lg">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="text-ghost-400">
+        <rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="2"/>
+        <circle cx="9" cy="10" r="1.5" fill="currentColor"/>
+        <circle cx="15" cy="10" r="1.5" fill="currentColor"/>
+        <path d="M8 15c0 0 2 2 4 2s4-2 4-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      Ghost Board
+    </a>
+    <div class="hidden md:flex items-center gap-8 text-sm text-slate-400">
+      <a href="#how-it-works" class="hover:text-white transition-colors">How It Works</a>
+      <a href="#problem-fit" class="hover:text-white transition-colors">Problem Fit</a>
+      <a href="#architecture" class="hover:text-white transition-colors">Architecture</a>
+      <a href="#numbers" class="hover:text-white transition-colors">Numbers</a>
+      <a href="#demo" class="hover:text-white transition-colors">Demo</a>
+      <a href="https://github.com/ayushozha/ghost-board" target="_blank" class="px-4 py-2 rounded-lg bg-ghost-600 hover:bg-ghost-500 text-white font-medium transition-colors">
+        GitHub
+      </a>
+    </div>
+  </div>
+</nav>
+
+
+<!-- ============================== -->
+<!--            HERO                -->
+<!-- ============================== -->
+<section class="hero-bg min-h-screen flex items-center relative overflow-hidden pt-16">
+  <!-- Animated grid background -->
+  <div class="absolute inset-0 grid-bg"></div>
+
   <!-- Floating particles -->
   <div class="absolute inset-0" id="particles"></div>
 
-  <div class="max-w-6xl mx-auto px-6 relative z-10 text-center py-20">
-    <div class="inline-block px-4 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-medium mb-8">
-      Built at Ralphthon SF 2026
+  <!-- Radial glow -->
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full bg-ghost-600/5 blur-3xl pointer-events-none"></div>
+
+  <div class="max-w-6xl mx-auto px-6 relative z-10 text-center py-24">
+    <!-- Badge -->
+    <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-ghost-500/10 border border-ghost-500/20 text-ghost-400 text-xs font-medium mb-10 reveal">
+      <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+      Ralphthon SF 2026
     </div>
-    <h1 class="text-5xl md:text-7xl font-black tracking-tight mb-6 leading-tight">
-      <span class="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">One Command.</span><br>
-      <span class="text-white">Five Executives.</span><br>
-      <span class="bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 bg-clip-text text-transparent">A Full Company Sprint.</span>
+
+    <!-- Main title -->
+    <h1 class="text-6xl md:text-8xl lg:text-9xl font-black tracking-tight mb-8 leading-[0.9] reveal reveal-delay-1">
+      <span class="text-shimmer">Ghost Board</span>
     </h1>
-    <p class="text-xl text-slate-400 max-w-2xl mx-auto mb-10">
-      Ghost Board runs an autonomous AI executive team that builds, validates, and pivots a startup
-      in under 2 minutes for $0.15. Real strategy. Real code. Real compliance citations.
+
+    <!-- Subtitle -->
+    <p class="text-xl md:text-2xl lg:text-3xl text-slate-300 font-light max-w-3xl mx-auto mb-4 reveal reveal-delay-2">
+      One command. Five executives. A full company sprint.
     </p>
-    <div class="flex gap-4 justify-center flex-wrap">
-      <a href="../dashboard/index.html" class="px-8 py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-lg transition-all pulse-glow">
-        View Dashboard
+    <p class="text-base md:text-lg text-slate-500 max-w-2xl mx-auto mb-12 reveal reveal-delay-3">
+      An autonomous AI executive team that builds, validates, and pivots a startup
+      in under 5 minutes for $0.19. Real strategy. Real code. Real compliance.
+    </p>
+
+    <!-- CTA buttons -->
+    <div class="flex gap-4 justify-center flex-wrap mb-16 reveal reveal-delay-4">
+      <a href="https://github.com/ayushozha/ghost-board" target="_blank"
+         class="group px-8 py-4 rounded-2xl bg-ghost-600 hover:bg-ghost-500 text-white font-bold text-lg transition-all duration-300 pulse-glow flex items-center gap-3">
+        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+        View on GitHub
       </a>
-      <a href="#how-it-works" class="px-8 py-4 rounded-xl bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 font-bold text-lg border border-slate-700/50 transition-all">
-        How It Works
+      <a href="../dashboard/index.html"
+         class="px-8 py-4 rounded-2xl glass text-slate-300 hover:text-white font-bold text-lg transition-all duration-300 flex items-center gap-3">
+        <span class="w-2 h-2 rounded-full bg-ghost-400 animate-pulse"></span>
+        Launch Dashboard
       </a>
     </div>
 
     <!-- Terminal preview -->
-    <div class="mt-16 max-w-2xl mx-auto text-left">
-      <div class="rounded-xl bg-slate-900/80 border border-slate-700/50 p-6 backdrop-blur-sm">
-        <div class="flex gap-2 mb-4">
-          <div class="w-3 h-3 rounded-full bg-red-500"></div>
-          <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
-          <div class="w-3 h-3 rounded-full bg-green-500"></div>
+    <div class="max-w-2xl mx-auto text-left reveal">
+      <div class="rounded-2xl glass p-1">
+        <div class="rounded-xl bg-surface-1 p-6">
+          <div class="flex items-center gap-2 mb-5">
+            <div class="w-3 h-3 rounded-full bg-red-500/80"></div>
+            <div class="w-3 h-3 rounded-full bg-yellow-500/80"></div>
+            <div class="w-3 h-3 rounded-full bg-green-500/80"></div>
+            <span class="ml-3 text-xs text-slate-600 mono">ghost-board</span>
+          </div>
+          <pre class="text-sm mono text-slate-300 leading-relaxed whitespace-pre-wrap"><span class="text-green-400">$</span> python main.py --demo
+
+<span class="text-ghost-400 font-semibold">Phase 1: Strategy + Build</span>
+  <span class="text-yellow-400">CEO</span>  Setting strategy: API-first B2B stablecoin payouts
+  <span class="text-blue-400">CTO</span>  <span class="text-green-400">Done</span>  <span class="text-emerald-400">CFO</span>  <span class="text-green-400">Done</span>  <span class="text-purple-400">CMO</span>  <span class="text-green-400">Done</span>  <span class="text-red-400">Legal</span>  <span class="text-green-400">Done</span>
+
+  <span class="text-red-500 font-bold">! Legal BLOCKER: MSB licensing in 50 states ($2M+)</span>
+  <span class="text-yellow-400">CEO</span>  <span class="text-yellow-300">PIVOT</span>: B2B only, 5 states, reduce to $50K
+
+<span class="text-ghost-400 font-semibold">Phase 2: Market Simulation</span>
+  50 LLM personas + 1,000,000 lightweight agents
+  Rounds: 5  |  Sentiment: <span class="text-green-400">+0.42</span>  |  Post-sim pivot: <span class="text-yellow-300">Yes</span>
+
+<span class="text-green-400 font-bold">Sprint Complete!</span>
+  Events: 35  |  Pivots: 3  |  Cost: <span class="text-green-400">$0.19</span>
+  Human equivalent: <span class="text-slate-500">$15,000</span>  |  <span class="text-green-400 font-bold">77,359x cheaper<span class="typing-cursor"> </span></span></pre>
         </div>
-        <pre class="text-sm mono text-slate-300 leading-relaxed"><span class="text-green-400">$</span> python main.py --demo
+      </div>
+    </div>
 
-<span class="text-indigo-400">Phase 1: Strategy + Build</span>
-  <span class="text-yellow-400">CEO</span>: Usage-based SaaS targeting fintech startups
-  <span class="text-blue-400">CTO</span>: <span class="text-green-400">Done</span>  <span class="text-green-400">CFO</span>: <span class="text-green-400">Done</span>  <span class="text-purple-400">CMO</span>: <span class="text-green-400">Done</span>  <span class="text-red-400">Legal</span>: <span class="text-green-400">Done</span>
+  </div>
 
-  <span class="text-red-400 font-bold pivot-flash">! Legal found 4 blocker(s)</span>
-  <span class="text-yellow-400">CEO</span>: Pivoted strategy (3 pivots)
+  <!-- Scroll indicator -->
+  <div class="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-slate-600 text-xs">
+    <span>Scroll to explore</span>
+    <svg class="w-4 h-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+  </div>
+</section>
 
-<span class="text-indigo-400">Phase 2: Market Simulation</span> (30 personas, 5 rounds)
-  Sentiment: <span class="text-yellow-400">0.10</span>  |  Pivot: <span class="text-red-400">Yes</span>
 
-<span class="text-green-400">Sprint Complete!</span>
-  Events: 35  |  Pivots: 3  |  Cost: <span class="text-green-400">$0.15</span>
-  Human equivalent: <span class="text-slate-500">~$15,000</span>  |  <span class="text-green-400 font-bold">98,232x cheaper</span></pre>
+<!-- ============================== -->
+<!--        HOW IT WORKS            -->
+<!-- ============================== -->
+<section id="how-it-works" class="py-32 px-6 relative">
+  <div class="absolute inset-0 grid-bg"></div>
+  <div class="max-w-7xl mx-auto relative z-10">
+    <div class="text-center mb-20">
+      <h2 class="text-4xl md:text-5xl font-black mb-4 reveal">How Ghost Board Works</h2>
+      <p class="text-slate-400 text-lg max-w-2xl mx-auto reveal reveal-delay-1">Five steps. Two feedback loops. Full autonomy. No human in the loop.</p>
+    </div>
+
+    <!-- 5-step flow -->
+    <div class="flex flex-col lg:flex-row items-center justify-center gap-4 lg:gap-0 mb-16">
+
+      <!-- Step 1: Input -->
+      <div class="flex flex-col items-center text-center w-full lg:w-48 reveal">
+        <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-ghost-500/20 to-ghost-700/20 border border-ghost-500/30 flex items-center justify-center text-3xl mb-4 float glow-ring">
+          <svg class="w-9 h-9 text-ghost-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg>
+        </div>
+        <h3 class="font-bold text-white text-sm mb-1">Input Concept</h3>
+        <p class="text-xs text-slate-500">"Stablecoin payout API for gig workers"</p>
+      </div>
+
+      <!-- Arrow -->
+      <div class="hidden lg:flex items-center px-2 reveal reveal-delay-1">
+        <svg class="w-10 h-6 text-ghost-500/40" viewBox="0 0 40 24"><line x1="0" y1="12" x2="34" y2="12" stroke="currentColor" stroke-width="2"/><polygon points="34,6 40,12 34,18" fill="currentColor"/></svg>
+      </div>
+      <div class="lg:hidden reveal reveal-delay-1">
+        <svg class="w-6 h-10 text-ghost-500/40" viewBox="0 0 24 40"><line x1="12" y1="0" x2="12" y2="34" stroke="currentColor" stroke-width="2"/><polygon points="6,34 12,40 18,34" fill="currentColor"/></svg>
+      </div>
+
+      <!-- Step 2: Boardroom -->
+      <div class="flex flex-col items-center text-center w-full lg:w-48 reveal reveal-delay-1">
+        <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-yellow-500/20 to-amber-700/20 border border-yellow-500/30 flex items-center justify-center text-3xl mb-4 float-d1">
+          <svg class="w-9 h-9 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"/></svg>
+        </div>
+        <h3 class="font-bold text-white text-sm mb-1">AI Boardroom</h3>
+        <p class="text-xs text-slate-500">5 executives build concurrently via event bus</p>
+      </div>
+
+      <!-- Arrow -->
+      <div class="hidden lg:flex items-center px-2 reveal reveal-delay-2">
+        <svg class="w-10 h-6 text-ghost-500/40" viewBox="0 0 40 24"><line x1="0" y1="12" x2="34" y2="12" stroke="currentColor" stroke-width="2"/><polygon points="34,6 40,12 34,18" fill="currentColor"/></svg>
+      </div>
+      <div class="lg:hidden reveal reveal-delay-2">
+        <svg class="w-6 h-10 text-ghost-500/40" viewBox="0 0 24 40"><line x1="12" y1="0" x2="12" y2="34" stroke="currentColor" stroke-width="2"/><polygon points="6,34 12,40 18,34" fill="currentColor"/></svg>
+      </div>
+
+      <!-- Step 3: Simulation -->
+      <div class="flex flex-col items-center text-center w-full lg:w-48 reveal reveal-delay-2">
+        <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-700/20 border border-cyan-500/30 flex items-center justify-center text-3xl mb-4 float-d2">
+          <svg class="w-9 h-9 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418"/></svg>
+        </div>
+        <h3 class="font-bold text-white text-sm mb-1">Market Simulation</h3>
+        <p class="text-xs text-slate-500">1M+ agents stress-test the product</p>
+      </div>
+
+      <!-- Arrow -->
+      <div class="hidden lg:flex items-center px-2 reveal reveal-delay-3">
+        <svg class="w-10 h-6 text-red-500/40" viewBox="0 0 40 24"><line x1="0" y1="12" x2="34" y2="12" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3"/><polygon points="34,6 40,12 34,18" fill="currentColor"/></svg>
+      </div>
+      <div class="lg:hidden reveal reveal-delay-3">
+        <svg class="w-6 h-10 text-red-500/40" viewBox="0 0 24 40"><line x1="12" y1="0" x2="12" y2="34" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3"/><polygon points="6,34 12,40 18,34" fill="currentColor"/></svg>
+      </div>
+
+      <!-- Step 4: Pivot -->
+      <div class="flex flex-col items-center text-center w-full lg:w-48 reveal reveal-delay-3">
+        <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-red-500/20 to-orange-700/20 border border-red-500/30 flex items-center justify-center text-3xl mb-4 float-d3 blocker-flash">
+          <svg class="w-9 h-9 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+        </div>
+        <h3 class="font-bold text-white text-sm mb-1">Pivot</h3>
+        <p class="text-xs text-slate-500">CEO pivots strategy, cascades to all agents</p>
+      </div>
+
+      <!-- Arrow -->
+      <div class="hidden lg:flex items-center px-2 reveal reveal-delay-4">
+        <svg class="w-10 h-6 text-green-500/40" viewBox="0 0 40 24"><line x1="0" y1="12" x2="34" y2="12" stroke="currentColor" stroke-width="2"/><polygon points="34,6 40,12 34,18" fill="currentColor"/></svg>
+      </div>
+      <div class="lg:hidden reveal reveal-delay-4">
+        <svg class="w-6 h-10 text-green-500/40" viewBox="0 0 24 40"><line x1="12" y1="0" x2="12" y2="34" stroke="currentColor" stroke-width="2"/><polygon points="6,34 12,40 18,34" fill="currentColor"/></svg>
+      </div>
+
+      <!-- Step 5: Artifacts -->
+      <div class="flex flex-col items-center text-center w-full lg:w-48 reveal reveal-delay-4">
+        <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-green-500/20 to-emerald-700/20 border border-green-500/30 flex items-center justify-center text-3xl mb-4 float-d4">
+          <svg class="w-9 h-9 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z"/></svg>
+        </div>
+        <h3 class="font-bold text-white text-sm mb-1">Final Artifacts</h3>
+        <p class="text-xs text-slate-500">Code, financials, GTM, compliance -- all real</p>
+      </div>
+    </div>
+
+    <!-- Detail cards -->
+    <div class="grid md:grid-cols-3 gap-6 mt-12">
+      <div class="rounded-2xl glass p-8 reveal transition-all duration-300 hover:scale-[1.02]">
+        <div class="text-ghost-400 font-bold text-xs uppercase tracking-wider mb-4">Inner Loop</div>
+        <h3 class="text-lg font-bold mb-3 text-white">Async Event Bus</h3>
+        <p class="text-slate-400 text-sm leading-relaxed">
+          Five agents communicate via typed pub/sub events. When Legal publishes a BLOCKER,
+          CEO's callback fires instantly. The pivot cascades to CTO, CFO, and CMO
+          who rebuild their artifacts in parallel.
+        </p>
+      </div>
+      <div class="rounded-2xl glass p-8 reveal reveal-delay-1 transition-all duration-300 hover:scale-[1.02]">
+        <div class="text-red-400 font-bold text-xs uppercase tracking-wider mb-4">Pivot Engine</div>
+        <h3 class="text-lg font-bold mb-3 text-white">Real Compliance Blockers</h3>
+        <p class="text-slate-400 text-sm leading-relaxed">
+          Legal agent uses OpenAI web search to cite real CFPB, FinCEN, and SEC regulations.
+          Every blocker includes URLs to actual legal text. CEO reasons through trade-offs
+          and pivots strategy accordingly.
+        </p>
+      </div>
+      <div class="rounded-2xl glass p-8 reveal reveal-delay-2 transition-all duration-300 hover:scale-[1.02]">
+        <div class="text-cyan-400 font-bold text-xs uppercase tracking-wider mb-4">Outer Loop</div>
+        <h3 class="text-lg font-bold mb-3 text-white">MiroFish Simulation</h3>
+        <p class="text-slate-400 text-sm leading-relaxed">
+          50 LLM-powered personas (VCs, journalists, competitors) and 1,000,000 lightweight
+          NumPy-vectorized agents stress-test the product. Sentiment signals flow back to
+          CEO for a second round of pivots.
+        </p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ═══ HOW IT WORKS ═══ -->
-<section id="how-it-works" class="py-24 px-6">
-  <div class="max-w-6xl mx-auto">
-    <h2 class="text-4xl font-black text-center mb-4 reveal">How Ghost Board Works</h2>
-    <p class="text-slate-400 text-center mb-16 reveal">Two nested feedback loops. Five agents. Full autonomy.</p>
+
+<!-- ============================== -->
+<!--      PROBLEM STATEMENT FIT     -->
+<!-- ============================== -->
+<section id="problem-fit" class="py-32 px-6 relative overflow-hidden">
+  <!-- Subtle background glow -->
+  <div class="absolute top-0 left-1/4 w-96 h-96 rounded-full bg-ghost-600/5 blur-3xl pointer-events-none"></div>
+  <div class="absolute bottom-0 right-1/4 w-96 h-96 rounded-full bg-purple-600/5 blur-3xl pointer-events-none"></div>
+
+  <div class="max-w-6xl mx-auto relative z-10">
+    <div class="text-center mb-20">
+      <h2 class="text-4xl md:text-5xl font-black mb-4 reveal">Ralphthon Problem Statement Fit</h2>
+      <p class="text-slate-400 text-lg reveal reveal-delay-1">Ghost Board addresses all three hackathon problem statements.</p>
+    </div>
 
     <div class="grid md:grid-cols-3 gap-8">
-      <!-- Phase 1 -->
-      <div class="rounded-2xl bg-slate-900/40 border border-slate-700/30 p-8 reveal">
-        <div class="w-14 h-14 rounded-xl bg-indigo-500/20 flex items-center justify-center text-2xl mb-6 float">&#128640;</div>
-        <h3 class="text-xl font-bold mb-3">Phase 1: Strategy + Build</h3>
-        <p class="text-slate-400 text-sm leading-relaxed">
-          CEO sets strategy. CTO generates a working prototype via OpenAI Codex. CFO builds a 3-year financial model.
-          CMO writes landing page copy. Legal scans real CFPB/FinCEN/SEC regulations with web search.
+      <!-- Statement 1 -->
+      <div class="group rounded-2xl glass p-8 reveal transition-all duration-500 hover:scale-[1.03] hover:border-ghost-500/40 relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-ghost-500/5 rounded-bl-full pointer-events-none"></div>
+        <div class="w-12 h-12 rounded-xl bg-ghost-500/20 flex items-center justify-center mb-6">
+          <svg class="w-6 h-6 text-ghost-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5"/></svg>
+        </div>
+        <div class="inline-block px-3 py-1 rounded-full bg-ghost-500/10 text-ghost-400 text-xs font-bold mb-4">Statement 1</div>
+        <h3 class="text-xl font-bold text-white mb-3">Codex-Powered Services</h3>
+        <p class="text-slate-400 text-sm leading-relaxed mb-4">
+          CTO agent uses the OpenAI API for real code generation -- producing working FastAPI prototypes,
+          Pydantic models, and test suites. The Ralph Loop itself uses Claude for autonomous orchestration.
         </p>
-        <div class="mt-4 text-xs text-indigo-400">All agents build concurrently via async event bus</div>
+        <div class="flex flex-wrap gap-2">
+          <span class="px-2 py-1 rounded-md bg-surface-3 text-xs text-slate-500">OpenAI Codex</span>
+          <span class="px-2 py-1 rounded-md bg-surface-3 text-xs text-slate-500">Claude Orchestration</span>
+          <span class="px-2 py-1 rounded-md bg-surface-3 text-xs text-slate-500">Real Code Output</span>
+        </div>
       </div>
 
-      <!-- Phase 2 -->
-      <div class="rounded-2xl bg-slate-900/40 border border-slate-700/30 p-8 reveal">
-        <div class="w-14 h-14 rounded-xl bg-red-500/20 flex items-center justify-center text-2xl mb-6 float-delay">&#9888;&#65039;</div>
-        <h3 class="text-xl font-bold mb-3">The Pivot Cascade</h3>
-        <p class="text-slate-400 text-sm leading-relaxed">
-          Legal finds a <strong class="text-red-400">CRITICAL blocker</strong> - real regulation citation.
-          CEO reasons through the blocker and pivots strategy.
-          The PIVOT event cascades to all agents. They rebuild everything.
+      <!-- Statement 2 -->
+      <div class="group rounded-2xl glass p-8 reveal reveal-delay-1 transition-all duration-500 hover:scale-[1.03] hover:border-purple-500/40 relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 rounded-bl-full pointer-events-none"></div>
+        <div class="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center mb-6">
+          <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
+        </div>
+        <div class="inline-block px-3 py-1 rounded-full bg-purple-500/10 text-purple-400 text-xs font-bold mb-4">Statement 2</div>
+        <h3 class="text-xl font-bold text-white mb-3">Agents as Customers</h3>
+        <p class="text-slate-400 text-sm leading-relaxed mb-4">
+          5 AI executives are each other's customers. CEO's strategy feeds CTO/CFO/CMO/Legal.
+          Legal's blockers feed CEO. 1,000,000+ market simulation agents react to all outputs.
+          Zero human touch throughout the entire sprint.
         </p>
-        <div class="mt-4 text-xs text-red-400">Every pivot has a triggered_by causal chain</div>
+        <div class="flex flex-wrap gap-2">
+          <span class="px-2 py-1 rounded-md bg-surface-3 text-xs text-slate-500">5 AI Executives</span>
+          <span class="px-2 py-1 rounded-md bg-surface-3 text-xs text-slate-500">1M+ Sim Agents</span>
+          <span class="px-2 py-1 rounded-md bg-surface-3 text-xs text-slate-500">Zero Human Touch</span>
+        </div>
       </div>
 
-      <!-- Phase 3 -->
-      <div class="rounded-2xl bg-slate-900/40 border border-slate-700/30 p-8 reveal">
-        <div class="w-14 h-14 rounded-xl bg-cyan-500/20 flex items-center justify-center text-2xl mb-6 float">&#127919;</div>
-        <h3 class="text-xl font-bold mb-3">Phase 2-3: Market Stress Test</h3>
-        <p class="text-slate-400 text-sm leading-relaxed">
-          30 synthetic stakeholders (VCs, skeptics, journalists, competitors, regulators)
-          react in a turn-based simulation. MarketSignal feeds back to CEO for a potential second pivot.
+      <!-- Statement 3 -->
+      <div class="group rounded-2xl glass p-8 reveal reveal-delay-2 transition-all duration-500 hover:scale-[1.03] hover:border-pink-500/40 relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-pink-500/5 rounded-bl-full pointer-events-none"></div>
+        <div class="w-12 h-12 rounded-xl bg-pink-500/20 flex items-center justify-center mb-6">
+          <svg class="w-6 h-6 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0M12 12.75h.008v.008H12v-.008z"/></svg>
+        </div>
+        <div class="inline-block px-3 py-1 rounded-full bg-pink-500/10 text-pink-400 text-xs font-bold mb-4">Statement 3</div>
+        <h3 class="text-xl font-bold text-white mb-3">Real Products</h3>
+        <p class="text-slate-400 text-sm leading-relaxed mb-4">
+          Generates real working prototypes with FastAPI routes and tests.
+          Real financial models with 3-year projections.
+          GTM strategies with competitive analysis. Legal compliance memos with actual regulation citations and URLs.
         </p>
-        <div class="mt-4 text-xs text-cyan-400">MiroFish-inspired simulation with BettaFish sentiment</div>
+        <div class="flex flex-wrap gap-2">
+          <span class="px-2 py-1 rounded-md bg-surface-3 text-xs text-slate-500">Working Prototype</span>
+          <span class="px-2 py-1 rounded-md bg-surface-3 text-xs text-slate-500">Financial Model</span>
+          <span class="px-2 py-1 rounded-md bg-surface-3 text-xs text-slate-500">Legal Citations</span>
+        </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ═══ PROBLEM STATEMENT FIT ═══ -->
-<section class="py-24 px-6 bg-slate-900/30">
+
+<!-- ============================== -->
+<!--        THE ARCHITECTURE        -->
+<!-- ============================== -->
+<section id="architecture" class="py-32 px-6 relative overflow-hidden">
+  <div class="absolute inset-0 grid-bg"></div>
+  <div class="max-w-6xl mx-auto relative z-10">
+    <div class="text-center mb-20">
+      <h2 class="text-4xl md:text-5xl font-black mb-4 reveal">The Architecture</h2>
+      <p class="text-slate-400 text-lg reveal reveal-delay-1">Async event bus connecting five specialized AI agents with market simulation feedback.</p>
+    </div>
+
+    <!-- Architecture diagram -->
+    <div class="reveal">
+      <div class="rounded-3xl glass p-8 md:p-12 relative overflow-hidden">
+        <!-- Background decoration -->
+        <div class="absolute top-4 right-4 text-xs mono text-slate-700">ghost-board/coordination/state.py</div>
+
+        <svg viewBox="0 0 800 500" class="w-full h-auto" xmlns="http://www.w3.org/2000/svg">
+          <!-- Event Bus central bar -->
+          <rect x="200" y="220" width="400" height="60" rx="12" fill="rgba(99,102,241,0.08)" stroke="rgba(99,102,241,0.3)" stroke-width="1.5"/>
+          <text x="400" y="255" text-anchor="middle" fill="#818cf8" font-family="JetBrains Mono, monospace" font-size="14" font-weight="600">ASYNC EVENT BUS</text>
+
+          <!-- CEO -->
+          <rect x="340" y="60" width="120" height="60" rx="12" fill="rgba(250,204,21,0.08)" stroke="rgba(250,204,21,0.3)" stroke-width="1.5"/>
+          <text x="400" y="88" text-anchor="middle" fill="#facc15" font-family="Inter, sans-serif" font-size="13" font-weight="700">CEO</text>
+          <text x="400" y="106" text-anchor="middle" fill="rgba(250,204,21,0.5)" font-family="Inter, sans-serif" font-size="10">Strategy + Pivot</text>
+          <line x1="400" y1="120" x2="400" y2="220" stroke="rgba(250,204,21,0.3)" stroke-width="1.5" class="line-pulse"/>
+
+          <!-- CTO -->
+          <rect x="50" y="155" width="120" height="60" rx="12" fill="rgba(96,165,250,0.08)" stroke="rgba(96,165,250,0.3)" stroke-width="1.5"/>
+          <text x="110" y="183" text-anchor="middle" fill="#60a5fa" font-family="Inter, sans-serif" font-size="13" font-weight="700">CTO</text>
+          <text x="110" y="201" text-anchor="middle" fill="rgba(96,165,250,0.5)" font-family="Inter, sans-serif" font-size="10">Codex Builder</text>
+          <line x1="170" y1="215" x2="200" y2="240" stroke="rgba(96,165,250,0.3)" stroke-width="1.5" class="line-pulse"/>
+
+          <!-- Legal -->
+          <rect x="630" y="155" width="120" height="60" rx="12" fill="rgba(248,113,113,0.08)" stroke="rgba(248,113,113,0.3)" stroke-width="1.5" class="blocker-flash"/>
+          <text x="690" y="183" text-anchor="middle" fill="#f87171" font-family="Inter, sans-serif" font-size="13" font-weight="700">LEGAL</text>
+          <text x="690" y="201" text-anchor="middle" fill="rgba(248,113,113,0.5)" font-family="Inter, sans-serif" font-size="10">Compliance</text>
+          <line x1="630" y1="215" x2="600" y2="240" stroke="rgba(248,113,113,0.3)" stroke-width="1.5" class="line-pulse"/>
+
+          <!-- CFO -->
+          <rect x="50" y="285" width="120" height="60" rx="12" fill="rgba(52,211,153,0.08)" stroke="rgba(52,211,153,0.3)" stroke-width="1.5"/>
+          <text x="110" y="313" text-anchor="middle" fill="#34d399" font-family="Inter, sans-serif" font-size="13" font-weight="700">CFO</text>
+          <text x="110" y="331" text-anchor="middle" fill="rgba(52,211,153,0.5)" font-family="Inter, sans-serif" font-size="10">Financial Model</text>
+          <line x1="170" y1="285" x2="200" y2="265" stroke="rgba(52,211,153,0.3)" stroke-width="1.5" class="line-pulse"/>
+
+          <!-- CMO -->
+          <rect x="630" y="285" width="120" height="60" rx="12" fill="rgba(192,132,252,0.08)" stroke="rgba(192,132,252,0.3)" stroke-width="1.5"/>
+          <text x="690" y="313" text-anchor="middle" fill="#c084fc" font-family="Inter, sans-serif" font-size="13" font-weight="700">CMO</text>
+          <text x="690" y="331" text-anchor="middle" fill="rgba(192,132,252,0.5)" font-family="Inter, sans-serif" font-size="10">GTM Strategy</text>
+          <line x1="630" y1="285" x2="600" y2="265" stroke="rgba(192,132,252,0.3)" stroke-width="1.5" class="line-pulse"/>
+
+          <!-- Blocker arrow from Legal to CEO -->
+          <path d="M 690 155 Q 690 90 460 90" fill="none" stroke="rgba(248,113,113,0.5)" stroke-width="2" stroke-dasharray="6 4">
+            <animate attributeName="stroke-dashoffset" from="0" to="-20" dur="1.5s" repeatCount="indefinite"/>
+          </path>
+          <text x="590" y="78" fill="#f87171" font-family="JetBrains Mono, monospace" font-size="9" opacity="0.7">BLOCKER</text>
+
+          <!-- Pivot arrows from CEO to all -->
+          <path d="M 340 90 Q 240 90 110 155" fill="none" stroke="rgba(250,204,21,0.3)" stroke-width="1.5" stroke-dasharray="4 3">
+            <animate attributeName="stroke-dashoffset" from="0" to="-14" dur="2s" repeatCount="indefinite"/>
+          </path>
+          <text x="210" y="78" fill="#facc15" font-family="JetBrains Mono, monospace" font-size="9" opacity="0.7">PIVOT</text>
+
+          <!-- Simulation box -->
+          <rect x="250" y="380" width="300" height="80" rx="16" fill="rgba(6,182,212,0.06)" stroke="rgba(6,182,212,0.25)" stroke-width="1.5" stroke-dasharray="6 3"/>
+          <text x="400" y="410" text-anchor="middle" fill="#06b6d4" font-family="Inter, sans-serif" font-size="13" font-weight="700">MARKET SIMULATION</text>
+          <text x="400" y="430" text-anchor="middle" fill="rgba(6,182,212,0.5)" font-family="JetBrains Mono, monospace" font-size="10">50 LLM + 1,000,000 lightweight agents</text>
+          <text x="400" y="448" text-anchor="middle" fill="rgba(6,182,212,0.4)" font-family="Inter, sans-serif" font-size="9">VCs | Users | Journalists | Competitors | Regulators</text>
+
+          <!-- Feedback loop arrow from Simulation back to Event Bus -->
+          <path d="M 400 380 L 400 280" fill="none" stroke="rgba(6,182,212,0.4)" stroke-width="1.5">
+            <animate attributeName="stroke-dashoffset" from="0" to="-10" dur="1s" repeatCount="indefinite"/>
+          </path>
+          <polygon points="394,284 400,276 406,284" fill="rgba(6,182,212,0.4)"/>
+          <text x="430" y="340" fill="rgba(6,182,212,0.6)" font-family="JetBrains Mono, monospace" font-size="9">MarketSignal</text>
+        </svg>
+
+        <!-- Legend -->
+        <div class="flex flex-wrap gap-6 mt-6 justify-center text-xs">
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-yellow-400/50"></span><span class="text-slate-500">Strategy / Pivot</span></div>
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-blue-400/50"></span><span class="text-slate-500">Build / Code</span></div>
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-400/50"></span><span class="text-slate-500">Blocker / Compliance</span></div>
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-green-400/50"></span><span class="text-slate-500">Financial</span></div>
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-purple-400/50"></span><span class="text-slate-500">GTM / Marketing</span></div>
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-cyan-400/50"></span><span class="text-slate-500">Simulation</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================== -->
+<!--          THE NUMBERS           -->
+<!-- ============================== -->
+<section id="numbers" class="py-32 px-6 relative overflow-hidden">
+  <div class="absolute inset-0 hero-bg opacity-30"></div>
+  <div class="max-w-6xl mx-auto relative z-10">
+    <div class="text-center mb-20">
+      <h2 class="text-4xl md:text-5xl font-black mb-4 reveal">The Numbers</h2>
+      <p class="text-slate-400 text-lg reveal reveal-delay-1">What an autonomous AI executive team delivers for less than a cup of coffee.</p>
+    </div>
+
+    <!-- Main cost comparison -->
+    <div class="reveal mb-16">
+      <div class="rounded-3xl glass p-10 md:p-14 text-center">
+        <div class="flex flex-col md:flex-row items-center justify-center gap-8 md:gap-16">
+          <!-- Ghost Board cost -->
+          <div class="text-center">
+            <div class="text-6xl md:text-8xl font-black text-green-400 mb-2">$0.19</div>
+            <div class="text-slate-400 text-sm font-medium">Ghost Board API Cost</div>
+            <div class="text-slate-600 text-xs mt-1">35 events, 5 agents, 1M+ simulations</div>
+          </div>
+
+          <!-- VS divider -->
+          <div class="flex flex-col items-center gap-2">
+            <div class="text-3xl font-black text-slate-600">vs</div>
+            <div class="w-px h-12 bg-gradient-to-b from-transparent via-slate-700 to-transparent hidden md:block"></div>
+          </div>
+
+          <!-- Human cost -->
+          <div class="text-center">
+            <div class="text-6xl md:text-8xl font-black text-slate-600 line-through decoration-red-500/40">$15,000</div>
+            <div class="text-slate-500 text-sm font-medium">Human Consulting Equivalent</div>
+            <div class="text-slate-600 text-xs mt-1">Strategy, legal, financial, tech, marketing</div>
+          </div>
+        </div>
+
+        <div class="mt-10 inline-block px-6 py-3 rounded-full bg-green-500/10 border border-green-500/20">
+          <span class="text-green-400 font-black text-2xl md:text-3xl">77,359x cheaper</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stat grid -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+      <div class="rounded-2xl glass p-8 text-center reveal transition-all duration-300 hover:scale-105">
+        <div class="text-4xl md:text-5xl font-black text-ghost-400 mb-2" data-count="1000050">1,000,050</div>
+        <div class="text-slate-500 text-sm">Agents Simulated</div>
+        <div class="text-slate-600 text-xs mt-1">50 LLM + 1M lightweight</div>
+      </div>
+      <div class="rounded-2xl glass p-8 text-center reveal reveal-delay-1 transition-all duration-300 hover:scale-105">
+        <div class="text-4xl md:text-5xl font-black text-yellow-400 mb-2">35+</div>
+        <div class="text-slate-500 text-sm">Events Traced</div>
+        <div class="text-slate-600 text-xs mt-1">Full causal chain in W&B</div>
+      </div>
+      <div class="rounded-2xl glass p-8 text-center reveal reveal-delay-2 transition-all duration-300 hover:scale-105">
+        <div class="text-4xl md:text-5xl font-black text-red-400 mb-2">3</div>
+        <div class="text-slate-500 text-sm">Strategic Pivots</div>
+        <div class="text-slate-600 text-xs mt-1">Legal blockers + market signals</div>
+      </div>
+      <div class="rounded-2xl glass p-8 text-center reveal reveal-delay-3 transition-all duration-300 hover:scale-105">
+        <div class="text-4xl md:text-5xl font-black text-cyan-400 mb-2">&lt; 5m</div>
+        <div class="text-slate-500 text-sm">Total Sprint Time</div>
+        <div class="text-slate-600 text-xs mt-1">From concept to deliverables</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================== -->
+<!--             DEMO               -->
+<!-- ============================== -->
+<section id="demo" class="py-32 px-6 relative">
+  <div class="absolute inset-0 grid-bg"></div>
+  <div class="max-w-6xl mx-auto relative z-10">
+    <div class="text-center mb-16">
+      <h2 class="text-4xl md:text-5xl font-black mb-4 reveal">See It Live</h2>
+      <p class="text-slate-400 text-lg reveal reveal-delay-1">The full interactive dashboard with boardroom, simulation globe, pivot timeline, and sprint report.</p>
+    </div>
+
+    <!-- Dashboard embed -->
+    <div class="reveal">
+      <div class="rounded-3xl glass p-2 overflow-hidden">
+        <div class="rounded-2xl bg-surface-1 overflow-hidden relative" style="aspect-ratio: 16/9;">
+          <iframe src="../dashboard/index.html" class="w-full h-full border-0" loading="lazy"
+                  title="Ghost Board Dashboard" sandbox="allow-scripts allow-same-origin"></iframe>
+          <!-- Overlay for clicking through -->
+          <a href="../dashboard/index.html" target="_blank"
+             class="absolute inset-0 flex items-center justify-center bg-surface-0/60 opacity-0 hover:opacity-100 transition-opacity duration-300 group">
+            <div class="px-8 py-4 rounded-2xl bg-ghost-600 text-white font-bold text-lg group-hover:scale-105 transition-transform flex items-center gap-3">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg>
+              Open Full Dashboard
+            </div>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick start -->
+    <div class="mt-16 grid md:grid-cols-2 gap-8">
+      <div class="rounded-2xl glass p-8 reveal">
+        <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z"/></svg>
+          Quick Start
+        </h3>
+        <div class="rounded-xl bg-surface-1 p-5">
+          <pre class="text-sm mono text-slate-300 leading-loose whitespace-pre-wrap"><span class="text-slate-500"># Clone and install</span>
+<span class="text-green-400">$</span> git clone https://github.com/ayushozha/ghost-board
+<span class="text-green-400">$</span> cd ghost-board && pip install -r requirements.txt
+
+<span class="text-slate-500"># Run the demo</span>
+<span class="text-green-400">$</span> export OPENAI_API_KEY="sk-..."
+<span class="text-green-400">$</span> python main.py --demo
+
+<span class="text-slate-500"># Or run cached (no API key needed)</span>
+<span class="text-green-400">$</span> python main.py --cached
+
+<span class="text-slate-500"># Your own concept</span>
+<span class="text-green-400">$</span> python main.py "AI tutor for K-12 math"</pre>
+        </div>
+      </div>
+      <div class="rounded-2xl glass p-8 reveal reveal-delay-1">
+        <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5 text-ghost-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.42 15.17l-5.1-5.1m0 0L11.42 4.97m-5.1 5.1H21M3 21h18"/></svg>
+          What Gets Generated
+        </h3>
+        <div class="space-y-3">
+          <div class="flex items-start gap-3 p-3 rounded-lg bg-surface-2/50">
+            <div class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center shrink-0 mt-0.5">
+              <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5"/></svg>
+            </div>
+            <div><div class="text-sm font-semibold text-white">Working Prototype</div><div class="text-xs text-slate-500">FastAPI app, Pydantic models, API routes, tests</div></div>
+          </div>
+          <div class="flex items-start gap-3 p-3 rounded-lg bg-surface-2/50">
+            <div class="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center shrink-0 mt-0.5">
+              <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z"/></svg>
+            </div>
+            <div><div class="text-sm font-semibold text-white">Financial Model</div><div class="text-xs text-slate-500">3-year projections, LTV/CAC, monthly breakdown</div></div>
+          </div>
+          <div class="flex items-start gap-3 p-3 rounded-lg bg-surface-2/50">
+            <div class="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center shrink-0 mt-0.5">
+              <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5m.75-9l3-3 2.148 2.148A12.061 12.061 0 0116.5 7.605"/></svg>
+            </div>
+            <div><div class="text-sm font-semibold text-white">GTM Strategy</div><div class="text-xs text-slate-500">Landing page, launch plan, competitive matrix</div></div>
+          </div>
+          <div class="flex items-start gap-3 p-3 rounded-lg bg-surface-2/50">
+            <div class="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center shrink-0 mt-0.5">
+              <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m0-10.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.75c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.75h-.152c-3.196 0-6.1-1.249-8.25-3.286zm0 13.036h.008v.008H12v-.008z"/></svg>
+            </div>
+            <div><div class="text-sm font-semibold text-white">Compliance Memo</div><div class="text-xs text-slate-500">CFPB, FinCEN, SEC citations with real URLs</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================== -->
+<!--           CREDITS              -->
+<!-- ============================== -->
+<section class="py-24 px-6 relative">
   <div class="max-w-5xl mx-auto">
-    <h2 class="text-4xl font-black text-center mb-16 reveal">Ralphthon Problem Statement Fit</h2>
-    <div class="space-y-8">
-      <div class="rounded-2xl bg-indigo-950/30 border border-indigo-500/20 p-8 reveal">
-        <div class="text-indigo-400 font-bold text-sm mb-2">Statement 1: Codex-Powered Services</div>
-        <p class="text-slate-300">CTO agent uses OpenAI API for code generation. The Ralph Loop itself is Codex-powered autonomous building. Every prototype is autonomously built, not copy-pasted.</p>
+    <div class="text-center mb-16">
+      <h2 class="text-3xl font-black mb-4 reveal">Built With</h2>
+      <p class="text-slate-500 text-sm reveal reveal-delay-1">Standing on the shoulders of extraordinary open-source work.</p>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4 reveal">
+      <div class="rounded-xl glass p-6 text-center transition-all duration-300 hover:scale-105 hover:border-ghost-500/30">
+        <div class="text-lg font-bold text-white mb-1">Ralph Loop</div>
+        <div class="text-xs text-slate-500">by Geoffrey Huntley</div>
+        <div class="text-xs text-ghost-400 mt-2">Autonomous agent orchestration</div>
       </div>
-      <div class="rounded-2xl bg-purple-950/30 border border-purple-500/20 p-8 reveal">
-        <div class="text-purple-400 font-bold text-sm mb-2">Statement 2: Agents as Customers of Each Other</div>
-        <p class="text-slate-300">CEO's strategy feeds CTO/CFO/CMO/Legal. Legal's blockers feed CEO. Simulation personas react to ALL agent outputs. Zero human touch - agents iterate on each other's work autonomously.</p>
+      <div class="rounded-xl glass p-6 text-center transition-all duration-300 hover:scale-105 hover:border-cyan-500/30">
+        <div class="text-lg font-bold text-white mb-1">MiroFish</div>
+        <div class="text-xs text-slate-500">by Guo Hangjiang</div>
+        <div class="text-xs text-cyan-400 mt-2">Million-agent simulation</div>
       </div>
-      <div class="rounded-2xl bg-pink-950/30 border border-pink-500/20 p-8 reveal">
-        <div class="text-pink-400 font-bold text-sm mb-2">Statement 3: Real Artifacts, Real Product</div>
-        <p class="text-slate-300">Working FastAPI prototype. Real financial projections. Actual landing page copy. Compliance reports with REAL regulation citations and URLs. Not mockups - real, usable outputs.</p>
+      <div class="rounded-xl glass p-6 text-center transition-all duration-300 hover:scale-105 hover:border-yellow-500/30">
+        <div class="text-lg font-bold text-white mb-1">W&B</div>
+        <div class="text-xs text-slate-500">Weights & Biases</div>
+        <div class="text-xs text-yellow-400 mt-2">Execution tracing</div>
+      </div>
+      <div class="rounded-xl glass p-6 text-center transition-all duration-300 hover:scale-105 hover:border-green-500/30">
+        <div class="text-lg font-bold text-white mb-1">oh-my-opencode</div>
+        <div class="text-xs text-slate-500">by Q</div>
+        <div class="text-xs text-green-400 mt-2">Open code tooling</div>
+      </div>
+      <div class="rounded-xl glass p-6 text-center transition-all duration-300 hover:scale-105 hover:border-purple-500/30">
+        <div class="text-lg font-bold text-white mb-1">oh-my-claude-code</div>
+        <div class="text-xs text-slate-500">by Yeachan Heo</div>
+        <div class="text-xs text-purple-400 mt-2">Claude Code extensions</div>
+      </div>
+      <div class="rounded-xl glass p-6 text-center transition-all duration-300 hover:scale-105 hover:border-orange-500/30">
+        <div class="text-lg font-bold text-white mb-1">OpenClaw</div>
+        <div class="text-xs text-slate-500">by George Zhang</div>
+        <div class="text-xs text-orange-400 mt-2">Open-source agent framework</div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ═══ OUTPUTS ═══ -->
-<section class="py-24 px-6">
-  <div class="max-w-6xl mx-auto text-center">
-    <h2 class="text-4xl font-black mb-4 reveal">What You Get</h2>
-    <p class="text-slate-400 mb-16 reveal">A complete startup package in ~2 minutes</p>
-    <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-      <div class="rounded-2xl bg-blue-950/20 border border-blue-500/20 p-6 text-center reveal">
-        <div class="text-3xl mb-3">&#128187;</div>
-        <h3 class="font-bold text-blue-400 mb-2">Prototype</h3>
-        <p class="text-sm text-slate-400">FastAPI app, Pydantic models, API routes, tests</p>
+
+<!-- ============================== -->
+<!--           FOOTER               -->
+<!-- ============================== -->
+<footer class="py-16 px-6 border-t border-slate-800/50 relative">
+  <div class="max-w-5xl mx-auto">
+    <div class="flex flex-col md:flex-row items-center justify-between gap-8">
+      <!-- Logo and tagline -->
+      <div class="flex items-center gap-3">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" class="text-ghost-400">
+          <rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="2"/>
+          <circle cx="9" cy="10" r="1.5" fill="currentColor"/>
+          <circle cx="15" cy="10" r="1.5" fill="currentColor"/>
+          <path d="M8 15c0 0 2 2 4 2s4-2 4-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <div>
+          <div class="text-white font-bold text-lg">Ghost Board</div>
+          <div class="text-slate-600 text-xs">Autonomous AI Executive Team</div>
+        </div>
       </div>
-      <div class="rounded-2xl bg-green-950/20 border border-green-500/20 p-6 text-center reveal">
-        <div class="text-3xl mb-3">&#128200;</div>
-        <h3 class="font-bold text-green-400 mb-2">Financial Model</h3>
-        <p class="text-sm text-slate-400">3-year projections, monthly breakdown, LTV/CAC</p>
-      </div>
-      <div class="rounded-2xl bg-purple-950/20 border border-purple-500/20 p-6 text-center reveal">
-        <div class="text-3xl mb-3">&#128640;</div>
-        <h3 class="font-bold text-purple-400 mb-2">GTM Strategy</h3>
-        <p class="text-sm text-slate-400">Landing page, launch plan, competitive matrix</p>
-      </div>
-      <div class="rounded-2xl bg-red-950/20 border border-red-500/20 p-6 text-center reveal">
-        <div class="text-3xl mb-3">&#9878;&#65039;</div>
-        <h3 class="font-bold text-red-400 mb-2">Compliance</h3>
-        <p class="text-sm text-slate-400">CFPB, FinCEN, SEC citations with real URLs</p>
+
+      <!-- Links -->
+      <div class="flex items-center gap-6 text-sm text-slate-500">
+        <a href="https://github.com/ayushozha/ghost-board" target="_blank" class="hover:text-white transition-colors flex items-center gap-2">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+          GitHub
+        </a>
+        <span class="text-slate-700">|</span>
+        <span>MIT License</span>
+        <span class="text-slate-700">|</span>
+        <a href="../dashboard/index.html" class="hover:text-white transition-colors">Dashboard</a>
       </div>
     </div>
-  </div>
-</section>
 
-<!-- ═══ CTA ═══ -->
-<section class="py-24 px-6 hero-bg">
-  <div class="max-w-3xl mx-auto text-center">
-    <h2 class="text-4xl font-black mb-6 reveal">Try Ghost Board</h2>
-    <div class="rounded-2xl bg-slate-900/80 border border-slate-700/50 p-8 text-left reveal">
-      <pre class="text-sm mono text-slate-300 leading-relaxed"><span class="text-slate-500"># Clone and run</span>
-git clone https://github.com/ayushozha/ghost-board
-cd ghost-board
-pip install -r requirements.txt
-export OPENAI_API_KEY="sk-..."
-
-<span class="text-slate-500"># Full demo (Anchrix)</span>
-python main.py --demo
-
-<span class="text-slate-500"># Cached playback (no API key needed)</span>
-python main.py --cached
-
-<span class="text-slate-500"># Your own idea</span>
-python main.py "AI tutor for K-12 math"</pre>
+    <!-- Bottom line -->
+    <div class="mt-10 pt-8 border-t border-slate-800/30 text-center">
+      <p class="text-xs text-slate-600">
+        Built at <span class="text-ghost-400 font-medium">Ralphthon SF 2026</span> -- where autonomous agents build real companies.
+      </p>
     </div>
-  </div>
-</section>
-
-<!-- ═══ CREDITS ═══ -->
-<footer class="py-16 px-6 border-t border-slate-800">
-  <div class="max-w-4xl mx-auto text-center">
-    <h3 class="text-lg font-bold text-slate-400 mb-6">Credits</h3>
-    <div class="flex flex-wrap gap-4 justify-center text-sm text-slate-500">
-      <span>Ralph Loop - Geoffrey Huntley</span>
-      <span>|</span>
-      <span>MiroFish - Guo Hangjiang</span>
-      <span>|</span>
-      <span>W&B</span>
-      <span>|</span>
-      <span>oh-my-opencode - Q</span>
-      <span>|</span>
-      <span>oh-my-claude-code - Yeachan Heo</span>
-      <span>|</span>
-      <span>OpenClaw - George Zhang</span>
-    </div>
-    <p class="text-xs text-slate-600 mt-8">Ghost Board - Built at Ralphthon SF 2026 | MIT License</p>
   </div>
 </footer>
 
+
+<!-- ============================== -->
+<!--           SCRIPTS              -->
+<!-- ============================== -->
 <script>
-// Scroll reveal
+// === Intersection Observer for reveal animations ===
+const observerOptions = { threshold: 0.08, rootMargin: '0px 0px -40px 0px' };
 const observer = new IntersectionObserver((entries) => {
-  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
-}, { threshold: 0.1 });
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, observerOptions);
+
 document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
 
-// Particles
-const container = document.getElementById('particles');
-for (let i = 0; i < 40; i++) {
-  const p = document.createElement('div');
-  p.className = 'particle';
-  p.style.left = Math.random() * 100 + '%';
-  p.style.top = Math.random() * 100 + '%';
-  p.style.animationDuration = (3 + Math.random() * 4) + 's';
-  p.style.animationDelay = Math.random() * 3 + 's';
-  p.style.animation = `float ${3 + Math.random() * 4}s ease-in-out infinite`;
-  p.style.animationDelay = `${Math.random() * 3}s`;
-  p.style.opacity = 0.2 + Math.random() * 0.4;
-  container.appendChild(p);
+// === Particle system ===
+const particleContainer = document.getElementById('particles');
+const particleCount = 60;
+
+for (let i = 0; i < particleCount; i++) {
+  const particle = document.createElement('div');
+  particle.className = 'particle';
+  const size = 2 + Math.random() * 4;
+  particle.style.width = size + 'px';
+  particle.style.height = size + 'px';
+  particle.style.left = Math.random() * 100 + '%';
+  particle.style.top = Math.random() * 100 + '%';
+  const duration = 8 + Math.random() * 12;
+  const delay = Math.random() * 8;
+  particle.style.animation = `particle-drift ${duration}s linear ${delay}s infinite`;
+  particle.style.opacity = 0.1 + Math.random() * 0.3;
+  particleContainer.appendChild(particle);
 }
+
+// === Smooth scroll for nav links ===
+document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+  anchor.addEventListener('click', function(e) {
+    e.preventDefault();
+    const target = document.querySelector(this.getAttribute('href'));
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+});
+
+// === Navbar background on scroll ===
+const nav = document.querySelector('nav');
+let lastScroll = 0;
+window.addEventListener('scroll', () => {
+  const currentScroll = window.scrollY;
+  if (currentScroll > 100) {
+    nav.style.borderBottomColor = 'rgba(51, 65, 85, 0.3)';
+    nav.style.background = 'rgba(6, 6, 10, 0.95)';
+  } else {
+    nav.style.borderBottomColor = 'rgba(51, 65, 85, 0.1)';
+    nav.style.background = 'rgba(6, 6, 10, 0.8)';
+  }
+  lastScroll = currentScroll;
+}, { passive: true });
+
+// === Parallax for hero elements ===
+window.addEventListener('scroll', () => {
+  const scrolled = window.scrollY;
+  const heroContent = document.querySelector('.hero-bg .relative.z-10');
+  if (heroContent && scrolled < window.innerHeight) {
+    heroContent.style.transform = `translateY(${scrolled * 0.15}px)`;
+    heroContent.style.opacity = 1 - (scrolled / (window.innerHeight * 0.8));
+  }
+}, { passive: true });
 </script>
+
 </body>
 </html>

@@ -63,6 +63,147 @@
   .tab-active { border-bottom: 2px solid #6366f1; color: #a5b4fc; }
   .tab-inactive { border-bottom: 2px solid transparent; color: #64748b; }
   .tab-inactive:hover { color: #94a3b8; }
+
+  /* ── Responsive Design ── */
+
+  /* Prevent horizontal overflow on all screens */
+  html, body { overflow-x: hidden; max-width: 100vw; }
+
+  /* Tablet and below */
+  @media (max-width: 768px) {
+    /* Header */
+    header .max-w-7xl { padding: 0 1rem; }
+    header h1 { font-size: 1.5rem !important; }
+    header .flex.gap-6 { flex-wrap: wrap; gap: 0.75rem; margin-left: 0 !important; }
+    header p { margin-left: 0 !important; }
+
+    /* Navigation tabs - wrap and scroll */
+    .tab-nav-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      flex-wrap: nowrap !important;
+      gap: 0 !important;
+    }
+    .tab-nav-wrap::-webkit-scrollbar { display: none; }
+    .tab-nav-wrap button { flex-shrink: 0; padding: 0.5rem 0.75rem; font-size: 0.75rem; white-space: nowrap; }
+
+    /* Main grid - stack on tablet */
+    .main-grid { grid-template-columns: 1fr !important; }
+    .main-grid .lg\\:col-span-2 { grid-column: span 1; }
+
+    /* Boardroom agent circle - smaller cards */
+    .boardroom-agents { min-height: 260px !important; }
+    .boardroom-agents .agent-card-wrap > div:first-child { width: 75px !important; padding: 0.5rem !important; }
+    .boardroom-agents .agent-card-wrap > div:first-child .text-2xl { font-size: 1.25rem; }
+
+    /* Market Arena grid - stack */
+    .arena-grid { grid-template-columns: 1fr !important; }
+    .arena-grid > div { max-height: 320px; }
+
+    /* Globe container */
+    .globe-container { min-height: 250px !important; }
+    .globe-container iframe { min-height: 250px !important; }
+
+    /* Pivot Flow controls */
+    .pivot-flow-controls { flex-wrap: wrap; gap: 0.5rem; }
+
+    /* Timeline horizontal scroll for arrow trail */
+    .pivot-trail { overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 0.5rem; }
+    .pivot-trail::-webkit-scrollbar { height: 4px; }
+    .pivot-trail::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 2px; }
+
+    /* Pivot card changes grid */
+    .pivot-changes-grid { grid-template-columns: 1fr !important; }
+
+    /* Analytics grid */
+    .analytics-grid { grid-template-columns: 1fr !important; }
+    .analytics-grid .md\\:col-span-2 { grid-column: span 1; }
+
+    /* Sentiment stats grid */
+    .sentiment-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+
+    /* Charts - ensure responsive */
+    canvas { max-width: 100%; height: auto !important; }
+
+    /* Font scaling */
+    .text-5xl { font-size: 2rem !important; }
+    .text-3xl { font-size: 1.5rem !important; }
+    .text-2xl { font-size: 1.25rem !important; }
+    .text-xl { font-size: 1.125rem !important; }
+
+    /* Stat values */
+    .stat-value { font-size: 1.25rem !important; }
+  }
+
+  /* Mobile phone */
+  @media (max-width: 480px) {
+    /* Header */
+    header { padding: 1rem !important; }
+    header h1 { font-size: 1.25rem !important; }
+    header .flex.gap-6, header .stats-row { gap: 0.5rem; justify-content: flex-start; }
+
+    /* Navigation - smaller */
+    .tab-nav-wrap button { padding: 0.4rem 0.5rem; font-size: 0.65rem; }
+
+    /* Main container padding */
+    .main-container { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+
+    /* Content card */
+    .content-card { padding: 0.75rem !important; }
+
+    /* Boardroom - agent cards stack vertically */
+    .boardroom-agents { min-height: auto !important; position: relative; display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; padding: 0.75rem !important; }
+    .boardroom-agents .agent-card-wrap { position: static !important; transform: none !important; }
+    .boardroom-agents .agent-card-wrap > div:first-child { width: 72px !important; }
+    .boardroom-agents .agent-card-wrap .absolute.top-full { position: relative !important; top: auto !important; margin-top: 0.25rem; width: auto !important; }
+
+    /* Globe container */
+    .globe-container { min-height: 200px !important; }
+    .globe-container iframe { min-height: 200px !important; }
+
+    /* Market Arena post feed */
+    .arena-grid > div:first-child { max-height: 200px; }
+
+    /* Timeline items */
+    .timeline-line { left: 12px !important; }
+    .space-y-4 { padding-left: 2rem !important; }
+
+    /* Pivot card padding */
+    .pivot-card { padding: 0.75rem !important; }
+
+    /* Pivot changes grid - single column */
+    .pivot-changes-grid { grid-template-columns: 1fr !important; }
+
+    /* Stat cards */
+    .sentiment-stats-grid { grid-template-columns: 1fr 1fr !important; }
+    .sentiment-stats-grid > div { padding: 0.5rem !important; }
+    .sentiment-stats-grid .text-3xl { font-size: 1.25rem !important; }
+
+    /* Mission Control */
+    .mission-title { font-size: 1.75rem !important; }
+    .mission-input { padding: 0.75rem 1rem !important; font-size: 0.875rem !important; }
+    .mission-tagline { font-size: 0.7rem !important; flex-direction: column; gap: 0.25rem; }
+    .mission-tagline span { display: block; }
+
+    /* Font scaling */
+    .text-5xl { font-size: 1.75rem !important; }
+    .text-3xl { font-size: 1.25rem !important; }
+    .text-2xl { font-size: 1rem !important; }
+    .text-xl { font-size: 0.9rem !important; }
+    .text-lg { font-size: 0.85rem !important; }
+    .text-sm { font-size: 0.75rem !important; }
+    .text-xs { font-size: 0.65rem !important; }
+
+    /* Sidebar charts */
+    .sidebar-section { padding: 0.75rem !important; }
+  }
+
+  /* Smooth scrollbar for horizontal scroll areas */
+  .overflow-x-auto { scrollbar-width: thin; }
+  .overflow-x-auto::-webkit-scrollbar { height: 4px; }
+  .overflow-x-auto::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 2px; }
+  .overflow-x-auto::-webkit-scrollbar-track { background: transparent; }
 </style>
 <script>
 tailwind.config = {
@@ -75,7 +216,33 @@ tailwind.config = {
 <div id="root"></div>
 
 <script type="text/babel">
-const { useState, useEffect, useRef, useMemo } = React;
+const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+// ── Debounce utility for resize handlers ──
+function useDebounce(fn, delay) {
+  const timerRef = useRef(null);
+  return useCallback((...args) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => fn(...args), delay);
+  }, [fn, delay]);
+}
+
+// ── Window size hook with debounced resize ──
+function useWindowSize() {
+  const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight });
+  useEffect(() => {
+    let timer = null;
+    const handleResize = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        setSize({ width: window.innerWidth, height: window.innerHeight });
+      }, 250);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => { window.removeEventListener('resize', handleResize); if (timer) clearTimeout(timer); };
+  }, []);
+  return size;
+}
 
 // ── Color map for agents ──
 const AGENT_COLORS = {
@@ -102,7 +269,7 @@ function Header({ events, pivots, cost }) {
           </h1>
         </div>
         <p className="text-slate-400 text-sm ml-[52px]">Autonomous AI Executive Team Sprint Dashboard</p>
-        <div className="flex gap-6 mt-6 ml-[52px]">
+        <div className="flex gap-6 mt-6 ml-[52px] stats-row flex-wrap">
           <Stat label="Events" value={events} />
           <Stat label="Pivots" value={pivots} accent={pivots > 0 ? 'text-red-400' : 'text-green-400'} />
           <Stat label="API Cost" value={`$${cost.toFixed(4)}`} accent="text-green-400" />
@@ -115,7 +282,7 @@ function Header({ events, pivots, cost }) {
 function Stat({ label, value, accent }) {
   return (
     <div className="text-center">
-      <div className={`text-2xl font-bold ${accent || 'text-white'}`}>{value}</div>
+      <div className={`text-2xl font-bold stat-value ${accent || 'text-white'}`}>{value}</div>
       <div className="text-xs text-slate-500 uppercase tracking-wider">{label}</div>
     </div>
   );
@@ -269,7 +436,7 @@ function PivotTrace({ events }) {
             </div>
             <div className="text-sm text-slate-300">{pivot.payload?.reason}</div>
             {pivot.payload?.changes_required && (
-              <div className="mt-3 grid grid-cols-3 gap-2">
+              <div className="mt-3 grid grid-cols-3 gap-2 pivot-changes-grid">
                 {Object.entries(pivot.payload.changes_required).map(([agent, change]) => (
                   <div key={agent} className={`text-xs p-2 rounded-lg ${getColor(agent).bg} border ${getColor(agent).border}/20`}>
                     <span className={`font-bold ${getColor(agent).text}`}>{agent}:</span>
@@ -388,7 +555,7 @@ function MarketArena({ events }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 arena-grid">
         {/* Left: Post feed */}
         <div className="bg-slate-900/50 rounded-xl border border-slate-700/20 p-3 max-h-96 overflow-y-auto">
           <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">Agent Posts</h3>
@@ -414,9 +581,9 @@ function MarketArena({ events }) {
         </div>
 
         {/* Center: Globe embed */}
-        <div className="bg-slate-900/50 rounded-xl border border-slate-700/20 overflow-hidden relative" style={{minHeight: '320px'}}>
+        <div className="bg-slate-900/50 rounded-xl border border-slate-700/20 overflow-hidden relative globe-container" style={{minHeight: '320px'}}>
           <iframe src="globe.html" className="w-full h-full absolute inset-0 border-0"
-            style={{minHeight: '320px', background: 'transparent'}}></iframe>
+            style={{minHeight: '320px', background: 'transparent'}} loading="lazy" title="Market simulation globe"></iframe>
           <div className="absolute top-2 left-2 right-2 flex justify-between items-center">
             <span className="text-[9px] px-1.5 py-0.5 rounded bg-black/60 text-cyan-400 mono backdrop-blur">
               {totalAgents.toLocaleString()} agents
@@ -528,8 +695,8 @@ function BoardroomView({ events }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Agent circle */}
-        <div className="relative bg-slate-900/50 rounded-xl border border-slate-700/20 p-4" style={{minHeight: '320px'}}>
+        {/* Agent circle - desktop: absolute positioned, mobile: flex wrap */}
+        <div className="relative bg-slate-900/50 rounded-xl border border-slate-700/20 p-4 boardroom-agents boardroom-agents-desktop" style={{minHeight: '320px'}}>
           {agents.map(name => {
             const cfg = agentCfg[name];
             const state = getState(name);
@@ -537,7 +704,7 @@ function BoardroomView({ events }) {
             const glowStyle = state !== 'idle' ? { boxShadow: `0 0 20px ${borderColor}40` } : {};
 
             return (
-              <div key={name} className="absolute flex flex-col items-center" style={{ left: `${cfg.x}%`, top: `${cfg.y}%`, transform: 'translate(-50%, -50%)' }}>
+              <div key={name} className="absolute flex flex-col items-center agent-card-wrap" style={{ left: `${cfg.x}%`, top: `${cfg.y}%`, transform: 'translate(-50%, -50%)' }}>
                 <div className={`rounded-xl border-2 p-3 text-center transition-all duration-500 ${state !== 'idle' ? 'scale-105' : ''}`}
                   style={{ borderColor, backgroundColor: cfg.color + '10', ...glowStyle, width: '90px' }}>
                   <div className="text-2xl mb-0.5">{cfg.icon}</div>
@@ -713,34 +880,43 @@ function PivotFlow({ events }) {
     return steps;
   }, [events, discussion]);
 
-  // Auto-play
+  // Auto-play using requestAnimationFrame instead of setInterval
   useEffect(() => {
-    if (isPlaying) {
-      timerRef.current = setInterval(() => {
+    if (!isPlaying) return;
+    let lastTime = 0;
+    let rafId = null;
+    const STEP_INTERVAL = 2000; // ms between steps
+
+    const tick = (timestamp) => {
+      if (!lastTime) lastTime = timestamp;
+      if (timestamp - lastTime >= STEP_INTERVAL) {
+        lastTime = timestamp;
         setStep(s => {
           if (s >= sequence.length - 1) { setIsPlaying(false); return s; }
           return s + 1;
         });
-      }, 2000);
-    }
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => { if (rafId) cancelAnimationFrame(rafId); };
   }, [isPlaying, sequence.length]);
 
   const currentStep = sequence[step] || sequence[0];
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-2 pivot-flow-controls">
         <h2 className="text-xl font-bold text-white">Pivot Flow</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => setStep(s => Math.max(0, s - 1))}
-            className="px-3 py-1.5 rounded text-xs bg-white/5 hover:bg-white/10 text-slate-400">◀ Prev</button>
+            className="px-3 py-1.5 rounded text-xs bg-white/5 hover:bg-white/10 text-slate-400">&#9664; Prev</button>
           <button onClick={() => setIsPlaying(!isPlaying)}
             className={`px-4 py-1.5 rounded text-xs font-semibold ${isPlaying ? 'bg-red-500/20 text-red-400' : 'bg-indigo-500/20 text-indigo-400'}`}>
             {isPlaying ? '⏸ Pause' : '▶ Play'}
           </button>
           <button onClick={() => setStep(s => Math.min(sequence.length - 1, s + 1))}
-            className="px-3 py-1.5 rounded text-xs bg-white/5 hover:bg-white/10 text-slate-400">Next ▶</button>
+            className="px-3 py-1.5 rounded text-xs bg-white/5 hover:bg-white/10 text-slate-400">Next &#9654;</button>
           <span className="text-xs text-slate-500 ml-2">Step {step + 1}/{sequence.length}</span>
         </div>
       </div>
@@ -758,7 +934,7 @@ function PivotFlow({ events }) {
       {/* Animated step display */}
       <div className="relative">
         {/* Arrow trail */}
-        <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-2">
+        <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-2 pivot-trail">
           {sequence.slice(0, step + 1).map((s, i) => (
             <React.Fragment key={i}>
               <div onClick={() => setStep(i)}
@@ -833,8 +1009,9 @@ function AdvancedCharts({ events }) {
   const waterfallRef = useRef(null);
   const waterfallInstance = useRef(null);
   const heatmapRef = useRef(null);
+  const windowSize = useWindowSize();
 
-  // Sankey diagram using D3
+  // Sankey diagram using D3 - redraws on resize
   useEffect(() => {
     if (!sankeyRef.current || events.length === 0 || typeof d3 === 'undefined' || typeof d3.sankey === 'undefined') return;
     const container = sankeyRef.current;
@@ -870,7 +1047,10 @@ function AdvancedCharts({ events }) {
       { source: nodeIndex['Rebuild'], target: nodeIndex['Final'], value: Math.max(1, 1) },
     ];
 
-    const svg = d3.select(container).append('svg').attr('width', width).attr('height', height);
+    const svg = d3.select(container).append('svg')
+      .attr('width', width).attr('height', height)
+      .attr('viewBox', `0 0 ${width} ${height}`)
+      .style('max-width', '100%').style('height', 'auto');
     const sankey = d3.sankey().nodeWidth(15).nodePadding(10).extent([[1, 5], [width - 1, height - 5]]);
     const { nodes: sNodes, links: sLinks } = sankey({ nodes: nodes.map(d => ({...d})), links: links.map(d => ({...d})) });
 
@@ -893,7 +1073,7 @@ function AdvancedCharts({ events }) {
       .attr('y', d => (d.y1 + d.y0) / 2).attr('dy', '0.35em')
       .attr('text-anchor', d => d.x0 < width / 2 ? 'start' : 'end')
       .text(d => d.name).attr('fill', '#94a3b8').attr('font-size', '10px');
-  }, [events]);
+  }, [events, windowSize.width]);
 
   // Radar chart - startup readiness
   useEffect(() => {
@@ -990,7 +1170,10 @@ function AdvancedCharts({ events }) {
     const margin = { top: 30, left: 80 };
     const height = margin.top + agents.length * cellH + 10;
 
-    const svg = d3.select(container).append('svg').attr('width', width).attr('height', height);
+    const svg = d3.select(container).append('svg')
+      .attr('width', width).attr('height', height)
+      .attr('viewBox', `0 0 ${width} ${height}`)
+      .style('max-width', '100%').style('height', 'auto');
 
     const maxActivity = Math.max(...Object.values(activityMap), 1);
     const colorScale = d3.scaleSequential(d3.interpolateViridis).domain([0, maxActivity]);
@@ -1030,17 +1213,17 @@ function AdvancedCharts({ events }) {
         .attr('y', margin.top - 8).attr('text-anchor', 'middle')
         .text(`P${iter}`).attr('fill', '#64748b').attr('font-size', '9px');
     });
-  }, [events]);
+  }, [events, windowSize.width]);
 
   return (
     <div>
       <h2 className="text-xl font-bold text-white mb-6">Advanced Analytics</h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 analytics-grid">
         {/* Sankey */}
         <div className="rounded-xl bg-slate-800/30 border border-slate-700/20 p-4 md:col-span-2">
           <h3 className="text-sm font-semibold text-slate-400 mb-3">Event Flow (Sankey)</h3>
-          <div ref={sankeyRef} style={{width:'100%', minHeight:'300px'}}></div>
+          <div ref={sankeyRef} style={{width:'100%', minHeight:'300px', overflow:'hidden'}}></div>
         </div>
 
         {/* Radar */}
@@ -1242,7 +1425,7 @@ function SentimentDashboard({ events }) {
       <h2 className="text-xl font-bold text-white mb-6">Market Sentiment Analysis</h2>
 
       {/* Top stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 sentiment-stats-grid">
         <div className="rounded-xl bg-slate-800/50 border border-slate-700/30 p-4 text-center">
           <div className={`text-3xl font-bold ${sentiment > 0.3 ? 'text-green-400' : sentiment > -0.3 ? 'text-yellow-400' : 'text-red-400'}`}>{sentiment.toFixed(2)}</div>
           <div className="text-xs text-slate-500 mt-1">Overall Sentiment</div>
@@ -1340,7 +1523,7 @@ function MissionControl({ onLaunch }) {
           <div className="w-14 h-14 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
             <span className="text-3xl">&#9763;</span>
           </div>
-          <h1 className="text-5xl font-black tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text" style={{WebkitTextFillColor: 'transparent'}}>
+          <h1 className="text-5xl font-black tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text mission-title" style={{WebkitTextFillColor: 'transparent'}}>
             GHOST BOARD
           </h1>
         </div>
@@ -1356,7 +1539,7 @@ function MissionControl({ onLaunch }) {
             onChange={e => setConcept(e.target.value)}
             placeholder="Enter your startup concept..."
             onKeyDown={e => e.key === 'Enter' && handleLaunch()}
-            className="w-full px-6 py-4 rounded-xl bg-slate-900/80 border border-slate-600/30 text-white text-lg placeholder-slate-500 focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 backdrop-blur-sm mono"
+            className="w-full px-6 py-4 rounded-xl bg-slate-900/80 border border-slate-600/30 text-white text-lg placeholder-slate-500 focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 backdrop-blur-sm mono mission-input"
             style={{ caretColor: '#6366f1' }}
           />
           <div className="absolute right-3 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-indigo-500 animate-pulse"></div>
@@ -1376,7 +1559,7 @@ function MissionControl({ onLaunch }) {
 
       {/* Tagline */}
       <div className="relative z-10 mt-10 text-center fade-in fade-in-delay-3">
-        <p className="text-slate-500 text-sm">
+        <p className="text-slate-500 text-sm mission-tagline">
           Powered by <span className="text-indigo-400">5 AI Executives</span> &nbsp;|&nbsp;
           <span className="text-cyan-400">MiroFish Market Simulation</span> &nbsp;|&nbsp;
           <span className="text-purple-400">1,000,000+ Agent Simulations</span>
@@ -1453,21 +1636,21 @@ function App() {
     <div className="min-h-screen pb-12">
       <Header events={events.length} pivots={pivotCount} cost={totalCost} />
 
-      <div className="max-w-7xl mx-auto px-6 mt-8">
+      <div className="max-w-7xl mx-auto px-6 mt-8 main-container">
         {/* Tab navigation */}
-        <div className="flex gap-1 mb-6 border-b border-slate-700/50">
+        <div className="flex gap-1 mb-6 border-b border-slate-700/50 tab-nav-wrap">
           {mainTabs.map(t => (
             <button key={t.id} onClick={() => setActiveTab(t.id)}
-              className={`px-5 py-3 text-sm font-medium transition-colors ${activeTab === t.id ? 'tab-active' : 'tab-inactive'}`}>
+              className={`px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${activeTab === t.id ? 'tab-active' : 'tab-inactive'}`}>
               {t.label}
             </button>
           ))}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 main-grid">
           {/* Main content */}
           <div className="lg:col-span-2 fade-in fade-in-delay-1">
-            <div className="rounded-2xl border border-slate-700/30 bg-slate-900/40 backdrop-blur-sm p-6 glow">
+            <div className="rounded-2xl border border-slate-700/30 bg-slate-900/40 backdrop-blur-sm p-6 glow content-card">
               {activeTab === 'timeline' && <Timeline events={events} />}
               {activeTab === 'boardroom' && <BoardroomView events={events} />}
               {activeTab === 'arena' && <MarketArena events={events} />}
@@ -1481,11 +1664,11 @@ function App() {
 
           {/* Sidebar */}
           <div className="space-y-6 fade-in fade-in-delay-2">
-            <div className="rounded-2xl border border-slate-700/30 bg-slate-900/40 backdrop-blur-sm p-6 glow">
+            <div className="rounded-2xl border border-slate-700/30 bg-slate-900/40 backdrop-blur-sm p-6 glow sidebar-section">
               <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Agent Activity</h3>
               <CostChart events={events} />
             </div>
-            <div className="rounded-2xl border border-slate-700/30 bg-slate-900/40 backdrop-blur-sm p-6 glow">
+            <div className="rounded-2xl border border-slate-700/30 bg-slate-900/40 backdrop-blur-sm p-6 glow sidebar-section">
               <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Market Sentiment</h3>
               <SentimentChart events={events} />
             </div>

@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import json
 import os
 import sys
+import threading
+import webbrowser
+from http.server import SimpleHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 import click
@@ -529,6 +533,32 @@ def _play_cached_demo() -> None:
     print("\n  Cached artifacts in: demo/cached_artifacts/")
 
 
+def _start_live_server(port: int = 8080) -> threading.Thread:
+    """Start a background HTTP server serving the dashboard/ directory."""
+    dashboard_dir = Path(__file__).resolve().parent / "dashboard"
+    if not dashboard_dir.exists():
+        dashboard_dir.mkdir(parents=True, exist_ok=True)
+
+    handler = functools.partial(SimpleHTTPRequestHandler, directory=str(dashboard_dir))
+    server = HTTPServer(("0.0.0.0", port), handler)
+    server.daemon_threads = True
+
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return thread
+
+
+def _open_dashboard(live: bool = False, port: int = 8080) -> str:
+    """Open the dashboard in the default browser and return the URL."""
+    if live:
+        url = f"http://localhost:{port}"
+    else:
+        dashboard_path = Path(__file__).resolve().parent / "dashboard" / "index.html"
+        url = dashboard_path.as_uri()
+    webbrowser.open(url)
+    return url
+
+
 @click.command()
 @click.argument("startup_idea", default="AI-powered regulatory compliance automation for fintech startups")
 @click.option("--personas", "-p", default=30, help="Number of simulation personas")
@@ -539,7 +569,9 @@ def _play_cached_demo() -> None:
 @click.option("--cached", is_flag=True, help="Play back cached demo results (no API calls)")
 @click.option("--json-output", is_flag=True, help="Output sprint result as JSON")
 @click.option("--concept", type=click.Choice(["anchrix", "coforge", "medpulse", "learnloop", "saas"]), default=None, help="Load a named demo concept")
-def main(startup_idea: str, personas: int, rounds: int, sim_scale: str | None, skip_simulation: bool, demo: bool, cached: bool, json_output: bool, concept: str | None):
+@click.option("--no-browser", is_flag=True, help="Do not auto-open the dashboard in a browser after sprint")
+@click.option("--live", is_flag=True, help="Start an HTTP server on port 8080 serving the dashboard with live updates")
+def main(startup_idea: str, personas: int, rounds: int, sim_scale: str | None, skip_simulation: bool, demo: bool, cached: bool, json_output: bool, concept: str | None, no_browser: bool, live: bool):
     """Ghost Board - Autonomous AI executive team sprint.
 
     Runs five AI agents (CEO, CTO, CFO, CMO, Legal) that coordinate to build
@@ -577,6 +609,14 @@ def main(startup_idea: str, personas: int, rounds: int, sim_scale: str | None, s
             )
             print("[Demo mode] Using built-in Anchrix concept")
 
+    # Start live dashboard server if requested
+    if live:
+        try:
+            _start_live_server(port=8080)
+            console.print("[bold green]Live dashboard at http://localhost:8080[/bold green]")
+        except OSError as e:
+            console.print(f"[bold red]Could not start live server: {e}[/bold red]")
+
     # Apply sim-scale presets
     if not os.environ.get("OPENAI_API_KEY"):
         click.echo("ERROR: OPENAI_API_KEY not set. Run: export OPENAI_API_KEY='sk-...'")
@@ -597,6 +637,19 @@ def main(startup_idea: str, personas: int, rounds: int, sim_scale: str | None, s
 
     if json_output:
         click.echo(json.dumps(result, indent=2, default=str))
+
+    # Auto-open dashboard in browser
+    if not no_browser:
+        url = _open_dashboard(live=live, port=8080)
+        console.print(f"\n  Dashboard opened: [link={url}]{url}[/link]")
+
+    # If live server is running, keep the process alive
+    if live:
+        console.print("  [dim]Live server running at http://localhost:8080 - Press Ctrl+C to stop.[/dim]")
+        try:
+            threading.Event().wait()
+        except KeyboardInterrupt:
+            console.print("\n  [dim]Server stopped.[/dim]")
 
 
 if __name__ == "__main__":

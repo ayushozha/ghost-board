@@ -18,7 +18,10 @@ import numpy as np
 from openai import AsyncOpenAI
 
 from simulation.personas import MarketPersona, generate_personas
-from simulation.engine import run_simulation, SimulationResult, SimulationRound, SimulationMessage
+from simulation.engine import (
+    run_simulation, SimulationResult, SimulationRound, SimulationMessage,
+    _persona_turn, _shift_stance,
+)
 from simulation.analyzer import analyze_simulation, MarketSignal
 from simulation.lightweight_agents import (
     LightweightSwarm, spawn_swarm, update_stances, collect_votes, get_swarm_summary,
@@ -62,25 +65,41 @@ async def run_hybrid_simulation(
     # Phase 2: Spawn lightweight swarm
     swarm = spawn_swarm(lightweight_count)
 
-    # Phase 3: Run hybrid rounds
+    # Phase 3: Run hybrid rounds with accumulated message history
+    # CRITICAL: We maintain message_history across rounds so personas
+    # can reference each other's posts from previous rounds.
     all_rounds: list[SimulationRound] = []
+    accumulated_messages: list[SimulationMessage] = []
+    current_stances: dict[str, str] = {p.name: p.initial_stance for p in llm_personas}
     rng = np.random.default_rng(42)
     swarm_history: list[dict[str, Any]] = []
 
     for round_num in range(1, num_rounds + 1):
-        # 3a: LLM agents take their turns (real text)
-        llm_result = await run_simulation(
-            startup_idea=startup_idea,
-            strategy_summary=strategy_summary,
-            personas=llm_personas,
-            num_rounds=1,  # one round at a time
-            client=client,
-        )
+        # 3a: LLM agents take their turns with FULL accumulated history
+        round_messages: list[SimulationMessage] = []
+        for persona in llm_personas:
+            msg = await _persona_turn(
+                client=client,
+                persona=persona,
+                startup_idea=startup_idea,
+                strategy_summary=strategy_summary,
+                round_num=round_num,
+                message_history=accumulated_messages,
+                current_stance=current_stances.get(persona.name, "neutral"),
+                other_personas=[p.name for p in llm_personas if p.name != persona.name],
+            )
+            round_messages.append(msg)
+            accumulated_messages.append(msg)
 
-        round_messages = llm_result.rounds[0].messages if llm_result.rounds else []
-        # Fix round numbers
-        for msg in round_messages:
-            msg.round_num = round_num
+            # Update stance
+            if msg.stance_change == "more_positive":
+                current_stances[persona.name] = _shift_stance(
+                    current_stances[persona.name], positive=True
+                )
+            elif msg.stance_change == "more_negative":
+                current_stances[persona.name] = _shift_stance(
+                    current_stances[persona.name], positive=False
+                )
 
         # 3b: Calculate LLM sentiment for this round
         if round_messages:
@@ -115,10 +134,8 @@ async def run_hybrid_simulation(
             avg_sentiment=blended_sentiment,
         ))
 
-    # Phase 4: Build combined result
-    final_stances = {}
-    for p in llm_personas:
-        final_stances[p.name] = "positive" if llm_sentiment > 0.2 else ("negative" if llm_sentiment < -0.2 else "neutral")
+    # Phase 4: Build combined result using tracked per-persona stances
+    final_stances = dict(current_stances)
 
     sim_result = SimulationResult(
         rounds=all_rounds,
