@@ -33,6 +33,7 @@ from agents.cfo import CFOAgent
 from agents.cmo import CMOAgent
 from agents.legal import LegalAgent
 from simulation.mirofish_bridge import MiroFishBridge, get_integration_status
+from simulation.hybrid_engine import run_hybrid_simulation, SCALE_PRESETS
 
 
 async def run_sprint(
@@ -40,6 +41,7 @@ async def run_sprint(
     num_personas: int = 10,
     num_rounds: int = 3,
     skip_simulation: bool = False,
+    sim_scale: str | None = None,
 ) -> dict:
     """Run the full 3-phase autonomous sprint.
 
@@ -116,23 +118,43 @@ async def run_sprint(
                 )
 
     # ── Phase 2: Market Simulation ──
+    hybrid_stats = None
     if not skip_simulation:
-        console.print(f"\n[bold cyan]Phase 2: Market Simulation[/bold cyan] ({num_personas} personas, {num_rounds} rounds)")
-        console.print("[dim]" + "-" * 50 + "[/dim]")
-
-        bridge = MiroFishBridge(client=ceo.client)
         strategy_summary = (
             f"{strategy.startup_idea} - {strategy.business_model} "
             f"targeting {strategy.target_market}"
         )
 
-        with console.status("[bold green]Running market simulation..."):
-            sim_result, market_signal = await bridge.run_full_simulation(
-                startup_idea=startup_idea,
-                strategy_summary=strategy_summary,
-                num_personas=num_personas,
-                num_rounds=num_rounds,
-            )
+        if sim_scale and sim_scale in SCALE_PRESETS:
+            # Hybrid engine: LLM agents + lightweight crowd
+            llm_n, light_n, rounds_n = SCALE_PRESETS[sim_scale]
+            console.print(f"\n[bold cyan]Phase 2: Hybrid Market Simulation[/bold cyan]")
+            console.print(f"  [bold]{llm_n} LLM agents + {light_n:,} lightweight agents, {rounds_n} rounds[/bold]")
+            console.print("[dim]" + "-" * 50 + "[/dim]")
+
+            with console.status(f"[bold green]Running hybrid simulation ({llm_n + light_n:,} total agents)..."):
+                sim_result, market_signal, hybrid_stats = await run_hybrid_simulation(
+                    startup_idea=startup_idea,
+                    strategy_summary=strategy_summary,
+                    scale=sim_scale,
+                    client=ceo.client,
+                )
+
+            console.print(f"  Total agents: [bold]{hybrid_stats['total_agents']:,}[/bold]")
+            console.print(f"  Duration: {hybrid_stats['duration_seconds']:.1f}s")
+        else:
+            # Standard simulation via MiroFish bridge
+            console.print(f"\n[bold cyan]Phase 2: Market Simulation[/bold cyan] ({num_personas} personas, {num_rounds} rounds)")
+            console.print("[dim]" + "-" * 50 + "[/dim]")
+
+            bridge = MiroFishBridge(client=ceo.client)
+            with console.status("[bold green]Running market simulation..."):
+                sim_result, market_signal = await bridge.run_full_simulation(
+                    startup_idea=startup_idea,
+                    strategy_summary=strategy_summary,
+                    num_personas=num_personas,
+                    num_rounds=num_rounds,
+                )
 
         sentiment_color = "green" if market_signal.overall_sentiment > 0.3 else ("yellow" if market_signal.overall_sentiment > -0.3 else "red")
         console.print(f"  Sentiment: [{sentiment_color}]{market_signal.overall_sentiment:.2f}[/{sentiment_color}]")
@@ -342,7 +364,7 @@ def _play_cached_demo() -> None:
 @click.argument("startup_idea", default="AI-powered regulatory compliance automation for fintech startups")
 @click.option("--personas", "-p", default=30, help="Number of simulation personas")
 @click.option("--rounds", "-r", default=5, help="Number of simulation rounds")
-@click.option("--sim-scale", type=click.Choice(["demo", "standard", "large"]), default=None, help="Simulation scale preset")
+@click.option("--sim-scale", type=click.Choice(["demo", "standard", "large", "million"]), default=None, help="Hybrid sim scale: demo=1K crowd, standard=10K, large=100K, million=1M agents")
 @click.option("--skip-simulation", is_flag=True, help="Skip market simulation phase")
 @click.option("--demo", is_flag=True, help="Run with the Anchrix demo concept")
 @click.option("--cached", is_flag=True, help="Play back cached demo results (no API calls)")
@@ -370,15 +392,6 @@ def main(startup_idea: str, personas: int, rounds: int, sim_scale: str | None, s
             print("[Demo mode] Using built-in Anchrix concept")
 
     # Apply sim-scale presets
-    SCALE_PRESETS = {
-        "demo": (30, 5),
-        "standard": (100, 10),
-        "large": (500, 15),
-    }
-    if sim_scale:
-        personas, rounds = SCALE_PRESETS[sim_scale]
-        click.echo(f"[Sim scale: {sim_scale}] {personas} personas, {rounds} rounds")
-
     if not os.environ.get("OPENAI_API_KEY"):
         click.echo("ERROR: OPENAI_API_KEY not set. Run: export OPENAI_API_KEY='sk-...'")
         sys.exit(1)
@@ -388,6 +401,7 @@ def main(startup_idea: str, personas: int, rounds: int, sim_scale: str | None, s
         num_personas=personas,
         num_rounds=rounds,
         skip_simulation=skip_simulation,
+        sim_scale=sim_scale,
     ))
 
     # Save final summary

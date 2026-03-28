@@ -47,3 +47,76 @@ PostgreSQL on our VPS for database (see VPS.md for connection details)
 [x] PRD-44: Show simulation run count and history prominently. Dashboard header shows "Total simulations run: X" pulling from PostgreSQL. Each run is clickable showing full persona feed, sentiment shifts, and which pivot it caused. The history proves scale.
 [x] PRD-45: Ensure the direction change from simulation to CEO pivot is the centerpiece. In dashboard, add a "Pivot Trace" view that shows: specific persona quote that triggered concern -> aggregated market signal -> CEO decision rationale -> exact artifacts that changed -> before/after diff. This causal chain must be visually clear and interactive.
 [x] PRD-46: Never stop improving. Keep adding features, fixing bugs, improving visuals, running more simulations, caching more demo data, making the dashboard more interactive, improving agent reasoning depth. Run tests after every change. Push after every change. Do not stop until externally interrupted.
+[x] PRD-29: Fix simulation scale. Change default personas from 10 to 30 and rounds from 3 to 5. Add simulation costs to cost table. Fix MiroFish bridge path.
+[x] PRD-30: Build interactive dashboard at dashboard/index.html. Single-file React via CDN. Agent timeline, pivot highlights, sentiment chart, cost chart, artifact tabs. Dark mode stunning visuals.
+[x] PRD-31: Generate visual assets via Google Gemini Stitch API. If unavailable fall back to SVG and CSS visuals. Architecture diagram, agent avatars, hero image.
+[x] PRD-32: Build marketing landing page at landing/index.html. Tailwind CDN. Hero, how it works, dashboard embed, Ralphthon problem statements, credits, CTA.
+[x] PRD-33: Add Ralphthon problem statement compliance to README and landing page. Statement 1 2 3 with evidence.
+[x] PRD-34: Load real demo data in dashboard. Dropdown to switch between cached runs.
+[x] PRD-35: Visual artifact display in dashboard. Syntax-highlighted code, financial table, compliance citations, GTM copy.
+[x] PRD-36: Polish dashboard and landing page. Animations, avatars, tooltips, pivot animations, mobile responsive.
+[x] PRD-37: Run pipeline on Anchrix AND SaaS concept. Verify 30+ personas 5+ rounds. Cache both.
+[x] PRD-38: Create demo/coforge_concept.txt. Run Ghost Board on it. Cache results.
+[x] PRD-39: Create demo/healthtech_concept.txt. Run Ghost Board on it. Cache results.
+[x] PRD-40: Create demo/edtech_concept.txt. Run Ghost Board on it. Cache results.
+[x] PRD-41: MILLION AGENT ARCHITECTURE. Refactor simulation to support massive scale. Create TWO agent tiers: (1) LLM-powered agents (top 30-50 key personas using gpt-4o-mini with full personality and memory), (2) Rule-based lightweight agents (thousands to millions using simple sentiment rules, no LLM calls, fast). Each lightweight agent has: archetype, stance float, influence float, response_probability float, stance_drift_rate. Each round, lightweight agents update stance based on: weighted average of nearby agent stances + random noise + archetype bias. LLM agents post real text. Lightweight agents generate simple stance votes. Aggregate both for market signal. This lets us run 1M agents with only 50 LLM calls per round.
+[x] PRD-42: Implement the lightweight agent engine in simulation/lightweight_agents.py. Class LightweightPersona with archetype, stance, influence, drift_rate. Method update_stance(feed, round) uses simple math not LLM. Method generate_vote() returns +1/0/-1. Can spawn 100K of these in under 1 second using numpy arrays.
+[x] PRD-43: Implement hybrid simulation in simulation/hybrid_engine.py. Combines LLM agents (50) and lightweight agents (configurable up to 1M). LLM agents drive the narrative and post real text. Lightweight agents react to LLM posts by shifting stances and voting. Aggregate sentiment from BOTH pools. Weight LLM agents higher for qualitative signal, lightweight agents for quantitative crowd sentiment.
+[x] PRD-44: Add --sim-scale flag to main.py. Options: demo (30 LLM + 1000 lightweight, 5 rounds), standard (50 LLM + 10000 lightweight, 10 rounds), large (50 LLM + 100000 lightweight, 15 rounds), million (50 LLM + 1000000 lightweight, 20 rounds). Default is demo for hackathon. Display total agent count prominently in output.
+[x] PRD-45: Add numpy as dependency. Use numpy arrays for lightweight agent stance vectors. Vectorize stance updates for speed. 1M agents should update in under 1 second per round using numpy broadcasting.
+[x] PRD-46: Build simulation history database. SQLAlchemy + asyncpg. Models: SimulationRun (id, concept, llm_agents, lightweight_agents, total_agents, rounds, duration_seconds, cost, timestamp), PersonaReaction (run_id, round, persona, archetype, content, stance), MarketSignal (run_id, sentiment, objections, pricing_signal, pivot_suggestion). Store in PostgreSQL (see VPS.md).
+[x] PRD-47: BettaFish sentiment integration. After each simulation, run BettaFish-inspired sentiment analysis on all LLM agent posts. Categorize as positive/negative/neutral by archetype. Store in PostgreSQL. Show trends in dashboard.
+[x] PRD-48: Dashboard header shows "Total agents simulated: X" and "Total simulation runs: Y" from PostgreSQL. Make numbers large and prominent. If 1M+ agents have been simulated total, show it proudly.
+[x] PRD-49: Pivot Trace view in dashboard. Specific persona quote -> market signal -> CEO rationale -> artifact diff. Full causal chain, interactive, animated.
+[ ] PRD-50: Run python main.py on Anchrix. Verify every output file has REAL content not stubs. Prototype has real code with functions. Financial model has real 12-month numbers. GTM has real copy. Compliance has real citations. Fix any agent producing stubs.
+[ ] PRD-51: Verify MiroFish bridge attempts real MiroFish. Read the output log. Fix Python path. If MiroFish truly cannot run, ensure fallback uses the hybrid engine with 1000+ agents not just 30.
+[ ] PRD-52: Verify CEO pivot causality. Read trace.json. Find SIMULATION_RESULT event. Find following PIVOT. Verify pivot references SPECIFIC persona quotes and concerns not generic text. Fix ceo.py if generic.
+[ ] PRD-53: Verify Legal citations are real regulatory text. Read compliance output. Check citations. If hallucinated, fix legal.py to use web search or hardcode known FinCEN MSB registration (31 CFR 1022), CFPB regulations, state money transmitter statutes.
+[ ] PRD-54: Verify CFO model is detailed. Must have 12-month projections, CAC, LTV, LTV/CAC ratio, runway, burn rate, break-even month. If shallow, fix cfo.py.
+[ ] PRD-55: Verify CTO prototype is real MVP code. Multiple files, API endpoints, imports, error handling. Not hello world. Fix cto.py if trivial.
+[ ] PRD-56: Verify CMO output has positioning statement, 3 taglines, full landing page copy (hero/features/CTA), ICP description, competitive positioning. Fix cmo.py if thin.
+[ ] PRD-57: Run python -m pytest tests/ -v. Must have 20+ tests. If fewer, add more. Test every agent, event bus, simulation, analyzer, hybrid engine, lightweight agents, main orchestration.
+[ ] PRD-58: End-to-end test with real API calls. Run pipeline twice on same concept. Verify outputs differ (not cached). Verify both complete without errors.
+[ ] PRD-59: Integration test: Legal BLOCKER -> CEO PIVOT -> CTO code change. Verify chain in trace.json. Add as automated test.
+[ ] PRD-60: Integration test: simulation -> MarketSignal -> CEO pivot -> agent rebuild. Verify chain. Add as automated test.
+[ ] PRD-61: Verify W&B dashboard at the logged URL has real events and charts. If empty, fix trace.py W&B logging.
+[ ] PRD-62: Verify --demo flag loads cached results instantly without API calls. Fix if broken.
+[ ] PRD-63: Verify dashboard renders in browser. Timeline has events. Sentiment chart has data points. Cost chart has agent breakdown. Fix if blank.
+[ ] PRD-64: Verify landing page renders. Visually stunning. Has all sections. Links work. Responsive on mobile.
+[ ] PRD-65: Run with --sim-scale standard (50 LLM + 10000 lightweight agents). Verify it completes. Log duration and cost. Store in PostgreSQL.
+[ ] PRD-66: Run with --sim-scale large (50 LLM + 100000 lightweight agents). Verify it completes under 5 minutes. If slow, optimize numpy vectorization.
+[ ] PRD-67: Display simulation scale in output banner. "Phase 2: Market Simulation (50 LLM agents + 100,000 lightweight agents, 15 rounds)" instead of just "(10 personas, 3 rounds)". Make the scale visible and impressive.
+[ ] PRD-68: Add simulation replay to dashboard. Click any past simulation run, see the round-by-round feed of LLM agent posts, lightweight agent stance heatmap, and sentiment evolution. Animated playback.
+[ ] PRD-69: Add stance heatmap visualization to dashboard. 2D grid showing lightweight agent stances (green=positive, red=negative, yellow=neutral) evolving over rounds. Visually dramatic with animation.
+[ ] PRD-70: Add agent network graph to dashboard. Show connections between LLM agents and which lightweight agents they influenced. Use D3 force-directed graph.
+[ ] PRD-71: Run pipeline on CoForge concept. Verify Legal finds different regulations than Anchrix (data privacy, employment law, not MSB). Verify CEO pivots differently. Cache results.
+[ ] PRD-72: Run pipeline on MedPulse (healthtech). Verify Legal flags HIPAA. Verify CFO models healthcare unit economics. Cache results.
+[ ] PRD-73: Run pipeline on LearnLoop (edtech). Verify Legal flags COPPA/FERPA for K-12. Cache results.
+[ ] PRD-74: Add concept auto-detection to Legal agent. Based on industry keywords in concept, Legal should search for industry-specific regulations (fintech=FinCEN/MSB, health=HIPAA/FDA, edu=COPPA/FERPA, data=GDPR/CCPA).
+[ ] PRD-75: Add comparison view to dashboard. Side-by-side two simulation runs showing different concepts. Compare: agent count, sentiment, pivots, top concerns. Useful for judges to see Ghost Board works across domains.
+[ ] PRD-76: Polish cost comparison display. Show "$X API cost vs $Y,000 consulting equivalent" with visual bar chart comparison. Make the 77,000x cheaper stat dramatic.
+[ ] PRD-77: Add W&B Weave integration for better LLM call tracing. pip install weave. Import weave. Every LLM call traced with input/output visible in W&B.
+[ ] PRD-78: Improve CEO reasoning. When CEO pivots, the PIVOT event payload must include: (1) what triggered the pivot (specific blocker or persona quote), (2) what changed in strategy, (3) which agents need to rebuild, (4) expected impact of the pivot. Not just "pivoted to B2B".
+[ ] PRD-79: Improve Legal depth. Legal should find at least 5 regulatory concerns for fintech, each with real citation. Add federal AND state level analysis.
+[ ] PRD-80: Improve CFO depth. Add scenario analysis: optimistic/base/pessimistic revenue projections. Add sensitivity analysis on key assumptions.
+[ ] PRD-81: Improve CTO depth. Generate prototype with tests included. At least 5 files. README for the prototype. Requirements.txt. Actual runnable code.
+[ ] PRD-82: Improve CMO depth. Add competitive positioning matrix (us vs 3 competitors across 5 dimensions). Add customer journey map. Add messaging framework.
+[ ] PRD-83: Add agent debate feature. After Phase 1, CEO presents strategy to all agents. Each agent can raise objections. CEO addresses objections before proceeding. Log the debate in trace.
+[ ] PRD-84: Add real-time console output during simulation. Show each LLM agent post as it happens with [VC] [Journalist] [Early Adopter] prefixes. Show lightweight agent stance shifts as a progress bar. Make the simulation feel alive.
+[ ] PRD-85: Add simulation speed metrics. Log: time per round, time per LLM call, total simulation duration, agents per second. Display in output and dashboard.
+[ ] PRD-86: Test error recovery. Kill an LLM call mid-flight (mock timeout). Verify agent retries 3 times. Verify degraded result is published. Verify pipeline continues.
+[ ] PRD-87: Test with invalid concept input. Run python main.py "". Run python main.py with extremely long input. Verify graceful handling.
+[ ] PRD-88: Add export feature. python main.py --export-pdf generates a PDF report of the full sprint: strategy, pivots, artifacts, market simulation results, cost summary.
+[ ] PRD-89: Add CONTRIBUTING.md with instructions for adding new agent types, new simulation persona archetypes, and new demo concepts.
+[ ] PRD-90: Add LICENSE (MIT). Add .github/FUNDING.yml. Add social preview image for GitHub repo.
+[ ] PRD-91: Run full pipeline with --sim-scale demo on ALL 4 concepts (Anchrix, CoForge, MedPulse, LearnLoop). Cache all results. Verify dashboard can switch between all 4.
+[ ] PRD-92: Performance benchmark. Time the full pipeline at each sim-scale. Log: demo (seconds), standard (seconds), large (seconds). Add to README as performance table.
+[ ] PRD-93: Add --verbose flag for debugging. Shows every event payload, every LLM prompt/response, every stance update. Default is clean output.
+[ ] PRD-94: Add --json flag. Output the entire sprint result as a single JSON for programmatic use.
+[ ] PRD-95: Add API server mode. python main.py --serve starts a FastAPI server. POST /sprint with concept returns sprint results. GET /history returns past runs from PostgreSQL.
+[ ] PRD-96: Add webhook support. After sprint completes, POST results to a configurable webhook URL. Useful for Slack/Discord notifications.
+[ ] PRD-97: Run one MASSIVE simulation for demo purposes. --sim-scale million on Anchrix. 50 LLM agents + 1,000,000 lightweight agents, 20 rounds. Log total duration and cost. Store in PostgreSQL. This is the "MiroFish runs 1M agents and so do we" proof point.
+[ ] PRD-98: Dashboard shows the million-agent run prominently. "1,000,050 agents simulated" in large font. Stance heatmap of 1M agents. Sentiment evolution chart. Make it visually jaw-dropping.
+[ ] PRD-99: Final verification sweep. Run ALL tests. Run ALL demo concepts. Verify ALL artifacts are real. Verify ALL dashboard views work. Verify landing page is stunning. Verify W&B is logging. Verify PostgreSQL has history. Fix anything broken.
+[ ] PRD-100: Record a 1-minute demo walkthrough. Save script to demo/DEMO_VIDEO_SCRIPT.md. Cover: one-liner intro, Legal blocker with real citation, CEO pivot with rationale, market simulation with 1M agents shown, sentiment shift causing second pivot, final artifacts, cost comparison, all 3 problem statements addressed.
+[ ] PRD-101: Keep improving. You are in an infinite loop. Generate 5 new [ ] tasks focused on whatever is weakest right now: visual polish, agent depth, simulation scale, test coverage, documentation, performance. Run tests and demo after each change. Push after each change. Never stop.
