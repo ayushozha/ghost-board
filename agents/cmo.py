@@ -67,6 +67,9 @@ Respond in JSON:
       {{"question": "...", "answer": "..."}}
     ]
   }},
+  "competitive_matrix": [
+    {{"competitor": "name", "strengths": "their advantages", "weaknesses": "their gaps", "our_advantage": "how we win"}}
+  ],
   "launch_plan": [
     {{"week": 1, "action": "...", "channel": "..."}},
     ...
@@ -174,6 +177,16 @@ Respond in JSON:
                 f.write("| Week | Action | Channel |\n|------|--------|--------|\n")
                 for step in data["launch_plan"]:
                     f.write(f"| {step.get('week', '')} | {step.get('action', '')} | {step.get('channel', '')} |\n")
+
+        # Competitive positioning matrix
+        if data.get("competitive_matrix"):
+            matrix_path = f"outputs/gtm/competitive_matrix_v{self._current_iteration}.md"
+            with open(matrix_path, "w") as f:
+                f.write(f"# Competitive Positioning Matrix v{self._current_iteration}\n\n")
+                f.write("| Competitor | Strengths | Weaknesses | Our Advantage |\n")
+                f.write("|-----------|-----------|------------|---------------|\n")
+                for comp in data["competitive_matrix"]:
+                    f.write(f"| {comp.get('competitor', '')} | {comp.get('strengths', '')} | {comp.get('weaknesses', '')} | {comp.get('our_advantage', '')} |\n")
 
         self.log(f"GTM saved to {md_path}", action="gtm_save")
 

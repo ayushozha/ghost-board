@@ -60,7 +60,16 @@ Target market: {strategy.target_market}
 Business model: {strategy.business_model}
 Constraints: {', '.join(strategy.constraints)}
 
-Search for REAL regulations from CFPB, FinCEN, SEC, FTC, GDPR, and state regulators.
+Search for REAL regulations from these agencies and frameworks:
+- CFPB (Consumer Financial Protection Bureau) - consumer lending, disclosures
+- FinCEN (Financial Crimes Enforcement Network) - BSA, AML, MSB registration
+- SEC (Securities and Exchange Commission) - securities, tokens, investment advisers
+- FTC (Federal Trade Commission) - advertising, data practices, unfair practices
+- GDPR / CCPA / state privacy laws - data protection, consent, right to delete
+- State money transmitter licensing - 50-state requirements
+- OCC (Office of the Comptroller of the Currency) - banking charters
+- OFAC - sanctions compliance
+- PCI DSS - payment card security
 
 Respond in JSON:
 {{
@@ -70,14 +79,14 @@ Respond in JSON:
     {{
       "severity": "CRITICAL" or "HIGH" or "MEDIUM" or "LOW",
       "area": "regulatory area",
-      "description": "what the issue is",
-      "citations": ["real URLs or regulation numbers"],
-      "recommended_action": "what to do"
+      "description": "what the issue is and why it matters",
+      "citations": ["real URLs or regulation numbers like '12 CFR 1026' or 'FinCEN BSA 31 USC 5311'"],
+      "recommended_action": "specific action to take"
     }}
   ]
 }}
 
-Only include blockers for regulations that ACTUALLY APPLY. Cite real URLs.""",
+Only include blockers for regulations that ACTUALLY APPLY. Cite real URLs or CFR references.""",
             )
 
             response_text = ""
@@ -86,6 +95,19 @@ Only include blockers for regulations that ACTUALLY APPLY. Cite real URLs.""",
                     for block in item.content:
                         if hasattr(block, "text"):
                             response_text += block.text
+
+            # Track token usage from responses API
+            if hasattr(response, "usage") and response.usage:
+                usage = response.usage
+                input_tokens = getattr(usage, "input_tokens", 0)
+                output_tokens = getattr(usage, "output_tokens", 0)
+                self.total_tokens += input_tokens + output_tokens
+                from agents.base import MODEL_COSTS
+                costs = MODEL_COSTS.get("gpt-4o", MODEL_COSTS["gpt-4o"])
+                self.estimated_cost += (
+                    input_tokens * costs["input"] / 1_000_000
+                    + output_tokens * costs["output"] / 1_000_000
+                )
         except Exception as e:
             self.log(f"Web search failed, falling back to chat: {e}", action="fallback")
             response_text = await self._fallback_analysis(strategy)

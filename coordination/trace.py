@@ -49,8 +49,10 @@ class TraceLogger:
                 settings=wandb.Settings(init_timeout=30),
             )
             self._use_wandb = True
+            self.wandb_url = self._wandb_run.get_url() if self._wandb_run else None
         except Exception:
             self._use_wandb = False
+            self.wandb_url = None
 
     def log_event(self, event: AgentEvent) -> None:
         """Log an agent event."""

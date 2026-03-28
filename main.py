@@ -205,6 +205,13 @@ async def run_sprint(
     for name, cost in costs.items():
         print(f"    {name}: {cost['total_tokens']:,} tokens (${cost['estimated_cost_usd']:.4f})")
 
+    if hasattr(logger, 'wandb_url') and logger.wandb_url:
+        print(f"\n  W&B dashboard: {logger.wandb_url}")
+        # Save W&B URL for demo
+        os.makedirs("demo", exist_ok=True)
+        with open("demo/wandb_url.txt", "w") as f:
+            f.write(logger.wandb_url + "\n")
+
     # Finalize trace
     logger.finish()
 
@@ -213,7 +220,9 @@ async def run_sprint(
         "pivots": pivots,
         "costs": costs,
         "total_cost": total_cost,
+        "total_tokens": total_tokens,
         "trace": [e.to_trace_dict() for e in trace],
+        "wandb_url": getattr(logger, 'wandb_url', None),
     }
 
 

@@ -60,21 +60,29 @@ Key differentiators: {', '.join(strategy.key_differentiators)}
 Constraints: {', '.join(strategy.constraints)}
 
 Generate a Python prototype with:
-1. A main application file (app.py) with core business logic
-2. A data models file (models.py) with Pydantic models
-3. An API routes file (routes.py) with key endpoints using FastAPI-style definitions
+1. app.py - Main application with core business logic and FastAPI app
+2. models.py - Pydantic models for all data entities
+3. routes.py - API endpoints with proper request/response models
+4. test_app.py - Basic pytest tests for the core functionality
 
 For each file, respond in this JSON format:
 {{
   "files": [
     {{"filename": "app.py", "content": "...full code...", "description": "..."}},
     {{"filename": "models.py", "content": "...full code...", "description": "..."}},
-    {{"filename": "routes.py", "content": "...full code...", "description": "..."}}
+    {{"filename": "routes.py", "content": "...full code...", "description": "..."}},
+    {{"filename": "test_app.py", "content": "...full code...", "description": "..."}}
   ],
-  "description": "Overall prototype description"
+  "description": "Overall prototype description",
+  "tech_stack": ["list of libraries used"],
+  "setup_instructions": "How to run this prototype"
 }}
 
-Write REAL working code, not pseudocode. Include imports, type hints, and docstrings."""
+Write REAL working Python code with:
+- Proper imports and type hints
+- Error handling for edge cases
+- Pydantic v2 models with validation
+- FastAPI endpoints with proper HTTP methods and status codes"""
 
         response = await self.call_llm(
             [

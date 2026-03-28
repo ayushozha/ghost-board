@@ -163,6 +163,21 @@ Use realistic numbers for a pre-seed/seed stage startup. Be conservative."""
                 for r in data["risks"]:
                     f.write(f"- {r}\n")
 
+            if data.get("unit_economics"):
+                f.write(f"\n## Unit Economics\n{data['unit_economics']}\n")
+
+            if data.get("monthly_breakdown"):
+                f.write("\n## Monthly Breakdown (Year 1)\n")
+                f.write("| Month | Revenue | Expenses | Customers |\n")
+                f.write("|-------|---------|----------|-----------|\n")
+                for m in data["monthly_breakdown"][:12]:
+                    f.write(f"| {m.get('month', '')} | ${m.get('revenue', 0):,.0f} | ${m.get('expenses', 0):,.0f} | {m.get('customers', 0)} |\n")
+
+            ltv = data.get("ltv", 0)
+            cac = data.get("cac", 0)
+            if ltv and cac:
+                f.write(f"\n## LTV/CAC Ratio\n**{ltv/cac:.1f}x** (target: >3x)\n")
+
         self.log(f"Model saved to {md_path}", action="model_save")
 
     async def run(self, context: dict[str, Any] | None = None) -> None:
