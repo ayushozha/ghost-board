@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#eab308"/>
+      <stop offset="100%" stop-color="#f59e0b"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#22c55e"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+    <linearGradient id="purple" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <linearGradient id="red" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ef4444"/>
+      <stop offset="100%" stop-color="#dc2626"/>
+    </linearGradient>
+    <linearGradient id="cyan" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#06b6d4"/>
+      <stop offset="100%" stop-color="#0ea5e9"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="800" height="500" fill="url(#bg)" rx="16"/>
+
+  <!-- Title -->
+  <text x="400" y="40" text-anchor="middle" fill="#e2e8f0" font-size="20" font-weight="bold" font-family="Inter,sans-serif">Ghost Board Architecture</text>
+
+  <!-- Founder Brief -->
+  <rect x="320" y="60" width="160" height="40" rx="8" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="400" y="85" text-anchor="middle" fill="#94a3b8" font-size="12" font-family="Inter,sans-serif">Founder Brief</text>
+
+  <!-- Arrow down -->
+  <line x1="400" y1="100" x2="400" y2="125" stroke="#6366f1" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+  <!-- CEO -->
+  <rect x="320" y="125" width="160" height="50" rx="12" fill="url(#gold)" opacity="0.2" stroke="#eab308" stroke-width="1.5" filter="url(#glow)"/>
+  <text x="400" y="155" text-anchor="middle" fill="#eab308" font-size="14" font-weight="bold" font-family="Inter,sans-serif">CEO Agent</text>
+
+  <!-- Arrows to agents -->
+  <line x1="350" y1="175" x2="120" y2="225" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="4"/>
+  <line x1="380" y1="175" x2="280" y2="225" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="4"/>
+  <line x1="420" y1="175" x2="520" y2="225" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="4"/>
+  <line x1="450" y1="175" x2="680" y2="225" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="4"/>
+
+  <!-- CTO -->
+  <rect x="40" y="225" width="160" height="50" rx="12" fill="url(#blue)" opacity="0.2" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="120" y="255" text-anchor="middle" fill="#3b82f6" font-size="13" font-weight="bold" font-family="Inter,sans-serif">CTO (Codex)</text>
+
+  <!-- CFO -->
+  <rect x="200" y="225" width="160" height="50" rx="12" fill="url(#green)" opacity="0.2" stroke="#22c55e" stroke-width="1.5"/>
+  <text x="280" y="255" text-anchor="middle" fill="#22c55e" font-size="13" font-weight="bold" font-family="Inter,sans-serif">CFO</text>
+
+  <!-- CMO -->
+  <rect x="440" y="225" width="160" height="50" rx="12" fill="url(#purple)" opacity="0.2" stroke="#a855f7" stroke-width="1.5"/>
+  <text x="520" y="255" text-anchor="middle" fill="#a855f7" font-size="13" font-weight="bold" font-family="Inter,sans-serif">CMO</text>
+
+  <!-- Legal -->
+  <rect x="600" y="225" width="160" height="50" rx="12" fill="url(#red)" opacity="0.2" stroke="#ef4444" stroke-width="1.5"/>
+  <text x="680" y="255" text-anchor="middle" fill="#ef4444" font-size="13" font-weight="bold" font-family="Inter,sans-serif">Legal</text>
+
+  <!-- BLOCKER arrow -->
+  <path d="M680 275 L680 310 L450 310 L450 340" stroke="#ef4444" stroke-width="2" fill="none" stroke-dasharray="6" filter="url(#glow)"/>
+  <text x="570" y="305" fill="#ef4444" font-size="10" font-weight="bold" font-family="Inter,sans-serif">BLOCKER!</text>
+
+  <!-- PIVOT box -->
+  <rect x="370" y="340" width="160" height="40" rx="8" fill="#ef4444" opacity="0.15" stroke="#ef4444" stroke-width="2" filter="url(#glow)"/>
+  <text x="450" y="365" text-anchor="middle" fill="#ef4444" font-size="13" font-weight="bold" font-family="Inter,sans-serif">CEO PIVOT</text>
+
+  <!-- Pivot arrows back -->
+  <path d="M400 340 L400 175" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#arrowhead)"/>
+
+  <!-- Simulation -->
+  <rect x="100" y="395" width="240" height="50" rx="12" fill="url(#cyan)" opacity="0.2" stroke="#06b6d4" stroke-width="1.5"/>
+  <text x="220" y="425" text-anchor="middle" fill="#06b6d4" font-size="13" font-weight="bold" font-family="Inter,sans-serif">Market Simulation</text>
+  <text x="220" y="440" text-anchor="middle" fill="#06b6d4" font-size="9" opacity="0.7" font-family="Inter,sans-serif">VCs, Skeptics, Journalists...</text>
+
+  <!-- Signal arrow -->
+  <path d="M340 420 L450 380" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="4"/>
+  <text x="405" y="405" fill="#06b6d4" font-size="9" font-family="Inter,sans-serif">MarketSignal</text>
+
+  <!-- Final output -->
+  <rect x="460" y="395" width="240" height="50" rx="12" fill="#1e293b" stroke="#6366f1" stroke-width="1.5"/>
+  <text x="580" y="420" text-anchor="middle" fill="#a5b4fc" font-size="12" font-weight="bold" font-family="Inter,sans-serif">Final Sprint Package</text>
+  <text x="580" y="437" text-anchor="middle" fill="#64748b" font-size="9" font-family="Inter,sans-serif">Prototype + Model + GTM + Compliance + Trace</text>
+
+  <!-- Event Bus -->
+  <rect x="50" y="300" width="700" height="28" rx="4" fill="#1e1b4b" opacity="0.5" stroke="#4f46e5" stroke-width="1" stroke-dasharray="3"/>
+  <text x="400" y="318" text-anchor="middle" fill="#6366f1" font-size="10" font-family="Inter,sans-serif">Async Event Bus (typed payloads, triggered_by causal chain)</text>
+</svg>

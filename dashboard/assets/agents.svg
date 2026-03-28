@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 120" fill="none">
+  <defs>
+    <filter id="g"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <!-- CEO -->
+  <g transform="translate(20,10)">
+    <circle cx="40" cy="40" r="35" fill="#eab308" opacity="0.15" stroke="#eab308" stroke-width="2" filter="url(#g)"/>
+    <text x="40" y="35" text-anchor="middle" fill="#eab308" font-size="24">&#128081;</text>
+    <text x="40" y="55" text-anchor="middle" fill="#eab308" font-size="10" font-weight="bold" font-family="Inter">CEO</text>
+    <text x="40" y="95" text-anchor="middle" fill="#64748b" font-size="8" font-family="Inter">Strategy</text>
+    <text x="40" y="107" text-anchor="middle" fill="#64748b" font-size="8" font-family="Inter">& Pivots</text>
+  </g>
+  <!-- CTO -->
+  <g transform="translate(135,10)">
+    <circle cx="40" cy="40" r="35" fill="#3b82f6" opacity="0.15" stroke="#3b82f6" stroke-width="2" filter="url(#g)"/>
+    <text x="40" y="35" text-anchor="middle" fill="#3b82f6" font-size="24">&#128187;</text>
+    <text x="40" y="55" text-anchor="middle" fill="#3b82f6" font-size="10" font-weight="bold" font-family="Inter">CTO</text>
+    <text x="40" y="95" text-anchor="middle" fill="#64748b" font-size="8" font-family="Inter">Codex</text>
+    <text x="40" y="107" text-anchor="middle" fill="#64748b" font-size="8" font-family="Inter">Prototype</text>
+  </g>
+  <!-- CFO -->
+  <g transform="translate(250,10)">
+    <circle cx="40" cy="40" r="35" fill="#22c55e" opacity="0.15" stroke="#22c55e" stroke-width="2" filter="url(#g)"/>
+    <text x="40" y="35" text-anchor="middle" fill="#22c55e" font-size="24">&#128200;</text>
+    <text x="40" y="55" text-anchor="middle" fill="#22c55e" font-size="10" font-weight="bold" font-family="Inter">CFO</text>
+    <text x="40" y="95" text-anchor="middle" fill="#64748b" font-size="8" font-family="Inter">Financial</text>
+    <text x="40" y="107" text-anchor="middle" fill="#64748b" font-size="8" font-family="Inter">Model</text>
+  </g>
+  <!-- CMO -->
+  <g transform="translate(365,10)">
+    <circle cx="40" cy="40" r="35" fill="#a855f7" opacity="0.15" stroke="#a855f7" stroke-width="2" filter="url(#g)"/>
+    <text x="40" y="35" text-anchor="middle" fill="#a855f7" font-size="24">&#128640;</text>
+    <text x="40" y="55" text-anchor="middle" fill="#a855f7" font-size="10" font-weight="bold" font-family="Inter">CMO</text>
+    <text x="40" y="95" text-anchor="middle" fill="#64748b" font-size="8" font-family="Inter">GTM</text>
+    <text x="40" y="107" text-anchor="middle" fill="#64748b" font-size="8" font-family="Inter">& Copy</text>
+  </g>
+  <!-- Legal -->
+  <g transform="translate(480,10)">
+    <circle cx="40" cy="40" r="35" fill="#ef4444" opacity="0.15" stroke="#ef4444" stroke-width="2" filter="url(#g)"/>
+    <text x="40" y="35" text-anchor="middle" fill="#ef4444" font-size="24">&#9878;</text>
+    <text x="40" y="55" text-anchor="middle" fill="#ef4444" font-size="10" font-weight="bold" font-family="Inter">Legal</text>
+    <text x="40" y="95" text-anchor="middle" fill="#64748b" font-size="8" font-family="Inter">Compliance</text>
+    <text x="40" y="107" text-anchor="middle" fill="#64748b" font-size="8" font-family="Inter">& Citations</text>
+  </g>
+</svg>

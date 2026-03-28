@@ -162,7 +162,7 @@ function EventPayload({ event }) {
     case 'STRATEGY_SET': return <div className="text-sm"><strong>{p.startup_idea}</strong><br/><span className="text-slate-400">{p.business_model} | {p.target_market}</span></div>;
     case 'BLOCKER': return <div className="text-sm"><span className="text-red-400 font-bold">[{p.severity}]</span> {p.description}{p.citations?.length > 0 && <div className="mt-1 text-xs text-slate-500">{p.citations.map((c,i) => <div key={i} className="truncate">&#128279; {c}</div>)}</div>}</div>;
     case 'PIVOT': return <div className="text-sm text-red-300">{p.reason}</div>;
-    case 'PROTOTYPE_READY': return <div className="text-sm text-blue-300">{p.files_generated?.length || 0} files generated</div>;
+    case 'PROTOTYPE_READY': return <div className="text-sm text-blue-300">{p.output_files?.length || 0} files generated</div>;
     case 'FINANCIAL_MODEL_READY': return <div className="text-sm text-green-300">Y1: ${(p.revenue_year1||0).toLocaleString()} | Runway: {p.runway_months}mo</div>;
     case 'GTM_READY': return <div className="text-sm text-purple-300">"{p.tagline}"</div>;
     case 'COMPLIANCE_REPORT_READY': return <div className="text-sm">{p.risk_level} risk | {p.blockers_found} blockers</div>;
@@ -420,7 +420,7 @@ function App() {
 // ── Embedded demo data (fallback when files can't be fetched) ──
 const DEMO_DATA = [
   {"event_id":"1","event_type":"STRATEGY_SET","source":"CEO","payload":{"startup_idea":"Anchrix: AI-powered identity verification","target_market":"Fintech startups","business_model":"Usage-based SaaS","key_differentiators":["real-time monitoring","auto-filing"],"constraints":["CFPB regulations"]},"triggered_by":"","timestamp":"2026-03-28T20:13:00Z","iteration":1},
-  {"event_id":"2","event_type":"PROTOTYPE_READY","source":"CTO","payload":{"files_generated":["app.py","models.py","routes.py"],"language":"python","description":"FastAPI compliance SaaS"},"triggered_by":"1","timestamp":"2026-03-28T20:13:15Z","iteration":1},
+  {"event_id":"2","event_type":"PROTOTYPE_READY","source":"CTO","payload":{"output_files":["app.py","models.py","routes.py"],"language":"python","description":"FastAPI compliance SaaS"},"triggered_by":"1","timestamp":"2026-03-28T20:13:15Z","iteration":1},
   {"event_id":"3","event_type":"FINANCIAL_MODEL_READY","source":"CFO","payload":{"revenue_year1":250000,"revenue_year3":2000000,"burn_rate_monthly":50000,"runway_months":12,"funding_required":1500000},"triggered_by":"1","timestamp":"2026-03-28T20:13:20Z","iteration":1},
   {"event_id":"4","event_type":"GTM_READY","source":"CMO","payload":{"positioning":"The compliance autopilot","tagline":"Compliance Simplified, Onboarding Accelerated","target_channels":["LinkedIn","Product Hunt"]},"triggered_by":"1","timestamp":"2026-03-28T20:13:25Z","iteration":1},
   {"event_id":"5","event_type":"BLOCKER","source":"Legal","payload":{"severity":"CRITICAL","area":"Consumer Protection","description":"Must comply with EFTA and Regulation E - requires comprehensive consumer protection measures","citations":["https://www.consumerfinance.gov/compliance/compliance-resources/deposit-accounts-resources/electronic-fund-transfers/"],"recommended_action":"Implement EFTA-compliant disclosures and error resolution"},"triggered_by":"1","timestamp":"2026-03-28T20:13:30Z","iteration":1},
