@@ -372,9 +372,11 @@ class CFOAgent(BaseAgent):
             reasoning=(
                 f"Building detailed projections for '{strategy.startup_idea}' targeting "
                 f"'{strategy.target_market}' with a '{strategy.business_model}' model. "
-                "Will produce P&L, unit economics, scenario analysis, sensitivity tables, "
-                "and runway calculations."
+                f"Will produce P&L, unit economics, scenario analysis, sensitivity tables, "
+                f"and runway calculations. Need to model realistic seed-stage economics "
+                f"with CAC, LTV, and churn appropriate for {strategy.target_market}."
             ),
+            in_response_to="CEO strategy set",
         )
 
         prompt = _FINANCIAL_MODEL_PROMPT.format(
@@ -438,7 +440,16 @@ class CFOAgent(BaseAgent):
             return
 
         changes = payload.changes_required.get("CFO", "Update financial projections")
-        self.log(f"Handling pivot: {changes}", action="pivot_response")
+        self.log(
+            f"Handling pivot: {changes}",
+            action="pivot_response",
+            reasoning=(
+                f"CEO has pivoted the strategy. I need to rebuild the financial model to reflect: {changes}. "
+                f"This may affect pricing, CAC, runway, and scenario assumptions."
+            ),
+            addressed_to="CEO",
+            in_response_to=f"CEO PIVOT: {payload.reason[:100]}",
+        )
 
         new_strategy_data = {}
         try:

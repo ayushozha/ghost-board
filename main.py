@@ -58,6 +58,10 @@ async def run_sprint(
     bus = StateBus()
     logger = TraceLogger(project="ghost-board")
 
+    # Clear any stale board discussion entries from previous runs
+    from agents.base import BaseAgent as _BaseAgent
+    _BaseAgent.clear_board_discussion()
+
     # Initialize agents
     ceo = CEOAgent(bus, logger)
     cto = CTOAgent(bus, logger)

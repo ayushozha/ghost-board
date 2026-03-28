@@ -7,7 +7,7 @@ import * as THREE from 'three'
 // Helpers
 // ---------------------------------------------------------------------------
 
-function latLngToVec3(lat, lng, radius = 1.02) {
+function latLngToVec3(lat, lng, radius = 2.04) {
   const phi = (90 - lat) * (Math.PI / 180)
   const theta = (lng + 180) * (Math.PI / 180)
   return new THREE.Vector3(
@@ -19,22 +19,22 @@ function latLngToVec3(lat, lng, radius = 1.02) {
 
 function stanceColor(stance) {
   if (typeof stance === 'number') {
-    if (stance > 0.15) return '#22c55e'   // green
-    if (stance < -0.15) return '#ef4444'  // red
-    return '#eab308'                       // yellow / neutral
+    if (stance > 0.2) return '#00ff88'    // green
+    if (stance < -0.2) return '#ff4444'   // red
+    return '#ffaa00'                       // yellow / neutral
   }
-  if (stance === 'positive' || stance === 'supporter') return '#22c55e'
-  if (stance === 'negative' || stance === 'opponent') return '#ef4444'
-  return '#eab308'
+  if (stance === 'positive' || stance === 'supporter') return '#00ff88'
+  if (stance === 'negative' || stance === 'opponent') return '#ff4444'
+  return '#ffaa00'
 }
 
 const ARCHETYPE_COLORS = {
-  vc: '#eab308',
-  early_adopter: '#3b82f6',
-  skeptic: '#ef4444',
+  vc: '#ffaa00',
+  early_adopter: '#00ff88',
+  skeptic: '#ff4444',
   journalist: '#a855f7',
   competitor: '#f97316',
-  regulator: '#ef4444',
+  regulator: '#ff4444',
 }
 
 function colorForPersona(persona) {
@@ -45,14 +45,20 @@ function colorForPersona(persona) {
 }
 
 // ---------------------------------------------------------------------------
-// Star field background
+// Star field background -- 500 white dots in a large sphere shell
 // ---------------------------------------------------------------------------
 
-function Stars({ count = 1500 }) {
+function Stars({ count = 500 }) {
   const positions = useMemo(() => {
     const arr = new Float32Array(count * 3)
-    for (let i = 0; i < count * 3; i++) {
-      arr[i] = (Math.random() - 0.5) * 60
+    for (let i = 0; i < count; i++) {
+      // Distribute on a spherical shell at radius ~30-50
+      const r = 30 + Math.random() * 20
+      const theta = Math.random() * Math.PI * 2
+      const phi = Math.acos(2 * Math.random() - 1)
+      arr[i * 3] = r * Math.sin(phi) * Math.cos(theta)
+      arr[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta)
+      arr[i * 3 + 2] = r * Math.cos(phi)
     }
     return arr
   }, [count])
@@ -67,21 +73,22 @@ function Stars({ count = 1500 }) {
           itemSize={3}
         />
       </bufferGeometry>
-      <pointsMaterial color="#ffffff" size={0.04} sizeAttenuation />
+      <pointsMaterial color="#ffffff" size={0.08} sizeAttenuation />
     </points>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Earth sphere + wireframe + glow
+// Earth sphere (radius 2) + wireframe overlay + glow
 // ---------------------------------------------------------------------------
 
 function Earth() {
   const earthRef = useRef()
 
-  useFrame((_, delta) => {
+  useFrame(() => {
     if (earthRef.current) {
-      earthRef.current.rotation.y += delta * 0.03
+      // 0.002 rad/frame auto-rotation
+      earthRef.current.rotation.y += 0.002
     }
   })
 
@@ -89,25 +96,25 @@ function Earth() {
     <group ref={earthRef}>
       {/* Solid dark sphere */}
       <mesh>
-        <sphereGeometry args={[1, 64, 64]} />
+        <sphereGeometry args={[2, 64, 64]} />
         <meshPhongMaterial
-          color="#1a1a2e"
-          emissive="#0a0a1a"
+          color="#1a1a3e"
+          emissive="#0a0a1e"
           specular="#333366"
           shininess={5}
           transparent
-          opacity={0.9}
+          opacity={0.92}
         />
       </mesh>
 
       {/* Wireframe overlay */}
       <mesh>
-        <sphereGeometry args={[1.002, 32, 32]} />
+        <sphereGeometry args={[2.004, 36, 36]} />
         <meshBasicMaterial
-          color="#2a2a4a"
+          color="#2a2a5e"
           wireframe
           transparent
-          opacity={0.15}
+          opacity={0.18}
         />
       </mesh>
     </group>
@@ -149,7 +156,7 @@ function Atmosphere() {
 
   return (
     <mesh>
-      <sphereGeometry args={[1.05, 32, 32]} />
+      <sphereGeometry args={[2.1, 32, 32]} />
       <shaderMaterial
         uniforms={uniforms}
         vertexShader={glowVertexShader}
@@ -163,7 +170,7 @@ function Atmosphere() {
 }
 
 // ---------------------------------------------------------------------------
-// Persona dot with pulsing animation
+// Persona dot -- pointLight-like emissive sphere with pulse on activity
 // ---------------------------------------------------------------------------
 
 function PersonaDot({ position, color, active }) {
@@ -174,14 +181,20 @@ function PersonaDot({ position, color, active }) {
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime() + pulsePhase.current
     if (meshRef.current) {
-      // Subtle breathing animation; stronger when active
-      const base = active ? 1.6 : 1.0
-      const amp = active ? 0.5 : 0.15
-      const s = base + Math.sin(t * (active ? 4 : 2)) * amp
-      meshRef.current.scale.set(s, s, s)
+      if (active) {
+        // New post pulse: scale up to 2x over 500ms then back down
+        // Using a sharp sine pulse: period ~1s (up 0.5s, down 0.5s)
+        const pulse = Math.abs(Math.sin(t * Math.PI)) // 0..1 at ~1Hz
+        const s = 1.0 + pulse * 1.0 // ranges 1x to 2x
+        meshRef.current.scale.set(s, s, s)
+      } else {
+        // Subtle breathing
+        const s = 1.0 + Math.sin(t * 1.5) * 0.12
+        meshRef.current.scale.set(s, s, s)
+      }
     }
     if (ringRef.current) {
-      const opacity = active ? 0.6 + Math.sin(t * 3) * 0.3 : 0.25
+      const opacity = active ? 0.7 + Math.sin(t * 4) * 0.3 : 0.2
       ringRef.current.material.opacity = Math.max(0, opacity)
     }
   })
@@ -197,24 +210,34 @@ function PersonaDot({ position, color, active }) {
     return q
   }, [vec])
 
+  const threeColor = useMemo(() => new THREE.Color(color), [color])
+
   return (
     <group position={vec}>
-      {/* Dot */}
+      {/* Emissive dot -- size 0.05 radius, glows like a point light */}
       <mesh ref={meshRef}>
-        <sphereGeometry args={[0.015, 8, 8]} />
-        <meshBasicMaterial color={color} />
+        <sphereGeometry args={[0.05, 12, 12]} />
+        <meshStandardMaterial
+          color={color}
+          emissive={threeColor}
+          emissiveIntensity={2.0}
+          toneMapped={false}
+        />
       </mesh>
 
       {/* Glow ring */}
       <mesh ref={ringRef} quaternion={ringQuaternion}>
-        <ringGeometry args={[0.02, 0.04, 16]} />
+        <ringGeometry args={[0.06, 0.1, 16]} />
         <meshBasicMaterial
           color={color}
           transparent
-          opacity={0.25}
+          opacity={0.2}
           side={THREE.DoubleSide}
         />
       </mesh>
+
+      {/* Tiny point light to cast glow onto globe surface */}
+      <pointLight color={color} intensity={0.3} distance={0.8} decay={2} />
     </group>
   )
 }
@@ -225,9 +248,9 @@ function PersonaDot({ position, color, active }) {
 
 function ArcLine({ from, to, color = '#6366f1' }) {
   const curve = useMemo(() => {
-    const start = latLngToVec3(from[0], from[1], 1.03)
-    const end = latLngToVec3(to[0], to[1], 1.03)
-    const mid = start.clone().add(end).multiplyScalar(0.5).normalize().multiplyScalar(1.4)
+    const start = latLngToVec3(from[0], from[1], 2.06)
+    const end = latLngToVec3(to[0], to[1], 2.06)
+    const mid = start.clone().add(end).multiplyScalar(0.5).normalize().multiplyScalar(2.8)
     return new THREE.QuadraticBezierCurve3(start, mid, end)
   }, [from, to])
 
@@ -236,7 +259,7 @@ function ArcLine({ from, to, color = '#6366f1' }) {
 
   return (
     <line geometry={geometry}>
-      <lineBasicMaterial color={color} transparent opacity={0.3} />
+      <lineBasicMaterial color={color} transparent opacity={0.35} />
     </line>
   )
 }
@@ -249,8 +272,9 @@ function GlobeScene({ personas = [], activePersona = null, arcs = [] }) {
   return (
     <>
       {/* Lighting */}
-      <ambientLight intensity={0.5} color="#404060" />
+      <ambientLight intensity={0.4} color="#404060" />
       <directionalLight position={[5, 3, 5]} intensity={0.8} color="#6366f1" />
+      <directionalLight position={[-3, -2, -4]} intensity={0.3} color="#a855f7" />
 
       {/* Stars */}
       <Stars />
@@ -274,14 +298,14 @@ function GlobeScene({ personas = [], activePersona = null, arcs = [] }) {
         <ArcLine key={i} from={arc.from} to={arc.to} color={arc.color} />
       ))}
 
-      {/* Camera controls */}
+      {/* Camera controls -- drag to rotate, damping enabled */}
       <OrbitControls
         enableDamping
         dampingFactor={0.05}
         autoRotate
         autoRotateSpeed={0.3}
-        minDistance={2}
-        maxDistance={8}
+        minDistance={3.5}
+        maxDistance={12}
       />
     </>
   )
@@ -295,7 +319,7 @@ export default function Globe({ personas = [], activePersona = null, arcs = [] }
   return (
     <div style={{ width: '100%', height: '100%', background: '#000' }}>
       <Canvas
-        camera={{ position: [0, 1, 3.5], fov: 45 }}
+        camera={{ position: [0, 1.5, 6], fov: 45 }}
         gl={{ antialias: true, alpha: true }}
         style={{ width: '100%', height: '100%' }}
       >

@@ -1689,7 +1689,14 @@ function BoardroomView({ events, liveDiscussion, isLive, runId }) {
     tryLoad();
   }, [events, isLive, runId]);
 
-  useEffect(() => { setPlayIndex(Math.min(playIndex, discussion.length - 1)); }, [discussion]);
+  // When discussion updates: in live mode auto-advance to latest entry, otherwise clamp
+  useEffect(() => {
+    if (isLive && discussion.length > 0) {
+      setPlayIndex(discussion.length - 1);
+    } else {
+      setPlayIndex(Math.min(playIndex, discussion.length - 1));
+    }
+  }, [discussion]);
 
   // Play sound when boardroom discussion step changes
   const prevBoardIdx = useRef(-1);

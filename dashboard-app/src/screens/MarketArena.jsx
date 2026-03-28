@@ -3,17 +3,17 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { getRunSimulation, loadStaticSimulation, loadStaticSimulationGeo } from '../api';
+import { getRunSimulation, loadStaticSimulation, loadStaticSimulationGeo, connectLive } from '../api';
 import Globe from '../components/Globe';
 
 // ── Archetype configuration ────────────────────────────────────────
 const ARCHETYPE_CONFIG = {
-  vc:            { label: 'VC',            tw: 'text-yellow-400', twBg: 'bg-yellow-500/20', twBar: 'bg-yellow-500', hex: '#eab308' },
-  early_adopter: { label: 'Early Adopter', tw: 'text-blue-400',   twBg: 'bg-blue-500/20',   twBar: 'bg-blue-500',   hex: '#3b82f6' },
-  skeptic:       { label: 'Skeptic',       tw: 'text-red-400',    twBg: 'bg-red-500/20',    twBar: 'bg-red-500',    hex: '#ef4444' },
-  journalist:    { label: 'Journalist',    tw: 'text-purple-400', twBg: 'bg-purple-500/20', twBar: 'bg-purple-500', hex: '#a855f7' },
-  competitor:    { label: 'Competitor',     tw: 'text-orange-400', twBg: 'bg-orange-500/20', twBar: 'bg-orange-500', hex: '#f97316' },
-  regulator:     { label: 'Regulator',     tw: 'text-red-400',    twBg: 'bg-red-500/20',    twBar: 'bg-red-500',    hex: '#ef4444' },
+  vc:            { label: 'VC',            tw: 'text-purple-400',  twBg: 'bg-purple-500/20',  twBar: 'bg-purple-500',  hex: '#a855f7' },
+  early_adopter: { label: 'Early Adopter', tw: 'text-emerald-400', twBg: 'bg-emerald-500/20', twBar: 'bg-emerald-500', hex: '#10b981' },
+  skeptic:       { label: 'Skeptic',       tw: 'text-red-400',     twBg: 'bg-red-500/20',     twBar: 'bg-red-500',     hex: '#ef4444' },
+  journalist:    { label: 'Journalist',    tw: 'text-blue-400',    twBg: 'bg-blue-500/20',    twBar: 'bg-blue-500',    hex: '#3b82f6' },
+  competitor:    { label: 'Competitor',     tw: 'text-red-400',     twBg: 'bg-red-500/20',     twBar: 'bg-red-500',     hex: '#ef4444' },
+  regulator:     { label: 'Regulator',     tw: 'text-orange-400',  twBg: 'bg-orange-500/20',  twBar: 'bg-orange-500',  hex: '#f97316' },
 };
 
 function getArchCfg(archetype) {
@@ -34,6 +34,15 @@ function stanceInfo(val) {
 function fmtSentiment(val) {
   if (typeof val !== 'number') return '+0.00';
   return (val >= 0 ? '+' : '') + val.toFixed(2);
+}
+
+function sentimentColor(val) {
+  if (typeof val !== 'number') return '#6b7280';
+  if (val > 0.3) return '#10b981';
+  if (val > 0.1) return '#34d399';
+  if (val > -0.1) return '#eab308';
+  if (val > -0.3) return '#f87171';
+  return '#ef4444';
 }
 
 // ── Demo data (rich multi-round fallback) ──────────────────────────
@@ -70,8 +79,8 @@ const DEMO_RESULTS = {
   final_signal: { overall_sentiment: 0.22, confidence: 0.72, pivot_recommended: false, pivot_suggestion: '' },
 };
 
-// ── Post card ──────────────────────────────────────────────────────
-function PostCard({ persona, message, isActive, onClick }) {
+// ── Post card with slide-in animation ─────────────────────────────
+function PostCard({ persona, message, isNew, isActive, onClick }) {
   const sent = message?.sentiment ?? persona.stance ?? persona.sentiment ?? 0;
   const s = stanceInfo(sent);
   const arch = getArchCfg(persona.archetype);
@@ -80,20 +89,23 @@ function PostCard({ persona, message, isActive, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left p-3 rounded-xl border transition-all duration-200 cursor-pointer ${
+      className={`w-full text-left p-3 rounded-xl border transition-all duration-300 cursor-pointer ${
+        isNew ? 'animate-slide-in' : ''
+      } ${
         isActive
-          ? 'bg-indigo-500/10 border-indigo-500/40'
+          ? 'bg-indigo-500/10 border-indigo-500/40 shadow-lg shadow-indigo-500/10'
           : 'bg-white/[0.02] border-gray-800/60 hover:bg-white/[0.04] hover:border-gray-700'
       }`}
+      style={isNew ? { animation: 'slideIn 0.4s ease-out' } : undefined}
     >
       <div className="flex items-center gap-2 mb-1.5">
-        <span className={`inline-block w-2 h-2 rounded-full ${s.dotCls}`} />
+        <span className={`inline-block w-2 h-2 rounded-full ${s.dotCls} shrink-0`} />
         <span className="text-sm font-semibold text-gray-200 truncate">{persona.name || 'Anonymous'}</span>
-        <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full ${arch.twBg} ${arch.tw} border border-current/20`}>
+        <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full shrink-0 ${arch.twBg} ${arch.tw} border border-current/20`}>
           {arch.label}
         </span>
         {message?.round && (
-          <span className="text-[9px] text-gray-600 font-mono ml-auto">R{message.round}</span>
+          <span className="text-[9px] text-gray-600 font-mono ml-auto shrink-0">R{message.round}</span>
         )}
       </div>
       {content && (
@@ -112,22 +124,92 @@ function PostCard({ persona, message, isActive, onClick }) {
   );
 }
 
-// ── Sentiment bar ──────────────────────────────────────────────────
+// ── Sentiment horizontal bar ──────────────────────────────────────
 function SentimentBar({ label, value, maxValue = 1, barCls }) {
-  const width = Math.min(Math.abs(value) / maxValue * 100, 100);
+  const pct = Math.min(Math.abs(value) / maxValue * 100, 100);
   const isPositive = value >= 0;
+
   return (
     <div className="flex items-center gap-2">
       <span className="text-xs text-gray-400 w-24 text-right truncate">{label}</span>
-      <div className="flex-1 h-3 bg-gray-800 rounded-full overflow-hidden">
+      <div className="flex-1 h-3 bg-gray-800/80 rounded-full overflow-hidden relative">
+        {/* Center line for zero */}
+        <div className="absolute left-1/2 top-0 w-px h-full bg-gray-700/60" />
         <div
-          className={`h-full rounded-full transition-all duration-700 ${barCls}`}
-          style={{ width: `${width}%`, opacity: 0.8 }}
+          className={`absolute h-full rounded-full transition-all duration-700 ${barCls}`}
+          style={{
+            width: `${pct / 2}%`,
+            left: isPositive ? '50%' : `${50 - pct / 2}%`,
+            opacity: 0.85,
+          }}
         />
       </div>
       <span className={`text-xs font-mono w-12 text-right ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
         {fmtSentiment(value)}
       </span>
+    </div>
+  );
+}
+
+// ── Sentiment gauge (circular arc visualization) ──────────────────
+function SentimentGauge({ value }) {
+  const clampedVal = Math.max(-1, Math.min(1, value || 0));
+  const normalized = (clampedVal + 1) / 2; // 0 to 1
+  const angle = -90 + normalized * 180; // -90 (far left) to +90 (far right)
+  const color = sentimentColor(clampedVal);
+
+  return (
+    <div className="flex flex-col items-center py-3">
+      <div className="relative w-32 h-16 overflow-hidden">
+        {/* Background arc */}
+        <svg viewBox="0 0 120 60" className="w-full h-full">
+          <defs>
+            <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#ef4444" />
+              <stop offset="30%" stopColor="#f97316" />
+              <stop offset="50%" stopColor="#eab308" />
+              <stop offset="70%" stopColor="#34d399" />
+              <stop offset="100%" stopColor="#10b981" />
+            </linearGradient>
+          </defs>
+          {/* Track */}
+          <path
+            d="M 10 55 A 50 50 0 0 1 110 55"
+            fill="none"
+            stroke="#1e293b"
+            strokeWidth="6"
+            strokeLinecap="round"
+          />
+          {/* Colored arc */}
+          <path
+            d="M 10 55 A 50 50 0 0 1 110 55"
+            fill="none"
+            stroke="url(#gaugeGrad)"
+            strokeWidth="6"
+            strokeLinecap="round"
+            opacity="0.4"
+          />
+          {/* Needle */}
+          <line
+            x1="60"
+            y1="55"
+            x2={60 + 40 * Math.cos((angle * Math.PI) / 180)}
+            y2={55 - 40 * Math.sin((angle * Math.PI) / 180)}
+            stroke={color}
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            style={{ transition: 'all 0.7s ease-out' }}
+          />
+          {/* Center dot */}
+          <circle cx="60" cy="55" r="3" fill={color} />
+        </svg>
+      </div>
+      <div className="flex items-baseline gap-1.5 mt-1">
+        <span className="text-2xl font-bold font-mono" style={{ color }}>
+          {fmtSentiment(clampedVal)}
+        </span>
+        <span className="text-[10px] text-gray-600 uppercase tracking-wider">overall</span>
+      </div>
     </div>
   );
 }
@@ -170,12 +252,12 @@ function SentimentLineChart({ roundsData }) {
           labelStyle={{ color: '#e2e8f0', fontWeight: 700 }}
           formatter={(val, name) => [
             typeof val === 'number' ? fmtSentiment(val) : val,
-            getArchCfg(name).label || name,
+            name === 'avg' ? 'Average' : (getArchCfg(name).label || name),
           ]}
         />
         <Legend
           wrapperStyle={{ fontSize: 9, paddingTop: 2 }}
-          formatter={(val) => getArchCfg(val).label || val}
+          formatter={(val) => val === 'avg' ? 'Average' : (getArchCfg(val).label || val)}
         />
         {/* Average line - thicker, dashed */}
         <Line
@@ -185,7 +267,8 @@ function SentimentLineChart({ roundsData }) {
           strokeWidth={2}
           strokeDasharray="6 3"
           dot={false}
-          name="Average"
+          name="avg"
+          isAnimationActive={false}
         />
         {archetypes.map((arch) => (
           <Line
@@ -196,6 +279,7 @@ function SentimentLineChart({ roundsData }) {
             strokeWidth={1.5}
             dot={{ r: 2 }}
             name={arch}
+            isAnimationActive={false}
           />
         ))}
       </LineChart>
@@ -211,9 +295,163 @@ export default function MarketArena({ runId }) {
   const [error, setError] = useState(null);
   const [activePersona, setActivePersona] = useState(null);
   const [currentRound, setCurrentRound] = useState(0);
+  const [newPostIds, setNewPostIds] = useState(new Set());
   const feedRef = useRef(null);
+  const wsRef = useRef(null);
+  const pollRef = useRef(null);
+  const prevFeedCountRef = useRef(0);
 
-  // ── Fetch simulation data ──
+  // ── WebSocket real-time connection ──
+  useEffect(() => {
+    if (!runId) return;
+
+    let wsConnected = false;
+
+    // Attempt WebSocket connection
+    try {
+      const ws = connectLive(runId, {
+        onEvent: (event) => {
+          if (event.type === 'simulation_round' || event.event_type === 'simulation_round') {
+            const payload = event.payload || event.data || event;
+            handleSimulationUpdate(payload);
+          }
+          // Also handle individual persona posts streamed via WS
+          if (event.type === 'persona_post' || event.event_type === 'persona_post') {
+            const payload = event.payload || event.data || event;
+            handleNewPost(payload);
+          }
+        },
+        onClose: () => {
+          wsConnected = false;
+          // Fallback to polling when WS disconnects
+          startPolling();
+        },
+        onError: () => {
+          wsConnected = false;
+          startPolling();
+        },
+      });
+
+      wsRef.current = ws;
+      wsConnected = true;
+    } catch {
+      // WS not available, start polling immediately
+      startPolling();
+    }
+
+    function startPolling() {
+      if (pollRef.current) return;
+      pollRef.current = setInterval(async () => {
+        try {
+          const data = await getRunSimulation(runId);
+          if (data) {
+            const results = data?.results || data || {};
+            const geo = data?.geo || [];
+            setResultsData(results);
+            if (Array.isArray(geo) && geo.length > 0) setGeoData(geo);
+          }
+        } catch {
+          // Polling failed silently; will retry next interval
+        }
+      }, 3000);
+    }
+
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+  }, [runId]);
+
+  // Handle a simulation round update from WS or polling
+  const handleSimulationUpdate = useCallback((payload) => {
+    if (payload.round_number || payload.round) {
+      setCurrentRound(payload.round_number || payload.round);
+    }
+    if (payload.personas && Array.isArray(payload.personas)) {
+      setGeoData((prev) => {
+        const nameMap = new Map(prev.map((p) => [p.name, p]));
+        payload.personas.forEach((p) => {
+          if (p.name) {
+            const existing = nameMap.get(p.name);
+            if (existing) {
+              // Merge new messages into existing persona
+              const merged = { ...existing, ...p };
+              if (p.messages) {
+                merged.messages = [...(existing.messages || []), ...p.messages];
+              }
+              nameMap.set(p.name, merged);
+            } else {
+              nameMap.set(p.name, p);
+            }
+          }
+        });
+        return Array.from(nameMap.values());
+      });
+      // Mark new posts for animation
+      const ids = new Set(payload.personas.map((p) => `${p.name}-${payload.round_number || payload.round}`));
+      setNewPostIds(ids);
+      setTimeout(() => setNewPostIds(new Set()), 800);
+    }
+    if (payload.sentiment_by_archetype || payload.avg_sentiment != null) {
+      setResultsData((prev) => {
+        const prevResults = prev || {};
+        const roundEntry = {
+          round_number: payload.round_number || payload.round,
+          avg_sentiment: payload.avg_sentiment,
+          sentiment_by_archetype: payload.sentiment_by_archetype || {},
+        };
+        const existingRounds = [...(prevResults.rounds_data || [])];
+        const idx = existingRounds.findIndex((r) => r.round_number === roundEntry.round_number);
+        if (idx >= 0) {
+          existingRounds[idx] = roundEntry;
+        } else {
+          existingRounds.push(roundEntry);
+        }
+        existingRounds.sort((a, b) => a.round_number - b.round_number);
+        return {
+          ...prevResults,
+          rounds_data: existingRounds,
+          rounds: Math.max(prevResults.rounds || 0, roundEntry.round_number),
+        };
+      });
+    }
+  }, []);
+
+  // Handle individual new post from WS
+  const handleNewPost = useCallback((payload) => {
+    if (!payload.name) return;
+    setGeoData((prev) => {
+      const updated = [...prev];
+      const idx = updated.findIndex((p) => p.name === payload.name);
+      if (idx >= 0) {
+        const existing = updated[idx];
+        const newMsg = { round: payload.round || 1, content: payload.content || payload.post, sentiment: payload.sentiment || 0 };
+        updated[idx] = { ...existing, messages: [...(existing.messages || []), newMsg] };
+      } else {
+        updated.push({
+          ...payload,
+          messages: [{ round: payload.round || 1, content: payload.content || payload.post, sentiment: payload.sentiment || 0 }],
+        });
+      }
+      return updated;
+    });
+    setNewPostIds((prev) => new Set([...prev, `${payload.name}-${payload.round || 1}`]));
+    setTimeout(() => {
+      setNewPostIds((prev) => {
+        const next = new Set(prev);
+        next.delete(`${payload.name}-${payload.round || 1}`);
+        return next;
+      });
+    }, 800);
+  }, []);
+
+  // ── Initial data fetch ──
   useEffect(() => {
     if (!runId) return;
     let cancelled = false;
@@ -224,7 +462,6 @@ export default function MarketArena({ runId }) {
         try {
           data = await getRunSimulation(runId);
         } catch {
-          // API unavailable -- try static files
           const [sim, geo] = await Promise.all([
             loadStaticSimulation().catch(() => null),
             loadStaticSimulationGeo().catch(() => null),
@@ -234,7 +471,6 @@ export default function MarketArena({ runId }) {
 
         if (cancelled) return;
 
-        // Normalize: API returns { results, geo }
         const results = data?.results || data || {};
         const geo = data?.geo || [];
 
@@ -255,15 +491,17 @@ export default function MarketArena({ runId }) {
     return () => { cancelled = true; };
   }, [runId]);
 
-  // If still no data after load, use demo
+  // Use demo data as fallback
   const results = resultsData || DEMO_RESULTS;
   const personas = geoData.length > 0 ? geoData : DEMO_GEO;
 
-  // ── Animated round progression ──
+  // ── Animated round progression (only in demo/static mode) ──
   const totalRounds = results.rounds || results.rounds_data?.length || 5;
 
   useEffect(() => {
     if (loading) return;
+    // Only auto-advance if no WS is providing updates
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return;
     if (currentRound >= totalRounds) return;
     const timer = setTimeout(() => setCurrentRound((r) => r + 1), 1800);
     return () => clearTimeout(timer);
@@ -278,7 +516,6 @@ export default function MarketArena({ runId }) {
     if (results.final_signal?.overall_sentiment != null) return results.final_signal.overall_sentiment;
     const rd = results.rounds_data;
     if (rd && rd.length > 0) return rd[rd.length - 1].avg_sentiment;
-    // Compute from personas
     if (personas.length > 0) {
       return personas.reduce((sum, p) => {
         const val = typeof (p.stance ?? p.sentiment) === 'number' ? (p.stance ?? p.sentiment) : 0;
@@ -296,19 +533,20 @@ export default function MarketArena({ runId }) {
       if (msgs.length > 0) {
         msgs.forEach((m) => {
           if (m.round <= currentRound) {
-            items.push({ persona: p, message: m });
+            items.push({ persona: p, message: m, id: `${p.name}-${m.round}` });
           }
         });
       } else if (p.content && (p.round || 1) <= currentRound) {
-        // Flat geo format from DB
         items.push({
           persona: p,
           message: { round: p.round || 1, content: p.content, sentiment: typeof p.stance === 'number' ? p.stance : 0 },
+          id: `${p.name}-${p.round || 1}`,
         });
       } else if ((p.post || p.message) && currentRound > 0) {
         items.push({
           persona: p,
           message: { round: 1, content: p.post || p.message, sentiment: typeof (p.stance ?? p.sentiment) === 'number' ? (p.stance ?? p.sentiment) : 0 },
+          id: `${p.name}-1`,
         });
       }
     });
@@ -316,14 +554,21 @@ export default function MarketArena({ runId }) {
     return items;
   }, [personas, currentRound]);
 
-  // Archetype breakdown for current round from rounds_data
+  // Auto-scroll feed when new items arrive
+  useEffect(() => {
+    if (feedItems.length > prevFeedCountRef.current && feedRef.current) {
+      feedRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    prevFeedCountRef.current = feedItems.length;
+  }, [feedItems.length]);
+
+  // Archetype breakdown for current round
   const archetypeBreakdown = useMemo(() => {
     const rd = results.rounds_data;
     if (rd && rd.length > 0) {
       const idx = Math.min(currentRound, rd.length) - 1;
       if (idx >= 0) return rd[idx].sentiment_by_archetype || {};
     }
-    // Compute from personas
     const map = {};
     personas.forEach((p) => {
       const arch = p.archetype || 'unknown';
@@ -345,7 +590,13 @@ export default function MarketArena({ runId }) {
       .sort((a, b) => b.avg - a.avg);
   }, [archetypeBreakdown]);
 
-  // Arcs for the globe
+  // Visible rounds data (up to currentRound)
+  const visibleRoundsData = useMemo(() => {
+    if (!results.rounds_data) return [];
+    return results.rounds_data.filter((rd) => rd.round_number <= currentRound);
+  }, [results.rounds_data, currentRound]);
+
+  // Globe arcs for persona references
   const arcs = useMemo(() => {
     const result = [];
     const geoMap = {};
@@ -373,10 +624,19 @@ export default function MarketArena({ runId }) {
     return (
       <div className="flex-1 flex items-center justify-center min-h-[80vh]">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-cyan-900 to-indigo-900 border border-cyan-700/50 flex items-center justify-center text-3xl animate-pulse">
-            {'\uD83C\uDF0D'}
+          <div className="relative">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-cyan-900/80 to-indigo-900/80 border border-cyan-700/30 flex items-center justify-center">
+              <svg className="w-10 h-10 text-cyan-500 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <circle cx="12" cy="12" r="10" strokeOpacity="0.2" />
+                <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round" />
+              </svg>
+            </div>
+            <div className="absolute inset-0 rounded-full bg-cyan-500/10 animate-ping" />
           </div>
-          <p className="text-sm text-gray-500 font-mono">Loading market simulation...</p>
+          <div className="text-center">
+            <p className="text-sm text-gray-400 font-mono">Initializing Market Simulation</p>
+            <p className="text-[10px] text-gray-600 font-mono mt-1">Connecting to simulation engine...</p>
+          </div>
         </div>
       </div>
     );
@@ -399,35 +659,61 @@ export default function MarketArena({ runId }) {
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] w-full px-2 py-2 gap-2">
+      {/* Slide-in animation keyframes */}
+      <style>{`
+        @keyframes slideIn {
+          from { opacity: 0; transform: translateY(-12px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulseGlow {
+          0%, 100% { box-shadow: 0 0 8px rgba(99,102,241,0.2); }
+          50%      { box-shadow: 0 0 20px rgba(99,102,241,0.5); }
+        }
+      `}</style>
+
       {/* ── Top bar ── */}
-      <div className="flex items-center justify-between flex-wrap gap-2 px-3 py-2 bg-gray-900/60 border border-gray-800/60 rounded-xl backdrop-blur-sm">
-        <div className="flex items-center gap-3">
-          <h2 className="text-lg font-bold bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-            Market Stress Test
-          </h2>
+      <div className="flex items-center justify-between flex-wrap gap-2 px-4 py-2.5 bg-gray-900/70 border border-gray-800/60 rounded-xl backdrop-blur-sm">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <h2 className="text-lg font-bold bg-gradient-to-r from-cyan-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent">
+              Market Stress Test
+            </h2>
+          </div>
           <span className="text-gray-700">|</span>
-          <span className="text-sm text-gray-400 font-mono">Round {displayRound}/{totalRounds}</span>
+          <span className="text-sm text-gray-300 font-mono">
+            Round <span className="text-white font-bold">{displayRound}</span>
+            <span className="text-gray-600">/{totalRounds}</span>
+          </span>
           <span className="text-gray-700">|</span>
-          <span className="text-sm text-gray-400 font-mono">{totalAgents.toLocaleString()} agents</span>
-          {lightweightAgents > 0 && (
-            <span className="text-[10px] text-gray-600 font-mono">
-              ({llmAgents} LLM + {lightweightAgents.toLocaleString()} lightweight)
-            </span>
-          )}
+          <span className="text-sm text-gray-300 font-mono">
+            <span className="text-cyan-400 font-bold">{llmAgents}</span>
+            <span className="text-gray-500"> LLM</span>
+            {lightweightAgents > 0 && (
+              <>
+                <span className="text-gray-600"> + </span>
+                <span className="text-purple-400 font-bold">{lightweightAgents.toLocaleString()}</span>
+                <span className="text-gray-500"> Crowd</span>
+              </>
+            )}
+          </span>
           <span className="text-gray-700">|</span>
           <span className="text-sm font-mono">
             <span className="text-gray-500">Sentiment </span>
-            <span className={overallSentiment >= 0 ? 'text-emerald-400 font-bold' : 'text-red-400 font-bold'}>
+            <span className="font-bold" style={{ color: sentimentColor(overallSentiment) }}>
               {fmtSentiment(overallSentiment)}
             </span>
           </span>
         </div>
         {/* Progress bar */}
-        <div className="w-48 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-700"
-            style={{ width: `${progressPct}%` }}
-          />
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-gray-600 font-mono">{Math.round(progressPct)}%</span>
+          <div className="w-48 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-cyan-500 via-indigo-500 to-purple-500 rounded-full transition-all duration-700"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
         </div>
       </div>
 
@@ -436,28 +722,36 @@ export default function MarketArena({ runId }) {
 
         {/* LEFT: Post feed (30%) */}
         <div className="w-[30%] min-w-[240px] bg-gray-900/50 border border-gray-800 rounded-2xl flex flex-col min-h-0">
-          <div className="px-4 py-2 border-b border-gray-800/60 flex items-center gap-2 shrink-0">
+          <div className="px-4 py-2.5 border-b border-gray-800/60 flex items-center gap-2 shrink-0">
             <svg className="w-3.5 h-3.5 text-purple-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
-            <span className="text-sm font-semibold text-gray-300">Live Feed</span>
-            <span className="text-[10px] text-indigo-400 bg-indigo-500/15 px-2 py-0.5 rounded-full font-mono ml-auto">{feedItems.length}</span>
+            <span className="text-sm font-semibold text-gray-300">Post Feed</span>
+            <span className="text-[10px] text-indigo-400 bg-indigo-500/15 px-2 py-0.5 rounded-full font-mono ml-auto">
+              {feedItems.length} posts
+            </span>
           </div>
-          <div ref={feedRef} className="flex-1 overflow-y-auto p-2.5 space-y-1.5 min-h-0">
+          <div ref={feedRef} className="flex-1 overflow-y-auto p-2.5 space-y-1.5 min-h-0 scroll-smooth">
             {feedItems.length === 0 && currentRound === 0 ? (
               <div className="flex items-center justify-center h-full">
-                <p className="text-sm text-gray-600 font-mono italic">Simulation starting...</p>
+                <div className="text-center">
+                  <div className="w-8 h-8 mx-auto mb-2 rounded-full bg-indigo-500/10 flex items-center justify-center">
+                    <div className="w-3 h-3 rounded-full bg-indigo-500/50 animate-pulse" />
+                  </div>
+                  <p className="text-sm text-gray-600 font-mono">Awaiting first round...</p>
+                </div>
               </div>
             ) : feedItems.length === 0 ? (
               <div className="flex items-center justify-center h-full">
                 <p className="text-sm text-gray-600 font-mono">No posts yet...</p>
               </div>
             ) : (
-              feedItems.map((item, i) => (
+              feedItems.map((item) => (
                 <PostCard
-                  key={`${item.persona.name}-${item.message.round}-${i}`}
+                  key={item.id}
                   persona={item.persona}
                   message={item.message}
+                  isNew={newPostIds.has(item.id)}
                   isActive={activePersona === item.persona.name}
                   onClick={() => handleFeedClick(item.persona.name)}
                 />
@@ -482,21 +776,44 @@ export default function MarketArena({ runId }) {
               </div>
             ))}
           </div>
+          {/* Globe top-right agent counter */}
+          <div className="absolute top-3 right-3 px-2.5 py-1.5 bg-gray-950/80 backdrop-blur-sm rounded-lg border border-gray-800/50">
+            <span className="text-[10px] text-gray-500 font-mono">
+              {totalAgents.toLocaleString()} agents active
+            </span>
+          </div>
         </div>
 
-        {/* RIGHT: Sentiment analysis (30%) */}
+        {/* RIGHT: Sentiment Dashboard (30%) */}
         <div className="w-[30%] min-w-[240px] bg-gray-900/50 border border-gray-800 rounded-2xl flex flex-col min-h-0">
-          <div className="px-4 py-2 border-b border-gray-800/60 flex items-center gap-2 shrink-0">
+          <div className="px-4 py-2.5 border-b border-gray-800/60 flex items-center gap-2 shrink-0">
             <svg className="w-3.5 h-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
             </svg>
-            <span className="text-sm font-semibold text-gray-300">Sentiment Analysis</span>
+            <span className="text-sm font-semibold text-gray-300">Sentiment Dashboard</span>
           </div>
           <div className="flex-1 overflow-y-auto p-3 space-y-1 min-h-0">
 
+            {/* Sentiment gauge */}
+            <SentimentGauge value={overallSentiment} />
+
+            {/* Stats row */}
+            <div className="grid grid-cols-2 gap-2 pb-3 border-b border-gray-800/40">
+              <div className="bg-gray-800/30 rounded-lg p-2 text-center">
+                <div className="text-lg font-bold text-white font-mono">{displayRound}<span className="text-gray-600 text-sm">/{totalRounds}</span></div>
+                <div className="text-[9px] text-gray-600 uppercase tracking-wider">Round</div>
+              </div>
+              <div className="bg-gray-800/30 rounded-lg p-2 text-center">
+                <div className="text-lg font-bold text-cyan-400 font-mono">
+                  {totalAgents >= 1000 ? `${(totalAgents / 1000).toFixed(totalAgents >= 1000000 ? 0 : 0)}${totalAgents >= 1000000 ? 'M' : 'K'}` : totalAgents}
+                </div>
+                <div className="text-[9px] text-gray-600 uppercase tracking-wider">Agents</div>
+              </div>
+            </div>
+
             {/* Archetype breakdown bars */}
             <div className="pb-3 border-b border-gray-800/40">
-              <div className="text-[10px] text-gray-600 font-mono uppercase tracking-wider mb-2">By Archetype</div>
+              <div className="text-[10px] text-gray-600 font-mono uppercase tracking-wider mb-2 mt-1">Sentiment by Archetype</div>
               <div className="space-y-2">
                 {archetypeEntries.map(({ archetype, avg }) => {
                   const cfg = getArchCfg(archetype);
@@ -514,23 +831,23 @@ export default function MarketArena({ runId }) {
             </div>
 
             {/* Sentiment over rounds chart */}
-            {results.rounds_data && results.rounds_data.length > 0 && (
+            {visibleRoundsData.length > 0 && (
               <div className="pb-3 border-b border-gray-800/40">
-                <div className="text-[10px] text-gray-600 font-mono uppercase tracking-wider mb-2 mt-2">Sentiment Over Rounds</div>
-                <div className="h-[200px]">
-                  <SentimentLineChart roundsData={results.rounds_data} />
+                <div className="text-[10px] text-gray-600 font-mono uppercase tracking-wider mb-2 mt-2">Sentiment Over Time</div>
+                <div className="h-[180px]">
+                  <SentimentLineChart roundsData={visibleRoundsData} />
                 </div>
               </div>
             )}
 
             {/* Signal summary */}
-            {results.final_signal && (
+            {results.final_signal && displayRound >= totalRounds && (
               <div className="pt-2">
-                <div className="text-[10px] text-gray-600 font-mono uppercase tracking-wider mb-2">Signal Summary</div>
+                <div className="text-[10px] text-gray-600 font-mono uppercase tracking-wider mb-2">Final Signal</div>
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-xs">
                     <span className="text-gray-500">Overall Sentiment</span>
-                    <span className={`font-mono font-bold ${overallSentiment >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    <span className="font-mono font-bold" style={{ color: sentimentColor(overallSentiment) }}>
                       {fmtSentiment(overallSentiment)}
                     </span>
                   </div>
@@ -547,14 +864,6 @@ export default function MarketArena({ runId }) {
                     <span className={`font-mono font-bold ${results.final_signal.pivot_recommended ? 'text-red-400' : 'text-emerald-400'}`}>
                       {results.final_signal.pivot_recommended ? 'YES' : 'NO'}
                     </span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">LLM Agents</span>
-                    <span className="text-white font-mono">{llmAgents}</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Total Agents</span>
-                    <span className="text-white font-mono">{totalAgents.toLocaleString()}</span>
                   </div>
                 </div>
 
@@ -573,11 +882,11 @@ export default function MarketArena({ runId }) {
               <div className="grid grid-cols-2 gap-1.5">
                 <div className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                  <span className="text-[10px] text-gray-500">Positive</span>
+                  <span className="text-[10px] text-gray-500">Positive (&gt;0.15)</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-red-400" />
-                  <span className="text-[10px] text-gray-500">Negative</span>
+                  <span className="text-[10px] text-gray-500">Negative (&lt;-0.15)</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-yellow-400" />

@@ -301,7 +301,16 @@ class LegalAgent(BaseAgent):
     async def analyze_compliance(self, strategy: StrategyPayload) -> CompliancePayload:
         """Analyze regulatory risks using web search for real citations."""
         self.current_strategy = strategy
-        self.log("Analyzing regulatory compliance", action="compliance_scan")
+        self.log(
+            "Analyzing regulatory compliance for the startup concept",
+            action="compliance_scan",
+            reasoning=(
+                f"Scanning '{strategy.startup_idea}' ({strategy.business_model} targeting {strategy.target_market}) "
+                f"against federal and state regulatory databases to identify launch blockers and compliance requirements."
+            ),
+            addressed_to="CEO",
+            in_response_to="CEO strategy set",
+        )
 
         # Step 1: detect industries and gather relevant regulations
         industries = self._detect_industries(strategy)
@@ -492,7 +501,12 @@ SEVERITY GUIDE:
                 self.log(
                     f"BLOCKER: {c['severity']} - {c['regulation_name']} ({c['section_number']})",
                     action="blocker_found",
-                    reasoning=f"{c['summary']} This blocks launch because: {c['impact']}",
+                    reasoning=(
+                        f"{c['summary']} This blocks launch because: {c['impact']} "
+                        f"Recommended action: {c['recommended_action']}"
+                    ),
+                    addressed_to="CEO",
+                    in_response_to=f"Compliance scan of '{strategy.startup_idea}'",
                 )
                 await self.publish(AgentEvent(
                     type=EventType.BLOCKER,

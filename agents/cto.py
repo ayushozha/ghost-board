@@ -307,8 +307,10 @@ class CTOAgent(BaseAgent):
             reasoning=(
                 f"Building a FastAPI prototype targeting {strategy.target_market} "
                 f"with {strategy.business_model} model. Will generate {len(_FILE_SPECS)} files "
-                f"including app.py, models, config, 3 route files, tests, and README."
+                f"including app.py, models, config, 3 route files, tests, and README. "
+                f"Differentiators to implement: {', '.join(strategy.key_differentiators) if strategy.key_differentiators else 'general'}."
             ),
+            in_response_to="CEO strategy set",
         )
 
         generated_so_far: dict[str, str] = {}
@@ -370,10 +372,12 @@ class CTOAgent(BaseAgent):
             f"Handling pivot: {pivot_instruction}",
             action="pivot_response",
             reasoning=(
-                f"Pivot reason: {payload.reason}. "
-                f"Will modify {len(self._generated_files) or 'all'} prototype files "
-                f"to comply with new direction."
+                f"CEO has pivoted the strategy. Pivot reason: {payload.reason[:200]}. "
+                f"I need to modify {len(self._generated_files) or 'all'} prototype files "
+                f"to comply with the new direction. Specific changes: {pivot_instruction}."
             ),
+            addressed_to="CEO",
+            in_response_to=f"CEO PIVOT: {payload.reason[:100]}",
         )
 
         # Resolve the new strategy
@@ -416,7 +420,9 @@ class CTOAgent(BaseAgent):
         self.log(
             f"Pivot complete — {changes_summary}",
             action="pivot_response",
-            reasoning=changes_summary,
+            reasoning=f"Prototype rebuild finished. Changes made: {changes_summary}",
+            addressed_to="CEO",
+            in_response_to=f"CEO PIVOT instruction: {pivot_instruction[:100]}",
         )
 
         # Update cache

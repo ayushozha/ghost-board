@@ -1,42 +1,541 @@
 /**
- * Ghost Board API client
- * Fetch helpers for all /api/ endpoints and WebSocket connections.
+ * Ghost Board API Client
+ *
+ * Full-featured client with:
+ * - REST fetch helpers for all /api/ endpoints
+ * - WebSocket real-time streaming with auto-reconnect and heartbeat
+ * - Event emitter pattern for subscribing to live sprint events
+ * - Request deduplication and short-lived cache
+ * - Retry with exponential backoff
+ * - Static file fallback when the API server is unavailable
  */
 
-const API_BASE = '/api';
+// ── Configuration ────────────────────────────────────────────────────
 
-/**
- * Generic fetch wrapper with error handling.
- */
-async function apiFetch(path, options = {}) {
-  const url = `${API_BASE}${path}`;
-  const res = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-    ...options,
-  });
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
+const WS_RECONNECT_BASE_MS = 1000;
+const WS_RECONNECT_MAX_MS = 30000;
+const WS_HEARTBEAT_INTERVAL_MS = 25000;
+const CACHE_TTL_MS = 5000;
+const MAX_RETRIES = 3;
+const RETRY_BASE_MS = 500;
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`API ${res.status}: ${res.statusText} - ${body}`);
+// ── Event Emitter ────────────────────────────────────────────────────
+
+class EventEmitter {
+  constructor() {
+    this._handlers = new Map();
   }
 
+  on(event, handler) {
+    if (!this._handlers.has(event)) {
+      this._handlers.set(event, new Set());
+    }
+    this._handlers.get(event).add(handler);
+    return () => this.off(event, handler);
+  }
+
+  off(event, handler) {
+    const set = this._handlers.get(event);
+    if (set) {
+      set.delete(handler);
+      if (set.size === 0) this._handlers.delete(event);
+    }
+  }
+
+  emit(event, data) {
+    const set = this._handlers.get(event);
+    if (set) {
+      for (const handler of set) {
+        try {
+          handler(data);
+        } catch (err) {
+          console.error(`[GhostBoardAPI] Error in "${event}" handler:`, err);
+        }
+      }
+    }
+    // Also emit on wildcard listeners
+    const wildcard = this._handlers.get('*');
+    if (wildcard) {
+      for (const handler of wildcard) {
+        try {
+          handler({ event, data });
+        } catch (err) {
+          console.error('[GhostBoardAPI] Error in wildcard handler:', err);
+        }
+      }
+    }
+  }
+
+  removeAllListeners(event) {
+    if (event) {
+      this._handlers.delete(event);
+    } else {
+      this._handlers.clear();
+    }
+  }
+}
+
+// ── Main API Client ──────────────────────────────────────────────────
+
+class GhostBoardAPI extends EventEmitter {
+  constructor(baseUrl = API_BASE) {
+    super();
+    this.baseUrl = baseUrl;
+
+    // Request deduplication: in-flight GET requests keyed by URL
+    this._inflight = new Map();
+
+    // Short-lived response cache: { url -> { data, expiry } }
+    this._cache = new Map();
+
+    // Active WebSocket connections keyed by runId
+    this._sockets = new Map();
+  }
+
+  // ── Internal: fetch with retry and deduplication ─────────────────
+
+  async _fetch(path, options = {}) {
+    const url = `${this.baseUrl}${path}`;
+    const method = (options.method || 'GET').toUpperCase();
+
+    // Only deduplicate and cache GET requests
+    if (method === 'GET') {
+      // Check cache
+      const cached = this._cache.get(url);
+      if (cached && Date.now() < cached.expiry) {
+        return cached.data;
+      }
+
+      // Deduplicate: return existing in-flight promise for the same URL
+      if (this._inflight.has(url)) {
+        return this._inflight.get(url);
+      }
+    }
+
+    const promise = this._fetchWithRetry(url, options);
+
+    if (method === 'GET') {
+      this._inflight.set(url, promise);
+      try {
+        const data = await promise;
+        // Cache the response
+        this._cache.set(url, { data, expiry: Date.now() + CACHE_TTL_MS });
+        return data;
+      } finally {
+        this._inflight.delete(url);
+      }
+    }
+
+    return promise;
+  }
+
+  async _fetchWithRetry(url, options, attempt = 0) {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
+        ...options,
+      });
+
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        const err = new Error(`API ${res.status}: ${res.statusText} - ${body}`);
+        err.status = res.status;
+        throw err;
+      }
+
+      return res.json();
+    } catch (err) {
+      const method = (options.method || 'GET').toUpperCase();
+      // Only retry idempotent GET requests on network/5xx errors
+      const isRetryable =
+        method === 'GET' &&
+        attempt < MAX_RETRIES &&
+        (!err.status || err.status >= 500);
+
+      if (isRetryable) {
+        const delay = RETRY_BASE_MS * Math.pow(2, attempt) + Math.random() * 200;
+        await new Promise((r) => setTimeout(r, delay));
+        return this._fetchWithRetry(url, options, attempt + 1);
+      }
+
+      throw err;
+    }
+  }
+
+  /** Invalidate cached data for a specific path or all caches. */
+  invalidateCache(path) {
+    if (path) {
+      this._cache.delete(`${this.baseUrl}${path}`);
+    } else {
+      this._cache.clear();
+    }
+  }
+
+  // ── Sprint endpoints ─────────────────────────────────────────────
+
+  /**
+   * Start a new sprint.
+   * POST /api/sprint
+   * @param {string} concept - The startup concept to build.
+   * @param {string} simScale - Simulation scale: 'demo', 'small', 'full'.
+   * @param {object} extraOptions - Additional options merged into the body.
+   * @returns {Promise<{run_id: string, status: string}>}
+   */
+  async launchSprint(concept, simScale = 'demo', extraOptions = {}) {
+    const data = await this._fetch('/sprint', {
+      method: 'POST',
+      body: JSON.stringify({ concept, sim_scale: simScale, ...extraOptions }),
+    });
+    // Auto-connect WebSocket for the new run
+    if (data?.run_id) {
+      this.connectWebSocket(data.run_id);
+    }
+    return data;
+  }
+
+  /**
+   * List all sprint runs.
+   * GET /api/runs
+   */
+  async getRuns() {
+    return this._fetch('/runs');
+  }
+
+  /**
+   * Get details for a specific run.
+   * GET /api/runs/:id
+   */
+  async getRun(runId) {
+    return this._fetch(`/runs/${runId}`);
+  }
+
+  /**
+   * Get the event trace (timeline) for a run.
+   * GET /api/runs/:id/trace
+   */
+  async getTrace(runId) {
+    return this._fetch(`/runs/${runId}/trace`);
+  }
+
+  /**
+   * Get build artifacts (prototype, financial model, GTM, compliance).
+   * GET /api/runs/:id/artifacts
+   */
+  async getArtifacts(runId) {
+    return this._fetch(`/runs/${runId}/artifacts`);
+  }
+
+  /**
+   * Get board discussion with agent reasoning.
+   * GET /api/runs/:id/board-discussion
+   */
+  async getDiscussion(runId) {
+    return this._fetch(`/runs/${runId}/board-discussion`);
+  }
+
+  /**
+   * Get simulation results and geo data.
+   * GET /api/runs/:id/simulation
+   */
+  async getSimulation(runId) {
+    return this._fetch(`/runs/${runId}/simulation`);
+  }
+
+  /**
+   * Get sprint report.
+   * GET /api/runs/:id/sprint-report
+   */
+  async getReport(runId) {
+    return this._fetch(`/runs/${runId}/sprint-report`);
+  }
+
+  /**
+   * Get run summary.
+   * GET /api/runs/:id/summary
+   */
+  async getSummary(runId) {
+    return this._fetch(`/runs/${runId}/summary`);
+  }
+
+  /**
+   * Get aggregate stats.
+   * GET /api/stats
+   */
+  async getStats() {
+    return this._fetch('/stats');
+  }
+
+  /**
+   * Get previously used concepts.
+   * GET /api/concepts
+   */
+  async getConcepts() {
+    return this._fetch('/concepts');
+  }
+
+  /**
+   * Health check.
+   * GET /api/health
+   */
+  async getHealth() {
+    return this._fetch('/health');
+  }
+
+  // ── WebSocket real-time connection ───────────────────────────────
+
+  /**
+   * Connect a WebSocket for live sprint updates.
+   *
+   * Emits these events on the GhostBoardAPI instance:
+   *   'ws:open'         - { runId }
+   *   'ws:event'        - the parsed event object from the server
+   *   'ws:agent_event'  - agent events (type === 'event')
+   *   'ws:phase'        - phase change events (type === 'phase')
+   *   'ws:status'       - status change events (type === 'status')
+   *   'ws:complete'     - sprint completed (type === 'complete')
+   *   'ws:error'        - { runId, error }
+   *   'ws:close'        - { runId, code, reason, willReconnect }
+   *   'ws:reconnecting' - { runId, attempt, delayMs }
+   *
+   * @param {string} runId
+   * @param {object} opts
+   * @param {boolean} opts.autoReconnect - Enable auto-reconnect (default true).
+   * @param {number}  opts.maxReconnectAttempts - Max reconnect attempts (default 20).
+   * @returns {{ ws: WebSocket, close: () => void }} Handle to manage the connection.
+   */
+  connectWebSocket(runId, opts = {}) {
+    const { autoReconnect = true, maxReconnectAttempts = 20 } = opts;
+
+    // Close existing connection to this runId if any
+    if (this._sockets.has(runId)) {
+      this._sockets.get(runId).close();
+    }
+
+    let reconnectAttempt = 0;
+    let heartbeatTimer = null;
+    let reconnectTimer = null;
+    let intentionallyClosed = false;
+    let ws = null;
+
+    const clearTimers = () => {
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+      }
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+    };
+
+    const connect = () => {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      // If baseUrl is a full URL (starts with http), derive WS URL from it.
+      // Otherwise, use the current host.
+      let wsUrl;
+      if (this.baseUrl.startsWith('http')) {
+        wsUrl = this.baseUrl.replace(/^http/, 'ws').replace(/\/api\/?$/, '') + `/ws/live/${runId}`;
+      } else {
+        wsUrl = `${protocol}//${window.location.host}/ws/live/${runId}`;
+      }
+
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        reconnectAttempt = 0;
+        this.emit('ws:open', { runId });
+
+        // Start heartbeat pings to keep the connection alive
+        heartbeatTimer = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            try {
+              ws.send(JSON.stringify({ type: 'ping', ts: Date.now() }));
+            } catch {
+              // Ignore send errors during heartbeat
+            }
+          }
+        }, WS_HEARTBEAT_INTERVAL_MS);
+      };
+
+      ws.onmessage = (msg) => {
+        try {
+          const data = JSON.parse(msg.data);
+
+          // Handle pong (heartbeat response) silently
+          if (data.type === 'pong') return;
+
+          // Emit the raw event
+          this.emit('ws:event', data);
+
+          // Emit typed sub-events for convenience
+          switch (data.type) {
+            case 'event':
+              this.emit('ws:agent_event', data.event || data);
+              break;
+            case 'phase':
+              this.emit('ws:phase', data);
+              break;
+            case 'status':
+              this.emit('ws:status', data);
+              break;
+            case 'complete':
+            case 'sprint_complete':
+              this.emit('ws:complete', data);
+              // Invalidate caches so next fetch gets fresh data
+              this.invalidateCache();
+              break;
+            case 'error':
+              this.emit('ws:error', { runId, error: data.message || data });
+              break;
+            default:
+              // Emit unknown types under their own name
+              this.emit(`ws:${data.type}`, data);
+              break;
+          }
+        } catch (err) {
+          console.error('[GhostBoardAPI] Failed to parse WebSocket message:', err);
+        }
+      };
+
+      ws.onerror = (err) => {
+        this.emit('ws:error', { runId, error: err });
+      };
+
+      ws.onclose = (evt) => {
+        clearTimers();
+
+        const willReconnect =
+          autoReconnect &&
+          !intentionallyClosed &&
+          reconnectAttempt < maxReconnectAttempts &&
+          evt.code !== 1000; // 1000 = normal closure
+
+        this.emit('ws:close', {
+          runId,
+          code: evt.code,
+          reason: evt.reason,
+          willReconnect,
+        });
+
+        if (willReconnect) {
+          reconnectAttempt++;
+          const delay = Math.min(
+            WS_RECONNECT_BASE_MS * Math.pow(2, reconnectAttempt - 1) + Math.random() * 500,
+            WS_RECONNECT_MAX_MS,
+          );
+          this.emit('ws:reconnecting', { runId, attempt: reconnectAttempt, delayMs: delay });
+          reconnectTimer = setTimeout(connect, delay);
+        } else {
+          this._sockets.delete(runId);
+        }
+      };
+    };
+
+    connect();
+
+    const handle = {
+      get ws() {
+        return ws;
+      },
+      close: () => {
+        intentionallyClosed = true;
+        clearTimers();
+        if (ws && ws.readyState !== WebSocket.CLOSED) {
+          ws.close(1000, 'Client closed');
+        }
+        this._sockets.delete(runId);
+      },
+    };
+
+    this._sockets.set(runId, handle);
+    return handle;
+  }
+
+  /**
+   * Disconnect a specific WebSocket by runId, or all WebSockets.
+   */
+  disconnectWebSocket(runId) {
+    if (runId) {
+      const handle = this._sockets.get(runId);
+      if (handle) handle.close();
+    } else {
+      for (const [, handle] of this._sockets) {
+        handle.close();
+      }
+      this._sockets.clear();
+    }
+  }
+
+  /**
+   * Check if a WebSocket is currently connected for a given runId.
+   */
+  isWebSocketConnected(runId) {
+    const handle = this._sockets.get(runId);
+    return handle?.ws?.readyState === WebSocket.OPEN;
+  }
+
+  // ── Server availability ──────────────────────────────────────────
+
+  /**
+   * Check if the API server is reachable.
+   * Uses a short timeout to avoid blocking.
+   */
+  async isAvailable() {
+    try {
+      const res = await fetch(`${this.baseUrl}/health`, {
+        signal: AbortSignal.timeout(3000),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+}
+
+// ── Singleton instance ───────────────────────────────────────────────
+
+export const api = new GhostBoardAPI();
+
+// ── Static file fallback loaders ─────────────────────────────────────
+// Used when the API server is unavailable and the dashboard reads
+// pre-generated JSON files from the outputs/ directory.
+
+async function loadStaticFile(filePath) {
+  const res = await fetch(filePath);
+  if (!res.ok) throw new Error(`No static data available at ${filePath}`);
   return res.json();
 }
 
-// ── Sprint endpoints ──────────────────────────────────────────────
+export async function loadStaticTrace() {
+  return loadStaticFile('/outputs/trace.json');
+}
+
+export async function loadStaticDiscussion() {
+  return loadStaticFile('/outputs/board_discussion.json');
+}
+
+export async function loadStaticSimulation() {
+  return loadStaticFile('/outputs/simulation_results.json');
+}
+
+export async function loadStaticSimulationGeo() {
+  return loadStaticFile('/outputs/simulation_geo.json');
+}
+
+// ── Backward-compatible named exports ────────────────────────────────
+// These wrap the singleton so existing screen components continue to work
+// without any import changes.
 
 /**
  * Start a new sprint with the given concept.
  * POST /api/sprint
  */
 export async function startSprint(concept, options = {}) {
-  return apiFetch('/sprint', {
-    method: 'POST',
-    body: JSON.stringify({ concept, ...options }),
-  });
+  return api.launchSprint(concept, options.sim_scale || 'demo', options);
 }
 
 /**
@@ -44,7 +543,7 @@ export async function startSprint(concept, options = {}) {
  * GET /api/runs
  */
 export async function getRuns() {
-  return apiFetch('/runs');
+  return api.getRuns();
 }
 
 /**
@@ -52,7 +551,7 @@ export async function getRuns() {
  * GET /api/runs/:id
  */
 export async function getRun(runId) {
-  return apiFetch(`/runs/${runId}`);
+  return api.getRun(runId);
 }
 
 /**
@@ -60,7 +559,7 @@ export async function getRun(runId) {
  * GET /api/runs/:id/trace
  */
 export async function getRunTrace(runId) {
-  return apiFetch(`/runs/${runId}/trace`);
+  return api.getTrace(runId);
 }
 
 /**
@@ -68,7 +567,7 @@ export async function getRunTrace(runId) {
  * GET /api/runs/:id/board-discussion
  */
 export async function getRunDiscussion(runId) {
-  return apiFetch(`/runs/${runId}/board-discussion`);
+  return api.getDiscussion(runId);
 }
 
 /**
@@ -76,15 +575,17 @@ export async function getRunDiscussion(runId) {
  * GET /api/runs/:id/simulation
  */
 export async function getRunSimulation(runId) {
-  return apiFetch(`/runs/${runId}/simulation`);
+  return api.getSimulation(runId);
 }
 
 /**
  * Get simulation geo data for a specific run (globe visualization).
- * GET /api/runs/:id/simulation/geo
+ * Extracts the geo field from the combined simulation endpoint.
+ * GET /api/runs/:id/simulation -> .geo
  */
 export async function getRunSimulationGeo(runId) {
-  return apiFetch(`/runs/${runId}/simulation/geo`);
+  const data = await api.getSimulation(runId);
+  return data?.geo || [];
 }
 
 /**
@@ -92,60 +593,20 @@ export async function getRunSimulationGeo(runId) {
  * GET /api/runs/:id/artifacts
  */
 export async function getRunArtifacts(runId) {
-  return apiFetch(`/runs/${runId}/artifacts`);
+  return api.getArtifacts(runId);
 }
 
 /**
  * Get sprint report.
- * GET /api/runs/:id/report
+ * GET /api/runs/:id/sprint-report
  */
 export async function getRunReport(runId) {
-  return apiFetch(`/runs/${runId}/report`);
+  return api.getReport(runId);
 }
-
-// ── Static file fallback (when no API server is running) ──────────
-
-/**
- * Load trace data from static outputs (fallback when API is unavailable).
- */
-export async function loadStaticTrace() {
-  const res = await fetch('/outputs/trace.json');
-  if (!res.ok) throw new Error('No static trace available');
-  return res.json();
-}
-
-/**
- * Load board discussion from static outputs.
- */
-export async function loadStaticDiscussion() {
-  const res = await fetch('/outputs/board_discussion.json');
-  if (!res.ok) throw new Error('No static discussion available');
-  return res.json();
-}
-
-/**
- * Load simulation results from static outputs.
- */
-export async function loadStaticSimulation() {
-  const res = await fetch('/outputs/simulation_results.json');
-  if (!res.ok) throw new Error('No static simulation available');
-  return res.json();
-}
-
-/**
- * Load simulation geo data from static outputs.
- */
-export async function loadStaticSimulationGeo() {
-  const res = await fetch('/outputs/simulation_geo.json');
-  if (!res.ok) throw new Error('No static simulation geo available');
-  return res.json();
-}
-
-// ── WebSocket connection ──────────────────────────────────────────
 
 /**
  * Create a live WebSocket connection for a sprint run.
- * Returns the WebSocket instance.
+ * Returns the raw WebSocket instance for backward compatibility.
  *
  * Usage:
  *   const ws = connectLive('run-123', {
@@ -157,7 +618,13 @@ export async function loadStaticSimulationGeo() {
  */
 export function connectLive(runId, { onEvent, onClose, onError } = {}) {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${protocol}//${window.location.host}/ws/live/${runId}`;
+  let wsUrl;
+  if (api.baseUrl.startsWith('http')) {
+    wsUrl = api.baseUrl.replace(/^http/, 'ws').replace(/\/api\/?$/, '') + `/ws/live/${runId}`;
+  } else {
+    wsUrl = `${protocol}//${window.location.host}/ws/live/${runId}`;
+  }
+
   const ws = new WebSocket(wsUrl);
 
   ws.onmessage = (msg) => {
@@ -175,17 +642,12 @@ export function connectLive(runId, { onEvent, onClose, onError } = {}) {
   return ws;
 }
 
-// ── Health check ──────────────────────────────────────────────────
-
 /**
  * Check if the API server is reachable.
  * Returns true if available, false otherwise.
  */
 export async function isApiAvailable() {
-  try {
-    const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(3000) });
-    return res.ok;
-  } catch {
-    return false;
-  }
+  return api.isAvailable();
 }
+
+export default api;

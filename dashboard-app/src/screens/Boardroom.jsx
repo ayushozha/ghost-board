@@ -10,13 +10,13 @@ const AGENTS = {
   Legal: { icon: '\u2696\uFE0F', title: 'General Counsel',          color: '#ef4444', border: 'border-red-500/40',     text: 'text-red-400',     bg: 'from-red-500/10 to-red-900/5' },
 };
 
-// Circular layout positions (% of container)
+// Pentagon layout positions (% of container): CEO top-center, CTO upper-left, CFO upper-right, CMO lower-left, Legal lower-right
 const POSITIONS = {
   CEO:   { x: 50,  y: 10 },
   CTO:   { x: 12,  y: 42 },
-  Legal: { x: 88,  y: 42 },
+  CFO:   { x: 88,  y: 42 },
   CMO:   { x: 22,  y: 80 },
-  CFO:   { x: 78,  y: 80 },
+  Legal: { x: 78,  y: 80 },
 };
 
 // Connection pairs for event bus lines
@@ -25,13 +25,24 @@ const CONNECTIONS = [
   ['CTO', 'CMO'], ['CFO', 'Legal'], ['CTO', 'CFO'], ['CMO', 'Legal'],
 ];
 
-// SVG node centers in 100x100 viewBox (for connection lines)
+// SVG node centers in 100x100 viewBox
 const NODE_CENTERS = {
   CEO:   [50, 16],
   CTO:   [14, 46],
-  Legal: [86, 46],
+  Legal: [78, 82],
   CMO:   [24, 82],
-  CFO:   [76, 82],
+  CFO:   [86, 46],
+};
+
+// Status configuration: visual properties per status
+const STATUS_CONFIG = {
+  idle:     { label: 'Idle',     dot: 'bg-slate-600',                    borderCls: null,           animCls: '' },
+  thinking: { label: 'Thinking', dot: 'bg-blue-400 animate-pulse',      borderCls: 'border-blue-500/60', animCls: 'boardroom-thinking-pulse' },
+  working:  { label: 'Working',  dot: 'bg-green-400 animate-pulse',     borderCls: 'border-green-500/60', animCls: 'boardroom-speaking-pulse' },
+  done:     { label: 'Done',     dot: 'bg-green-500',                   borderCls: 'border-green-500',    animCls: '' },
+  blocked:  { label: 'BLOCKED',  dot: 'bg-red-400 animate-pulse',       borderCls: 'border-red-500',      animCls: 'boardroom-blocker-flash' },
+  speaking: { label: 'Speaking', dot: 'bg-green-400 animate-pulse',     borderCls: null,                  animCls: 'boardroom-speaking-pulse' },
+  pivoting: { label: 'PIVOTING', dot: 'bg-yellow-400 animate-pulse',    borderCls: 'border-yellow-500',   animCls: 'boardroom-pivot-flash' },
 };
 
 // ── Event type badge mapping ──
@@ -55,19 +66,20 @@ function normalizeAgent(name) {
   const upper = name.toUpperCase();
   if (upper === 'LEGAL' || upper === 'LEGALCOUNSEL') return 'Legal';
   if (AGENTS[upper]) return upper;
-  // Try title case
   const title = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
   if (AGENTS[title]) return title;
   return name;
 }
 
-// ── Determine agent visual state ──
-function getAgentState(agentName, currentEntry) {
-  if (!currentEntry || normalizeAgent(currentEntry.agent) !== agentName) return 'idle';
-  const et = (currentEntry.event_type || '').toLowerCase();
-  if (et.includes('blocker')) return 'blocker';
+// ── Derive agent status from event type for a specific agent ──
+function deriveStatusFromEvent(eventType) {
+  if (!eventType) return 'working';
+  const et = eventType.toLowerCase();
+  if (et.includes('blocker')) return 'blocked';
   if (et.includes('pivot')) return 'pivoting';
-  return 'speaking';
+  if (et.includes('strategy') || et.includes('thinking') || et.includes('planning')) return 'thinking';
+  if (et.includes('done') || et.includes('complete') || et.includes('finished')) return 'done';
+  return 'working';
 }
 
 // ── Determine which connection lines are active ──
@@ -88,162 +100,8 @@ function getActiveLines(entry) {
   return [];
 }
 
-// ── SVG Connection Lines (viewBox-based, no DOM measurement needed) ──
-function ConnectionSVG({ activeLines }) {
-  return (
-    <svg
-      className="absolute inset-0 w-full h-full pointer-events-none"
-      viewBox="0 0 100 100"
-      preserveAspectRatio="none"
-      style={{ zIndex: 1 }}
-    >
-      <defs>
-        <linearGradient id="br-line-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#6366f1" stopOpacity="0.3" />
-          <stop offset="100%" stopColor="#a855f7" stopOpacity="0.3" />
-        </linearGradient>
-      </defs>
-
-      {/* Base connections (faint) */}
-      {CONNECTIONS.map(([a, b]) => {
-        const [x1, y1] = NODE_CENTERS[a];
-        const [x2, y2] = NODE_CENTERS[b];
-        return (
-          <line
-            key={`base-${a}-${b}`}
-            x1={x1} y1={y1} x2={x2} y2={y2}
-            stroke="url(#br-line-grad)"
-            strokeWidth="0.3"
-            strokeDasharray="1.5 1.5"
-          />
-        );
-      })}
-
-      {/* Active connections (bright, animated) */}
-      {activeLines.map(({ from, to, color }, i) => {
-        const [x1, y1] = NODE_CENTERS[from] || [50, 50];
-        const [x2, y2] = NODE_CENTERS[to] || [50, 50];
-        const mx = (x1 + x2) / 2;
-        const my = (y1 + y2) / 2;
-        return (
-          <g key={`active-${from}-${to}-${i}`}>
-            {/* Glow */}
-            <line x1={x1} y1={y1} x2={x2} y2={y2}
-              stroke={color} strokeWidth="1.2" opacity="0.3"
-              className="boardroom-line-pulse" />
-            {/* Main line */}
-            <line x1={x1} y1={y1} x2={x2} y2={y2}
-              stroke={color} strokeWidth="0.5"
-              className="boardroom-line-draw" />
-            {/* Direction dot */}
-            <circle cx={mx} cy={my} r="0.8" fill={color}
-              className="boardroom-line-pulse" />
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
-
-// ── Agent Card ──
-function AgentCard({ name, config, state, currentEntry }) {
-  const pos = POSITIONS[name];
-  const isSpeaking = state === 'speaking';
-  const isBlocker = state === 'blocker';
-  const isPivoting = state === 'pivoting';
-  const isActive = isSpeaking || isBlocker || isPivoting;
-
-  const borderClass = isBlocker ? 'border-red-500' : isPivoting ? 'border-yellow-500' : config.border;
-  const dotColor = isSpeaking ? 'bg-green-400' : isBlocker ? 'bg-red-400 animate-pulse' : isPivoting ? 'bg-yellow-400 animate-pulse' : 'bg-slate-600';
-  const statusText = isSpeaking ? 'Speaking' : isBlocker ? 'BLOCKER' : isPivoting ? 'PIVOTING' : 'Idle';
-
-  let animClass = '';
-  if (isBlocker) animClass = 'boardroom-blocker-flash';
-  else if (isPivoting) animClass = 'boardroom-pivot-flash';
-  else if (isSpeaking) animClass = 'boardroom-speaking-pulse';
-
-  // Speech bubble
-  const bubbleText = isActive && currentEntry
-    ? (currentEntry.message?.length > 120 ? currentEntry.message.substring(0, 120) + '...' : currentEntry.message)
-    : null;
-
-  return (
-    <div
-      className={`absolute flex flex-col items-center ${animClass}`}
-      style={{
-        left: `${pos.x}%`,
-        top: `${pos.y}%`,
-        transform: 'translate(-50%, -50%)',
-        zIndex: isActive ? 20 : 10,
-        width: '140px',
-      }}
-    >
-      <div className={`relative w-full rounded-xl border ${borderClass} bg-gradient-to-b ${config.bg} backdrop-blur-sm p-3 text-center transition-all duration-500`}>
-        {/* Status indicator */}
-        <div className="absolute top-2 right-2 flex items-center gap-1">
-          <div className={`w-2 h-2 rounded-full ${dotColor}`} />
-          <span className={`text-[9px] ${state === 'idle' ? 'text-slate-600' : config.text}`}>{statusText}</span>
-        </div>
-        {/* Avatar */}
-        <div className="text-3xl mb-1">{config.icon}</div>
-        {/* Name */}
-        <div className={`text-sm font-bold ${config.text}`}>{name}</div>
-        <div className="text-[10px] text-slate-500 leading-tight">{config.title}</div>
-      </div>
-
-      {/* Speech bubble */}
-      {bubbleText && (
-        <div
-          className="absolute left-1/2 -translate-x-1/2 w-56 p-2.5 rounded-lg bg-black/80 backdrop-blur border border-white/10 text-xs text-slate-300 leading-relaxed boardroom-bubble-in"
-          style={{ top: 'calc(100% + 12px)', zIndex: 30 }}
-        >
-          <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-black/80 border-l border-t border-white/10 rotate-45" />
-          {bubbleText}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Discussion entry ──
-function DiscussionEntry({ entry, isCurrent, onClick }) {
-  const agentName = normalizeAgent(entry.agent);
-  const config = AGENTS[agentName] || AGENTS.CEO;
-  const badge = getEventBadge(entry.event_type);
-  const time = entry.timestamp
-    ? new Date(entry.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-    : '';
-
-  return (
-    <div
-      onClick={onClick}
-      className={`rounded-lg p-3 border transition-colors cursor-pointer boardroom-fade-in ${
-        isCurrent
-          ? 'ring-1 ring-indigo-500/30 bg-indigo-500/5 border-indigo-500/20'
-          : 'border-white/5 hover:border-white/10'
-      }`}
-    >
-      <div className="flex items-center gap-2 mb-1.5">
-        <span className="text-lg">{config.icon}</span>
-        <span className={`text-sm font-semibold ${config.text}`}>{agentName}</span>
-        <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-mono ${badge.cls}`}>
-          {badge.label}
-        </span>
-        <span className="text-[10px] text-slate-600 ml-auto font-mono">{time}</span>
-      </div>
-      <div className="text-xs text-slate-300 leading-relaxed mb-1.5">{entry.message}</div>
-      {entry.reasoning && entry.reasoning !== entry.message && (
-        <div className="text-[11px] text-slate-500 leading-relaxed border-l-2 border-slate-700 pl-2 mt-1.5 italic">
-          {entry.reasoning.length > 250 ? entry.reasoning.substring(0, 250) + '...' : entry.reasoning}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Normalize discussion data from various source formats ──
 function normalizeDiscussion(data) {
-  // Could be an array directly, or nested under various keys
   const entries = Array.isArray(data) ? data : (data?.discussion || data?.messages || []);
   if (!Array.isArray(entries)) return [];
   return entries.map(e => ({
@@ -280,199 +138,500 @@ function traceToDiscussion(traceData) {
     }));
 }
 
+// ── SVG Connection Lines (viewBox-based, no DOM measurement needed) ──
+function ConnectionSVG({ activeLines }) {
+  return (
+    <svg
+      className="absolute inset-0 w-full h-full pointer-events-none"
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
+      style={{ zIndex: 1 }}
+    >
+      <defs>
+        <linearGradient id="br-line-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#6366f1" stopOpacity="0.3" />
+          <stop offset="100%" stopColor="#a855f7" stopOpacity="0.3" />
+        </linearGradient>
+        {/* Glow filter for active lines */}
+        <filter id="br-glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+
+      {/* Base connections (faint) */}
+      {CONNECTIONS.map(([a, b]) => {
+        const [x1, y1] = NODE_CENTERS[a];
+        const [x2, y2] = NODE_CENTERS[b];
+        return (
+          <line
+            key={`base-${a}-${b}`}
+            x1={x1} y1={y1} x2={x2} y2={y2}
+            stroke="url(#br-line-grad)"
+            strokeWidth="0.3"
+            strokeDasharray="1.5 1.5"
+          />
+        );
+      })}
+
+      {/* Active connections (bright, animated, with glow) */}
+      {activeLines.map(({ from, to, color }, i) => {
+        const [x1, y1] = NODE_CENTERS[from] || [50, 50];
+        const [x2, y2] = NODE_CENTERS[to] || [50, 50];
+        const mx = (x1 + x2) / 2;
+        const my = (y1 + y2) / 2;
+        const lineId = `active-line-${from}-${to}-${i}`;
+        return (
+          <g key={lineId}>
+            {/* Wide glow */}
+            <line x1={x1} y1={y1} x2={x2} y2={y2}
+              stroke={color} strokeWidth="1.8" opacity="0.2"
+              filter="url(#br-glow)"
+              className="boardroom-line-pulse" />
+            {/* Main line */}
+            <line x1={x1} y1={y1} x2={x2} y2={y2}
+              stroke={color} strokeWidth="0.5"
+              className="boardroom-line-draw" />
+            {/* Traveling dot along the line */}
+            <circle r="1" fill={color} className="boardroom-line-pulse">
+              <animateMotion dur="1.5s" repeatCount="indefinite">
+                <mpath xlinkHref={`#path-${lineId}`} />
+              </animateMotion>
+            </circle>
+            <path id={`path-${lineId}`} d={`M${x1},${y1} L${x2},${y2}`} fill="none" />
+            {/* Center dot */}
+            <circle cx={mx} cy={my} r="0.8" fill={color}
+              className="boardroom-line-pulse" />
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+// ── Agent Card ──
+function AgentCard({ name, config, status, lastMessage }) {
+  const pos = POSITIONS[name];
+  const statusCfg = STATUS_CONFIG[status] || STATUS_CONFIG.idle;
+  const isActive = status !== 'idle' && status !== 'done';
+
+  const borderClass = statusCfg.borderCls || config.border;
+  const animClass = statusCfg.animCls;
+
+  // Speech bubble: show last message when actively working/speaking
+  const bubbleText = isActive && lastMessage
+    ? (lastMessage.length > 120 ? lastMessage.substring(0, 120) + '...' : lastMessage)
+    : null;
+
+  return (
+    <div
+      className={`absolute flex flex-col items-center ${animClass}`}
+      style={{
+        left: `${pos.x}%`,
+        top: `${pos.y}%`,
+        transform: 'translate(-50%, -50%)',
+        zIndex: isActive ? 20 : 10,
+        width: '140px',
+      }}
+    >
+      <div className={`relative w-full rounded-xl border ${borderClass} bg-gradient-to-b ${config.bg} backdrop-blur-sm p-3 text-center transition-all duration-500`}>
+        {/* Status indicator */}
+        <div className="absolute top-2 right-2 flex items-center gap-1">
+          <div className={`w-2 h-2 rounded-full ${statusCfg.dot}`} />
+          <span className={`text-[9px] ${status === 'idle' ? 'text-slate-600' : config.text}`}>{statusCfg.label}</span>
+        </div>
+        {/* Avatar */}
+        <div className="text-3xl mb-1">{config.icon}</div>
+        {/* Name */}
+        <div className={`text-sm font-bold ${config.text}`}>{name}</div>
+        <div className="text-[10px] text-slate-500 leading-tight">{config.title}</div>
+      </div>
+
+      {/* Speech bubble */}
+      {bubbleText && (
+        <div
+          className="absolute left-1/2 -translate-x-1/2 w-56 p-2.5 rounded-lg bg-black/80 backdrop-blur border border-white/10 text-xs text-slate-300 leading-relaxed boardroom-bubble-in"
+          style={{ top: 'calc(100% + 12px)', zIndex: 30 }}
+        >
+          <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-black/80 border-l border-t border-white/10 rotate-45" />
+          {bubbleText}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Discussion entry ──
+function DiscussionEntry({ entry, isNew }) {
+  const agentName = normalizeAgent(entry.agent);
+  const config = AGENTS[agentName] || AGENTS.CEO;
+  const badge = getEventBadge(entry.event_type);
+  const et = (entry.event_type || '').toLowerCase();
+  const isBlocker = et.includes('blocker');
+  const isPivot = et.includes('pivot');
+  const time = entry.timestamp
+    ? new Date(entry.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : '';
+
+  let highlightCls = 'border-white/5 hover:border-white/10';
+  if (isBlocker) highlightCls = 'border-red-500/30 bg-red-500/5 hover:border-red-500/40';
+  else if (isPivot) highlightCls = 'border-yellow-500/30 bg-yellow-500/5 hover:border-yellow-500/40';
+
+  return (
+    <div
+      className={`rounded-lg p-3 border transition-colors ${highlightCls} ${isNew ? 'boardroom-fade-in' : ''}`}
+    >
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className="text-lg">{config.icon}</span>
+        <span className={`text-sm font-semibold ${config.text}`}>{agentName}</span>
+        <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-mono ${badge.cls}`}>
+          {badge.label}
+        </span>
+        <span className="text-[10px] text-slate-600 ml-auto font-mono">{time}</span>
+      </div>
+      <div className="text-xs text-slate-300 leading-relaxed mb-1.5">{entry.message}</div>
+      {entry.reasoning && entry.reasoning !== entry.message && (
+        <div className="text-[11px] text-slate-500 leading-relaxed border-l-2 border-slate-700 pl-2 mt-1.5 italic">
+          {entry.reasoning.length > 250 ? entry.reasoning.substring(0, 250) + '...' : entry.reasoning}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── WebSocket connection indicator ──
+function ConnectionIndicator({ status }) {
+  const config = {
+    connected:    { dot: 'bg-emerald-500', ping: 'bg-emerald-400', label: 'LIVE', labelCls: 'text-emerald-400' },
+    connecting:   { dot: 'bg-yellow-500',  ping: 'bg-yellow-400',  label: 'CONNECTING', labelCls: 'text-yellow-400' },
+    disconnected: { dot: 'bg-red-500',     ping: null,             label: 'POLLING', labelCls: 'text-red-400' },
+    polling:      { dot: 'bg-orange-500',  ping: 'bg-orange-400',  label: 'POLLING', labelCls: 'text-orange-400' },
+  };
+  const c = config[status] || config.disconnected;
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="relative flex h-2.5 w-2.5">
+        {c.ping && <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${c.ping} opacity-75`} />}
+        <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${c.dot}`} />
+      </span>
+      <span className={`text-xs font-mono ${c.labelCls}`}>{c.label}</span>
+    </div>
+  );
+}
+
 // ── Main Boardroom component ──
-export default function Boardroom({ runId, onDone }) {
+export default function Boardroom({ runId, onEvent }) {
+  // --- State ---
   const [discussion, setDiscussion] = useState([]);
-  const [playbackIndex, setPlaybackIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackSpeed, setPlaybackSpeedState] = useState(1500);
+  const [agentStatuses, setAgentStatuses] = useState({
+    CEO: 'idle', CTO: 'idle', CFO: 'idle', CMO: 'idle', Legal: 'idle',
+  });
+  const [agentMessages, setAgentMessages] = useState({
+    CEO: null, CTO: null, CFO: null, CMO: null, Legal: null,
+  });
   const [loading, setLoading] = useState(true);
+  const [wsStatus, setWsStatus] = useState('connecting'); // connected | connecting | disconnected | polling
+  const [newEntryIds, setNewEntryIds] = useState(new Set());
 
-  const playbackTimerRef = useRef(null);
+  // --- Refs ---
   const feedRef = useRef(null);
-  const discussionLenRef = useRef(0);
+  const wsRef = useRef(null);
+  const pollIntervalRef = useRef(null);
+  const reconnectTimeoutRef = useRef(null);
+  const reconnectAttemptsRef = useRef(0);
+  const discussionRef = useRef([]);
+  const mountedRef = useRef(true);
 
-  // Keep ref in sync for interval callbacks
-  useEffect(() => { discussionLenRef.current = discussion.length; }, [discussion.length]);
+  // Keep discussion ref in sync
+  useEffect(() => { discussionRef.current = discussion; }, [discussion]);
 
-  // ── Fetch board discussion ──
+  // Mark mounted/unmounted
   useEffect(() => {
-    if (!runId) { setLoading(false); return; }
-
-    let cancelled = false;
-    let ws = null;
-
-    async function fetchData() {
-      // Try board-discussion endpoint first
-      try {
-        const data = await getRunDiscussion(runId);
-        const entries = normalizeDiscussion(data);
-        if (!cancelled && entries.length > 0) {
-          setDiscussion(entries);
-          setPlaybackIndex(0);
-          setLoading(false);
-          checkDone(entries);
-          return;
-        }
-      } catch { /* fall through */ }
-
-      // Try trace endpoint
-      try {
-        const traceData = await getRunTrace(runId);
-        const entries = traceToDiscussion(traceData);
-        if (!cancelled && entries.length > 0) {
-          setDiscussion(entries);
-          setPlaybackIndex(0);
-          setLoading(false);
-          checkDone(entries);
-          return;
-        }
-      } catch { /* fall through */ }
-
-      // Try static files
-      try {
-        const data = await loadStaticDiscussion();
-        const entries = normalizeDiscussion(data);
-        if (!cancelled && entries.length > 0) {
-          setDiscussion(entries);
-          setPlaybackIndex(0);
-          setLoading(false);
-          return;
-        }
-      } catch { /* nothing worked */ }
-
-      if (!cancelled) setLoading(false);
-    }
-
-    function checkDone(entries) {
-      const hasSimResult = entries.some(e =>
-        (e.event_type || '').toLowerCase().includes('simulation')
-      );
-      if (hasSimResult && onDone) onDone();
-    }
-
-    fetchData();
-
-    // Poll for updates every 4 seconds (in case WebSocket isn't available)
-    const pollInterval = setInterval(fetchData, 4000);
-
-    // WebSocket for live updates
-    try {
-      ws = connectLive(runId, {
-        onEvent: (event) => {
-          if (cancelled) return;
-          if (event.type === 'event' && event.event) {
-            const evt = event.event;
-            const payload = evt.payload || {};
-            const entry = {
-              agent: evt.source_agent || evt.source || 'CEO',
-              timestamp: new Date().toISOString(),
-              event_type: payload.action || (evt.event_type || '').toLowerCase(),
-              message: payload.details || payload.startup_idea || JSON.stringify(payload).substring(0, 200),
-              reasoning: payload.details || '',
-              iteration: evt.iteration || 1,
-            };
-            setDiscussion(prev => [...prev, entry]);
-          }
-          if (event.type === 'status' && event.status === 'completed' && onDone) {
-            onDone();
-          }
-        },
-      });
-    } catch { /* WebSocket optional */ }
-
-    return () => {
-      cancelled = true;
-      clearInterval(pollInterval);
-      if (ws) ws.close();
-    };
-  }, [runId, onDone]);
-
-  // ── Playback controls ──
-  const stopPlayback = useCallback(() => {
-    if (playbackTimerRef.current) {
-      clearInterval(playbackTimerRef.current);
-      playbackTimerRef.current = null;
-    }
-    setIsPlaying(false);
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
   }, []);
 
-  const startPlayback = useCallback(() => {
-    stopPlayback();
-    setIsPlaying(true);
-    playbackTimerRef.current = setInterval(() => {
-      setPlaybackIndex(prev => {
-        if (prev >= discussionLenRef.current - 1) {
-          stopPlayback();
-          return prev;
-        }
-        return prev + 1;
-      });
-    }, playbackSpeed);
-  }, [playbackSpeed, stopPlayback]);
+  // ── Process incoming event (from WebSocket or polling) ──
+  const processEvent = useCallback((entry) => {
+    if (!mountedRef.current) return;
 
-  function togglePlay() {
-    if (isPlaying) stopPlayback();
-    else startPlayback();
-  }
+    const agentName = normalizeAgent(entry.agent);
+    const eventType = entry.event_type || '';
+    const status = deriveStatusFromEvent(eventType);
 
-  function stepForward() {
-    if (playbackIndex < discussion.length - 1) setPlaybackIndex(i => i + 1);
-  }
+    // Update agent status
+    setAgentStatuses(prev => ({ ...prev, [agentName]: status }));
 
-  function stepBack() {
-    if (playbackIndex > 0) setPlaybackIndex(i => i - 1);
-  }
+    // Update agent last message
+    setAgentMessages(prev => ({ ...prev, [agentName]: entry.message }));
 
-  function jumpTo(index) {
-    setPlaybackIndex(index);
-  }
+    // Add to discussion (dedup by timestamp + agent)
+    setDiscussion(prev => {
+      const isDup = prev.some(
+        e => e.timestamp === entry.timestamp && e.agent === entry.agent && e.event_type === entry.event_type
+      );
+      if (isDup) return prev;
+      return [...prev, entry];
+    });
 
-  function handleSpeedChange(val) {
-    const speed = parseInt(val);
-    setPlaybackSpeedState(speed);
-    if (isPlaying) {
-      stopPlayback();
-      setIsPlaying(true);
-      playbackTimerRef.current = setInterval(() => {
-        setPlaybackIndex(prev => {
-          if (prev >= discussionLenRef.current - 1) {
-            stopPlayback();
-            return prev;
-          }
-          return prev + 1;
+    // Mark as new for animation
+    const entryId = `${entry.timestamp}-${entry.agent}-${entry.event_type}`;
+    setNewEntryIds(prev => new Set(prev).add(entryId));
+    setTimeout(() => {
+      if (mountedRef.current) {
+        setNewEntryIds(prev => {
+          const next = new Set(prev);
+          next.delete(entryId);
+          return next;
         });
-      }, speed);
+      }
+    }, 2000);
+
+    // Clear agent status after a delay (return to idle unless new event comes)
+    setTimeout(() => {
+      if (mountedRef.current) {
+        setAgentStatuses(prev => {
+          // Only reset if still on the same status we set
+          if (prev[agentName] === status && status !== 'done') {
+            return { ...prev, [agentName]: 'idle' };
+          }
+          return prev;
+        });
+        setAgentMessages(prev => {
+          if (prev[agentName] === entry.message) {
+            return { ...prev, [agentName]: null };
+          }
+          return prev;
+        });
+      }
+    }, 6000);
+
+    // Forward event to parent
+    if (onEvent) onEvent(entry);
+  }, [onEvent]);
+
+  // ── Process raw WebSocket event ──
+  const processWsEvent = useCallback((wsEvent) => {
+    if (!mountedRef.current) return;
+
+    // Handle status messages
+    if (wsEvent.type === 'status') {
+      if (wsEvent.status === 'agent_thinking') {
+        const agentName = normalizeAgent(wsEvent.agent);
+        setAgentStatuses(prev => ({ ...prev, [agentName]: 'thinking' }));
+      } else if (wsEvent.status === 'agent_done') {
+        const agentName = normalizeAgent(wsEvent.agent);
+        setAgentStatuses(prev => ({ ...prev, [agentName]: 'done' }));
+      } else if (wsEvent.status === 'completed') {
+        // Sprint completed: set all agents to done
+        setAgentStatuses({ CEO: 'done', CTO: 'done', CFO: 'done', CMO: 'done', Legal: 'done' });
+      }
+      return;
     }
-  }
 
-  // Cleanup timer on unmount
-  useEffect(() => () => stopPlayback(), [stopPlayback]);
+    // Handle event messages
+    if (wsEvent.type === 'event' && wsEvent.event) {
+      const evt = wsEvent.event;
+      const payload = evt.payload || {};
+      const entry = {
+        agent: evt.source_agent || evt.source || 'CEO',
+        timestamp: evt.timestamp || new Date().toISOString(),
+        event_type: payload.action || (evt.event_type || '').toLowerCase(),
+        message: payload.details || payload.startup_idea || JSON.stringify(payload).substring(0, 200),
+        reasoning: payload.details || '',
+        iteration: evt.iteration || 1,
+      };
+      processEvent(entry);
+    }
+  }, [processEvent]);
 
-  // Auto-scroll feed
+  // ── WebSocket connection with reconnect logic ──
+  const connectWebSocket = useCallback(() => {
+    if (!runId || !mountedRef.current) return;
+
+    // Close existing connection
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+
+    setWsStatus('connecting');
+
+    try {
+      const ws = connectLive(runId, {
+        onEvent: (event) => {
+          if (!mountedRef.current) return;
+          setWsStatus('connected');
+          reconnectAttemptsRef.current = 0;
+          processWsEvent(event);
+        },
+        onClose: () => {
+          if (!mountedRef.current) return;
+          setWsStatus('disconnected');
+          wsRef.current = null;
+
+          // Start polling fallback
+          startPolling();
+
+          // Attempt reconnect with exponential backoff
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
+          reconnectAttemptsRef.current += 1;
+          reconnectTimeoutRef.current = setTimeout(() => {
+            if (mountedRef.current) connectWebSocket();
+          }, delay);
+        },
+        onError: () => {
+          if (!mountedRef.current) return;
+          setWsStatus('disconnected');
+        },
+      });
+
+      wsRef.current = ws;
+
+      // Check if connection succeeded after 3s
+      setTimeout(() => {
+        if (mountedRef.current && ws.readyState !== WebSocket.OPEN) {
+          setWsStatus('disconnected');
+          startPolling();
+        }
+      }, 3000);
+    } catch {
+      setWsStatus('disconnected');
+      startPolling();
+    }
+  }, [runId, processWsEvent]);
+
+  // ── Polling fallback ──
+  const fetchDiscussion = useCallback(async () => {
+    if (!runId || !mountedRef.current) return;
+
+    try {
+      // Try board-discussion endpoint
+      const data = await getRunDiscussion(runId);
+      const entries = normalizeDiscussion(data);
+      if (mountedRef.current && entries.length > 0) {
+        // Process any new entries
+        const currentLen = discussionRef.current.length;
+        if (entries.length > currentLen) {
+          const newEntries = entries.slice(currentLen);
+          newEntries.forEach(e => processEvent(e));
+        } else if (currentLen === 0) {
+          setDiscussion(entries);
+        }
+        setLoading(false);
+        return;
+      }
+    } catch { /* fall through */ }
+
+    try {
+      // Try trace endpoint
+      const traceData = await getRunTrace(runId);
+      const entries = traceToDiscussion(traceData);
+      if (mountedRef.current && entries.length > 0) {
+        const currentLen = discussionRef.current.length;
+        if (entries.length > currentLen) {
+          const newEntries = entries.slice(currentLen);
+          newEntries.forEach(e => processEvent(e));
+        } else if (currentLen === 0) {
+          setDiscussion(entries);
+        }
+        setLoading(false);
+        return;
+      }
+    } catch { /* fall through */ }
+
+    try {
+      // Try static files
+      const data = await loadStaticDiscussion();
+      const entries = normalizeDiscussion(data);
+      if (mountedRef.current && entries.length > 0) {
+        const currentLen = discussionRef.current.length;
+        if (entries.length > currentLen) {
+          const newEntries = entries.slice(currentLen);
+          newEntries.forEach(e => processEvent(e));
+        } else if (currentLen === 0) {
+          setDiscussion(entries);
+        }
+        setLoading(false);
+        return;
+      }
+    } catch { /* nothing worked */ }
+
+    if (mountedRef.current) setLoading(false);
+  }, [runId, processEvent]);
+
+  const startPolling = useCallback(() => {
+    if (pollIntervalRef.current) return; // Already polling
+    setWsStatus('polling');
+    pollIntervalRef.current = setInterval(() => {
+      if (mountedRef.current) fetchDiscussion();
+    }, 3000);
+  }, [fetchDiscussion]);
+
+  const stopPolling = useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+  }, []);
+
+  // ── Initialize: load data + connect WebSocket ──
+  useEffect(() => {
+    if (!runId) {
+      setLoading(false);
+      return;
+    }
+
+    // Initial data fetch
+    fetchDiscussion();
+
+    // Connect WebSocket
+    connectWebSocket();
+
+    return () => {
+      // Cleanup
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      stopPolling();
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+    };
+  }, [runId, fetchDiscussion, connectWebSocket, stopPolling]);
+
+  // Stop polling when WebSocket is connected
+  useEffect(() => {
+    if (wsStatus === 'connected') {
+      stopPolling();
+    }
+  }, [wsStatus, stopPolling]);
+
+  // ── Auto-scroll feed on new messages ──
   useEffect(() => {
     if (feedRef.current) {
-      feedRef.current.scrollTop = feedRef.current.scrollHeight;
+      const el = feedRef.current;
+      // Only auto-scroll if user is near the bottom (within 150px)
+      const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+      if (isNearBottom) {
+        requestAnimationFrame(() => {
+          el.scrollTop = el.scrollHeight;
+        });
+      }
     }
-  }, [playbackIndex]);
-
-  // Keyboard shortcuts
-  useEffect(() => {
-    function onKey(e) {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-      if (e.key === 'ArrowRight' || e.key === 'l') stepForward();
-      if (e.key === 'ArrowLeft' || e.key === 'h') stepBack();
-      if (e.key === ' ') { e.preventDefault(); togglePlay(); }
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  });
+  }, [discussion.length]);
 
   // ── Derived state ──
-  const currentEntry = discussion[playbackIndex] || null;
-  const visibleEntries = discussion.slice(0, playbackIndex + 1);
-  const activeLines = useMemo(() => getActiveLines(currentEntry), [currentEntry]);
-  const currentPhase = currentEntry?.iteration || 1;
+  const latestEntry = discussion.length > 0 ? discussion[discussion.length - 1] : null;
+  const activeLines = useMemo(() => getActiveLines(latestEntry), [latestEntry]);
+  const currentPhase = latestEntry?.iteration || 1;
+  const totalEvents = discussion.length;
 
   // ── Loading state ──
   if (loading) {
@@ -504,7 +663,7 @@ export default function Boardroom({ runId, onDone }) {
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)] max-w-[1600px] mx-auto w-full px-4 py-4 gap-0">
       {/* Header */}
-      <div className="flex items-center justify-between px-2 py-3 border-b border-white/10 bg-black/20 backdrop-blur-sm shrink-0 rounded-t-xl">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-black/20 backdrop-blur-sm shrink-0 rounded-t-xl">
         <div className="flex items-center gap-3">
           <div
             className="text-xl font-bold"
@@ -517,26 +676,39 @@ export default function Boardroom({ runId, onDone }) {
             THE BOARDROOM
           </div>
           <span className="text-xs text-slate-500 font-mono">Executive Session</span>
-          <span className="relative flex h-2.5 w-2.5 ml-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-          </span>
-          <span className="text-xs text-emerald-400 font-mono">LIVE</span>
+          <ConnectionIndicator status={wsStatus} />
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-slate-500 font-mono">
-            Message {playbackIndex + 1} / {discussion.length}
+            {totalEvents} events
           </span>
           <span className="text-xs px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono">
             Phase {currentPhase}
           </span>
+          {/* Agent status summary */}
+          <div className="flex items-center gap-1">
+            {Object.entries(AGENTS).map(([name, cfg]) => {
+              const st = agentStatuses[name];
+              const stCfg = STATUS_CONFIG[st] || STATUS_CONFIG.idle;
+              return (
+                <div
+                  key={name}
+                  className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-white/5"
+                  title={`${name}: ${stCfg.label}`}
+                >
+                  <span className="text-xs">{cfg.icon}</span>
+                  <div className={`w-1.5 h-1.5 rounded-full ${stCfg.dot}`} />
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      {/* Body: side-by-side layout */}
-      <div className="flex flex-1 overflow-hidden border border-white/5 rounded-b-xl">
-        {/* Left: Agent constellation */}
-        <div className="flex-1 relative bg-gray-900/30 overflow-hidden" style={{ minWidth: '50%' }}>
+      {/* Body: 60% agent constellation (top), 40% discussion feed (bottom) */}
+      <div className="flex flex-col flex-1 overflow-hidden border border-white/5 rounded-b-xl">
+        {/* Top: Agent constellation (60% height) */}
+        <div className="relative bg-gray-900/30 overflow-hidden" style={{ height: '60%' }}>
           {/* Background gradient */}
           <div
             className="absolute inset-0 opacity-20"
@@ -561,77 +733,44 @@ export default function Boardroom({ runId, onDone }) {
               key={name}
               name={name}
               config={config}
-              state={getAgentState(name, currentEntry)}
-              currentEntry={currentEntry}
+              status={agentStatuses[name]}
+              lastMessage={agentMessages[name]}
             />
           ))}
         </div>
 
-        {/* Right: Discussion feed */}
-        <div className="w-[45%] max-w-xl border-l border-white/10 bg-black/20 backdrop-blur-sm flex flex-col">
-          {/* Playback controls */}
-          <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between shrink-0">
-            <div className="text-sm font-semibold text-slate-300">Discussion Feed</div>
+        {/* Bottom: Discussion feed (40% height) */}
+        <div className="border-t border-white/10 bg-black/20 backdrop-blur-sm flex flex-col" style={{ height: '40%' }}>
+          {/* Feed header */}
+          <div className="px-4 py-2 border-b border-white/10 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
-              <button
-                onClick={stepBack}
-                disabled={playbackIndex <= 0}
-                className="px-2 py-1 rounded text-xs bg-white/5 hover:bg-white/10 text-slate-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-              >
-                Prev
-              </button>
-              <button
-                onClick={togglePlay}
-                className={`px-3 py-1 rounded text-xs font-semibold transition-colors cursor-pointer ${
-                  isPlaying
-                    ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
-                    : 'bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500/30'
-                }`}
-              >
-                {isPlaying ? 'Pause' : 'Play'}
-              </button>
-              <button
-                onClick={stepForward}
-                disabled={playbackIndex >= discussion.length - 1}
-                className="px-2 py-1 rounded text-xs bg-white/5 hover:bg-white/10 text-slate-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-              >
-                Next
-              </button>
+              <div className="text-sm font-semibold text-slate-300">Discussion Feed</div>
+              <span className="text-[10px] text-slate-600 font-mono">{discussion.length} messages</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {/* Legend */}
+              <span className="text-[9px] text-red-400 border border-red-500/20 px-1.5 py-0.5 rounded">BLOCKER = red</span>
+              <span className="text-[9px] text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded">PIVOT = yellow</span>
             </div>
           </div>
 
           {/* Scrollable feed */}
-          <div ref={feedRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3 boardroom-scrollbar">
-            {visibleEntries.map((entry, i) => (
-              <DiscussionEntry
-                key={i}
-                entry={entry}
-                isCurrent={i === playbackIndex}
-                onClick={() => jumpTo(i)}
-              />
-            ))}
-          </div>
-
-          {/* Speed control */}
-          <div className="px-4 py-2 border-t border-white/10 flex items-center gap-3 shrink-0">
-            <span className="text-[10px] text-slate-500">Speed:</span>
-            <input
-              type="range"
-              min="300"
-              max="4000"
-              step="100"
-              value={playbackSpeed}
-              onChange={(e) => handleSpeedChange(e.target.value)}
-              className="flex-1 h-1 bg-slate-700 rounded-full appearance-none cursor-pointer accent-indigo-500"
-            />
-            <span className="text-[10px] text-slate-500 font-mono w-12 text-right">
-              {(playbackSpeed / 1000).toFixed(1)}s
-            </span>
+          <div ref={feedRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-2 boardroom-scrollbar">
+            {discussion.map((entry, i) => {
+              const entryId = `${entry.timestamp}-${entry.agent}-${entry.event_type}`;
+              return (
+                <DiscussionEntry
+                  key={`${entryId}-${i}`}
+                  entry={entry}
+                  isNew={newEntryIds.has(entryId)}
+                />
+              );
+            })}
           </div>
         </div>
       </div>
 
-      {/* Inline keyframe styles (scoped names to avoid conflicts) */}
+      {/* Inline keyframe styles */}
       <style>{`
         @keyframes boardroom-gradient {
           0% { background-position: 0% 50%; }
@@ -669,21 +808,28 @@ export default function Boardroom({ runId, onDone }) {
           100% { opacity: 0.2; }
         }
         .boardroom-blocker-flash {
-          animation: boardroom-blocker-anim 1s ease-in-out infinite;
-        }
-        .boardroom-pivot-flash {
-          animation: boardroom-pivot-anim 1s ease-in-out infinite;
-        }
-        .boardroom-speaking-pulse {
-          animation: boardroom-speaking-anim 1.5s ease-in-out infinite;
+          animation: boardroom-blocker-anim 0.8s ease-in-out infinite;
         }
         @keyframes boardroom-blocker-anim {
           0%, 100% { filter: drop-shadow(0 0 8px rgba(239,68,68,0.3)); }
-          50% { filter: drop-shadow(0 0 24px rgba(239,68,68,0.7)); }
+          50% { filter: drop-shadow(0 0 28px rgba(239,68,68,0.8)); }
+        }
+        .boardroom-pivot-flash {
+          animation: boardroom-pivot-anim 0.8s ease-in-out infinite;
         }
         @keyframes boardroom-pivot-anim {
           0%, 100% { filter: drop-shadow(0 0 8px rgba(234,179,8,0.3)); }
-          50% { filter: drop-shadow(0 0 24px rgba(234,179,8,0.7)); }
+          50% { filter: drop-shadow(0 0 28px rgba(234,179,8,0.8)); }
+        }
+        .boardroom-thinking-pulse {
+          animation: boardroom-thinking-anim 1.2s ease-in-out infinite;
+        }
+        @keyframes boardroom-thinking-anim {
+          0%, 100% { filter: drop-shadow(0 0 4px rgba(59,130,246,0.2)); transform: translate(-50%, -50%) scale(1); }
+          50% { filter: drop-shadow(0 0 16px rgba(59,130,246,0.6)); transform: translate(-50%, -50%) scale(1.02); }
+        }
+        .boardroom-speaking-pulse {
+          animation: boardroom-speaking-anim 1.5s ease-in-out infinite;
         }
         @keyframes boardroom-speaking-anim {
           0%, 100% { transform: translate(-50%, -50%) scale(1); }

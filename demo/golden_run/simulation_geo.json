@@ -1,0 +1,21 @@
+[
+  {
+    "name": "Marcus Chen",
+    "archetype": "vc",
+    "lat": 37.7749,
+    "lng": -122.4194,
+    "city": "San Francisco",
+    "country": "US",
+    "initial_stance": "neutral",
+    "influence": 0.9,
+    "company": "Andreessen Horowitz (a16z) - Crypto/Fintech Fund",
+    "final_stance": "neutral",
+    "messages": [
+      {
+        "round": 1,
+        "content": "Responding to others's point -- as a vc, I have concerns about test.",
+        "sentiment": 0.0
+      }
+    ]
+  }
+]

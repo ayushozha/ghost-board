@@ -40,7 +40,17 @@ class CMOAgent(BaseAgent):
     async def generate_gtm(self, strategy: StrategyPayload) -> GTMPayload:
         """Generate go-to-market strategy and copy."""
         self.current_strategy = strategy
-        self.log("Generating GTM strategy and copy", action="gtm_generate")
+        self.log(
+            "Generating GTM strategy, competitive analysis, and marketing copy",
+            action="gtm_generate",
+            reasoning=(
+                f"Building comprehensive go-to-market package for '{strategy.startup_idea}' targeting "
+                f"'{strategy.target_market}' with {strategy.business_model} model. "
+                f"Will produce positioning, competitive matrix, customer journey, ICP, messaging framework, "
+                f"landing page, and taglines."
+            ),
+            in_response_to="CEO strategy set",
+        )
 
         pivot_section = ""
         if self._pivot_context:
@@ -243,7 +253,17 @@ CRITICAL REQUIREMENTS:
             return
 
         changes = payload.changes_required.get("CMO", "Update positioning and copy")
-        self.log(f"Handling pivot: {changes}", action="pivot_response")
+        self.log(
+            f"Handling pivot: {changes}",
+            action="pivot_response",
+            reasoning=(
+                f"CEO has pivoted the strategy. I need to update all GTM materials: {changes}. "
+                f"This requires repositioning, new competitive analysis, updated messaging, "
+                f"and revised landing page copy to match the new direction."
+            ),
+            addressed_to="CEO",
+            in_response_to=f"CEO PIVOT: {payload.reason[:100]}",
+        )
 
         # Build pivot context so the LLM knows what changed and why
         self._pivot_context = (
@@ -316,10 +336,13 @@ CRITICAL REQUIREMENTS:
             "competitive_matrix.json, customer_journey.md, messaging_framework.md, "
             "icp_profile.md, landing_page.html, taglines.json",
             action="gtm_save",
-            reasoning=f"Complete GTM package with {num_competitors} competitors analyzed, "
-                      f"{len(data.get('gtm_phases', []))} launch phases, "
-                      f"{len(data.get('customer_journey', []))} journey stages, "
-                      f"and {len(taglines)} tagline options.",
+            reasoning=(
+                f"Complete GTM package with {num_competitors} competitors analyzed, "
+                f"{len(data.get('gtm_phases', []))} launch phases, "
+                f"{len(data.get('customer_journey', []))} journey stages, "
+                f"and {len(taglines)} tagline options. "
+                f"Positioning: {data.get('positioning', '')[:100]}..."
+            ),
         )
 
     def _save_gtm_strategy(self, data: dict[str, Any]) -> None:

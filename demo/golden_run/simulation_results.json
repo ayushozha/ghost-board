@@ -1,0 +1,47 @@
+{
+  "total_llm_agents": 1,
+  "total_lightweight_agents": 0,
+  "total_agents": 1,
+  "rounds": 1,
+  "rounds_data": [
+    {
+      "round_number": 1,
+      "posts": [
+        {
+          "persona": "Marcus Chen",
+          "archetype": "vc",
+          "content": "Responding to others's point -- as a vc, I have concerns about test.",
+          "sentiment": 0.0,
+          "sentiment_category": "negative",
+          "sentiment_score": -1.0,
+          "key_phrases": [],
+          "references": [],
+          "stance_change": "none"
+        }
+      ],
+      "avg_sentiment": 0.0,
+      "sentiment_by_archetype": {
+        "vc": 0.0
+      }
+    }
+  ],
+  "final_signal": {
+    "overall_sentiment": 0.0,
+    "confidence": 0.5,
+    "key_concerns": [],
+    "key_strengths": [],
+    "objections": [],
+    "pricing_signal": "No explicit pricing feedback",
+    "pivot_recommended": false,
+    "pivot_suggestion": "",
+    "archetype_breakdown": {
+      "vc": 0.0
+    },
+    "stance_shifts": {},
+    "summary": ""
+  },
+  "final_stances": {
+    "Marcus Chen": "neutral"
+  },
+  "total_messages": 1
+}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { startSprint } from '../api';
 
-// ── Animated grid background ──
+// -- Animated grid background --
 function AnimatedGrid() {
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -9,7 +9,7 @@ function AnimatedGrid() {
       <div
         className="absolute w-[600px] h-[600px] rounded-full opacity-20 blur-[120px]"
         style={{
-          background: 'radial-gradient(circle, #6366f1 0%, transparent 70%)',
+          background: 'radial-gradient(circle, #22d3ee 0%, transparent 70%)',
           top: '-10%',
           left: '50%',
           transform: 'translateX(-50%)',
@@ -25,20 +25,34 @@ function AnimatedGrid() {
           animation: 'float-orb 12s ease-in-out infinite reverse',
         }}
       />
-      {/* Grid lines */}
-      <svg className="absolute inset-0 w-full h-full opacity-[0.04]">
-        <defs>
-          <pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse">
-            <path d="M 60 0 L 0 0 0 60" fill="none" stroke="#6366f1" strokeWidth="1" />
-          </pattern>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#grid)" />
-      </svg>
+      <div
+        className="absolute w-[350px] h-[350px] rounded-full opacity-10 blur-[90px]"
+        style={{
+          background: 'radial-gradient(circle, #3b82f6 0%, transparent 70%)',
+          top: '40%',
+          left: '10%',
+          animation: 'float-orb 10s ease-in-out infinite 2s',
+        }}
+      />
+      {/* Scrolling grid lines */}
+      <div
+        className="absolute inset-0 opacity-[0.04]"
+        style={{ animation: 'scroll-grid 30s linear infinite' }}
+      >
+        <svg className="w-full h-[200%]">
+          <defs>
+            <pattern id="mc-grid" width="60" height="60" patternUnits="userSpaceOnUse">
+              <path d="M 60 0 L 0 0 0 60" fill="none" stroke="#22d3ee" strokeWidth="1" />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#mc-grid)" />
+        </svg>
+      </div>
       {/* Scan line */}
       <div
         className="absolute w-full h-px opacity-10"
         style={{
-          background: 'linear-gradient(90deg, transparent 0%, #6366f1 50%, transparent 100%)',
+          background: 'linear-gradient(90deg, transparent 0%, #22d3ee 50%, transparent 100%)',
           animation: 'scan-line 6s linear infinite',
         }}
       />
@@ -46,17 +60,17 @@ function AnimatedGrid() {
   );
 }
 
-// ── Typing cursor ──
+// -- Typing cursor --
 function TypingCursor() {
   return (
     <span
-      className="inline-block w-[2px] h-5 bg-indigo-400 ml-0.5 align-middle"
+      className="inline-block w-[2px] h-5 bg-cyan-400 ml-0.5 align-middle"
       style={{ animation: 'blink-cursor 1s step-end infinite' }}
     />
   );
 }
 
-// ── Stat pill ──
+// -- Stat pill --
 function StatPill({ icon, value, label }) {
   return (
     <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/[0.03] border border-white/[0.06] backdrop-blur-sm">
@@ -69,7 +83,7 @@ function StatPill({ icon, value, label }) {
   );
 }
 
-// ── Agent avatar row ──
+// -- Agent avatar row --
 const AGENTS = [
   { name: 'CEO', icon: '\uD83D\uDC51', color: 'text-yellow-400', ring: 'ring-yellow-500/30' },
   { name: 'CTO', icon: '\uD83D\uDCBB', color: 'text-blue-400', ring: 'ring-blue-500/30' },
@@ -100,8 +114,8 @@ function AgentAvatars() {
   );
 }
 
-// ── Main MissionControl component ──
-export default function MissionControl({ onLaunch }) {
+// -- Main MissionControl component --
+export default function MissionControl({ onLaunch, isLive = false }) {
   const [concept, setConcept] = useState('');
   const [isLaunching, setIsLaunching] = useState(false);
   const [error, setError] = useState(null);
@@ -119,7 +133,7 @@ export default function MissionControl({ onLaunch }) {
           setDemoConcepts(data.concepts || []);
         }
       } catch {
-        // Non-critical
+        // Non-critical -- API may not be available
       }
     }
     fetchConcepts();
@@ -176,10 +190,10 @@ export default function MissionControl({ onLaunch }) {
           className="flex flex-col items-center gap-3 opacity-0"
           style={{ animation: 'fade-in-up 0.8s ease forwards 0.1s' }}
         >
-          <div
-            className="text-5xl md:text-6xl font-black tracking-tight text-center"
+          <h1
+            className="text-7xl font-black tracking-tight text-center"
             style={{
-              background: 'linear-gradient(135deg, #818cf8 0%, #a78bfa 30%, #c084fc 60%, #818cf8 100%)',
+              background: 'linear-gradient(135deg, #22d3ee 0%, #3b82f6 40%, #9333ea 100%)',
               backgroundSize: '200% 200%',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
@@ -188,23 +202,37 @@ export default function MissionControl({ onLaunch }) {
             }}
           >
             GHOST BOARD
-          </div>
+          </h1>
           <div className="text-lg text-slate-400 font-light tracking-wide text-center">
             Autonomous AI Executive Team
           </div>
         </div>
 
+        {/* Live indicator */}
+        {isLive && (
+          <div
+            className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-green-500/10 border border-green-500/20 opacity-0"
+            style={{ animation: 'fade-in-up 0.5s ease forwards 0.2s' }}
+          >
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
+            </span>
+            <span className="text-xs font-mono text-green-400">LIVE</span>
+          </div>
+        )}
+
         {/* Input area */}
         <div
-          className="w-full opacity-0"
+          className="w-full max-w-xl opacity-0"
           style={{ animation: 'fade-in-up 0.8s ease forwards 0.3s' }}
         >
           <div className="relative group">
-            {/* Outer glow ring */}
-            <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-indigo-500/20 opacity-0 group-focus-within:opacity-100 transition-opacity duration-500 blur-sm" />
+            {/* Outer glow ring on focus */}
+            <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-r from-cyan-400/20 via-blue-500/20 to-purple-600/20 opacity-0 group-focus-within:opacity-100 transition-opacity duration-500 blur-sm" />
 
-            <div className="relative flex items-center bg-white/[0.03] border border-white/[0.08] rounded-2xl px-5 py-4 backdrop-blur-sm group-focus-within:border-indigo-500/30 transition-colors duration-300">
-              <span className="text-indigo-400 mr-3 text-lg font-mono select-none">&gt;</span>
+            <div className="relative flex items-center bg-gray-900 border border-gray-700 rounded-2xl px-5 py-4 group-focus-within:border-cyan-400 transition-all duration-300 group-focus-within:shadow-[0_0_20px_rgba(34,211,238,0.15)]">
+              <span className="text-cyan-400 mr-3 text-lg font-mono select-none">&gt;</span>
               <input
                 ref={inputRef}
                 type="text"
@@ -225,7 +253,7 @@ export default function MissionControl({ onLaunch }) {
             <div className="mt-2 flex items-center gap-2 flex-wrap">
               <button
                 onClick={() => setShowDemos(!showDemos)}
-                className="text-[11px] text-slate-500 hover:text-indigo-400 transition-colors font-mono"
+                className="text-[11px] text-slate-500 hover:text-cyan-400 transition-colors font-mono"
               >
                 {showDemos ? 'Hide demos' : 'Try a demo concept'}
               </button>
@@ -233,7 +261,7 @@ export default function MissionControl({ onLaunch }) {
                 <button
                   key={c.name}
                   onClick={() => selectDemo(c.full_text)}
-                  className="text-[11px] px-2 py-1 rounded-md bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 border border-indigo-500/20 transition-colors font-mono"
+                  className="text-[11px] px-2 py-1 rounded-md bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 border border-cyan-500/20 transition-colors font-mono"
                 >
                   {c.name}
                 </button>
@@ -241,7 +269,7 @@ export default function MissionControl({ onLaunch }) {
             </div>
           )}
 
-          {/* Error */}
+          {/* Error state */}
           {error && (
             <div className="mt-3 text-sm text-red-400 text-center font-mono bg-red-500/5 border border-red-500/20 rounded-lg px-4 py-2">
               {error}
@@ -251,32 +279,32 @@ export default function MissionControl({ onLaunch }) {
 
         {/* Launch button */}
         <div
-          className="opacity-0"
+          className="w-full max-w-xl opacity-0"
           style={{ animation: 'fade-in-up 0.8s ease forwards 0.45s' }}
         >
           <button
             onClick={handleLaunch}
             disabled={isLaunching}
-            className="group relative px-10 py-4 rounded-xl font-bold text-base tracking-wide transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="group relative w-full py-4 rounded-xl text-lg font-bold tracking-wide transition-all duration-300 hover:scale-[1.03] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
             style={{
               background: isLaunching
-                ? 'linear-gradient(135deg, #312e81 0%, #4c1d95 100%)'
-                : 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                ? 'linear-gradient(135deg, #164e63 0%, #312e81 50%, #4c1d95 100%)'
+                : 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #9333ea 100%)',
             }}
           >
-            {/* Button glow */}
+            {/* Button glow on hover */}
             <div
               className="absolute -inset-1 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-lg"
-              style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)' }}
+              style={{ background: 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #9333ea 100%)' }}
             />
-            <span className="relative z-10 flex items-center gap-3 text-white">
+            <span className="relative z-10 flex items-center justify-center gap-3 text-white">
               {isLaunching ? (
                 <>
                   <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  LAUNCHING SPRINT...
+                  Starting sprint...
                 </>
               ) : (
                 <>
@@ -339,6 +367,10 @@ export default function MissionControl({ onLaunch }) {
         @keyframes scan-line {
           0% { top: -2%; }
           100% { top: 102%; }
+        }
+        @keyframes scroll-grid {
+          0% { transform: translateY(0); }
+          100% { transform: translateY(-50%); }
         }
       `}</style>
     </div>

@@ -358,7 +358,8 @@
   <div class="absolute inset-0" id="particles"></div>
 
   <!-- Radial glow -->
-  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full bg-ghost-600/5 blur-3xl pointer-events-none"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[900px] rounded-full bg-ghost-600/8 blur-3xl pointer-events-none"></div>
+  <div class="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full bg-cyan-500/5 blur-3xl pointer-events-none"></div>
 
   <div class="max-w-6xl mx-auto px-6 relative z-10 text-center py-24">
     <!-- Badge -->
@@ -1042,40 +1043,69 @@
 <section class="py-24 px-6 relative">
   <div class="max-w-5xl mx-auto">
     <div class="text-center mb-16">
-      <h2 class="text-3xl font-black mb-4 reveal">Built With</h2>
-      <p class="text-slate-500 text-sm reveal reveal-delay-1">Standing on the shoulders of extraordinary open-source work.</p>
+      <h2 class="text-4xl md:text-5xl font-black mb-4 reveal">Built With</h2>
+      <p class="text-slate-400 text-lg reveal reveal-delay-1">Standing on the shoulders of extraordinary open-source work.</p>
     </div>
 
-    <div class="grid grid-cols-2 md:grid-cols-3 gap-4 reveal">
-      <div class="rounded-xl glass p-6 text-center transition-all duration-300 hover:scale-105 hover:border-ghost-500/30">
-        <div class="text-lg font-bold text-white mb-1">Ralph Loop</div>
-        <div class="text-xs text-slate-500">by Geoffrey Huntley</div>
-        <div class="text-xs text-ghost-400 mt-2">Autonomous agent orchestration</div>
+    <!-- Primary credits: AI platforms -->
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-5 mb-6 reveal">
+      <div class="rounded-xl glass p-6 text-center transition-all duration-300 hover:scale-105 hover:border-green-500/30">
+        <div class="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center mx-auto mb-3">
+          <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg>
+        </div>
+        <div class="text-lg font-bold text-white mb-1">OpenAI</div>
+        <div class="text-xs text-slate-500">GPT-4o, GPT-4o-mini, Codex</div>
+        <div class="text-xs text-green-400 mt-2">Agent intelligence + code generation</div>
       </div>
-      <div class="rounded-xl glass p-6 text-center transition-all duration-300 hover:scale-105 hover:border-cyan-500/30">
-        <div class="text-lg font-bold text-white mb-1">MiroFish</div>
-        <div class="text-xs text-slate-500">by Guo Hangjiang</div>
-        <div class="text-xs text-cyan-400 mt-2">Million-agent simulation</div>
+      <div class="rounded-xl glass p-6 text-center transition-all duration-300 hover:scale-105 hover:border-amber-500/30">
+        <div class="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center mx-auto mb-3">
+          <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"/></svg>
+        </div>
+        <div class="text-lg font-bold text-white mb-1">Anthropic</div>
+        <div class="text-xs text-slate-500">Claude Code + Claude Opus</div>
+        <div class="text-xs text-amber-400 mt-2">Autonomous orchestration (Ralph Loop)</div>
       </div>
       <div class="rounded-xl glass p-6 text-center transition-all duration-300 hover:scale-105 hover:border-yellow-500/30">
+        <div class="w-10 h-10 rounded-lg bg-yellow-500/10 flex items-center justify-center mx-auto mb-3">
+          <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6"/></svg>
+        </div>
         <div class="text-lg font-bold text-white mb-1">W&B</div>
         <div class="text-xs text-slate-500">Weights & Biases</div>
-        <div class="text-xs text-yellow-400 mt-2">Execution tracing</div>
+        <div class="text-xs text-yellow-400 mt-2">Execution tracing + observability</div>
       </div>
-      <div class="rounded-xl glass p-6 text-center transition-all duration-300 hover:scale-105 hover:border-green-500/30">
-        <div class="text-lg font-bold text-white mb-1">oh-my-opencode</div>
-        <div class="text-xs text-slate-500">by Q</div>
-        <div class="text-xs text-green-400 mt-2">Open code tooling</div>
+    </div>
+
+    <!-- Secondary credits: open source tools -->
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 reveal reveal-delay-1">
+      <div class="rounded-xl glass p-5 text-center transition-all duration-300 hover:scale-105 hover:border-ghost-500/30">
+        <div class="text-sm font-bold text-white mb-1">Ralph Loop</div>
+        <div class="text-xs text-slate-500">Geoffrey Huntley</div>
+        <div class="text-xs text-ghost-400 mt-1">Agent orchestration</div>
       </div>
-      <div class="rounded-xl glass p-6 text-center transition-all duration-300 hover:scale-105 hover:border-purple-500/30">
-        <div class="text-lg font-bold text-white mb-1">oh-my-claude-code</div>
-        <div class="text-xs text-slate-500">by Yeachan Heo</div>
-        <div class="text-xs text-purple-400 mt-2">Claude Code extensions</div>
+      <div class="rounded-xl glass p-5 text-center transition-all duration-300 hover:scale-105 hover:border-cyan-500/30">
+        <div class="text-sm font-bold text-white mb-1">MiroFish</div>
+        <div class="text-xs text-slate-500">Guo Hangjiang</div>
+        <div class="text-xs text-cyan-400 mt-1">Million-agent sim</div>
       </div>
-      <div class="rounded-xl glass p-6 text-center transition-all duration-300 hover:scale-105 hover:border-orange-500/30">
-        <div class="text-lg font-bold text-white mb-1">OpenClaw</div>
-        <div class="text-xs text-slate-500">by George Zhang</div>
-        <div class="text-xs text-orange-400 mt-2">Open-source agent framework</div>
+      <div class="rounded-xl glass p-5 text-center transition-all duration-300 hover:scale-105 hover:border-teal-500/30">
+        <div class="text-sm font-bold text-white mb-1">BettaFish</div>
+        <div class="text-xs text-slate-500">Guo Hangjiang</div>
+        <div class="text-xs text-teal-400 mt-1">Sentiment analysis</div>
+      </div>
+      <div class="rounded-xl glass p-5 text-center transition-all duration-300 hover:scale-105 hover:border-green-500/30">
+        <div class="text-sm font-bold text-white mb-1">oh-my-opencode</div>
+        <div class="text-xs text-slate-500">Q</div>
+        <div class="text-xs text-green-400 mt-1">Open code tooling</div>
+      </div>
+      <div class="rounded-xl glass p-5 text-center transition-all duration-300 hover:scale-105 hover:border-purple-500/30">
+        <div class="text-sm font-bold text-white mb-1">oh-my-claude-code</div>
+        <div class="text-xs text-slate-500">Yeachan Heo</div>
+        <div class="text-xs text-purple-400 mt-1">Claude extensions</div>
+      </div>
+      <div class="rounded-xl glass p-5 text-center transition-all duration-300 hover:scale-105 hover:border-orange-500/30">
+        <div class="text-sm font-bold text-white mb-1">OpenClaw</div>
+        <div class="text-xs text-slate-500">George Zhang</div>
+        <div class="text-xs text-orange-400 mt-1">Agent framework</div>
       </div>
     </div>
   </div>
@@ -1160,13 +1190,36 @@ for (let i = 0; i < particleCount; i++) {
   particleContainer.appendChild(particle);
 }
 
+// === Mobile menu toggle ===
+const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+const mobileMenu = document.getElementById('mobile-menu');
+if (mobileMenuBtn && mobileMenu) {
+  mobileMenuBtn.addEventListener('click', () => {
+    mobileMenu.classList.toggle('open');
+    // Toggle icon between hamburger and X
+    const isOpen = mobileMenu.classList.contains('open');
+    mobileMenuBtn.innerHTML = isOpen
+      ? '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>'
+      : '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>';
+  });
+  // Close mobile menu when clicking a link
+  mobileMenu.querySelectorAll('a[href^="#"]').forEach(link => {
+    link.addEventListener('click', () => {
+      mobileMenu.classList.remove('open');
+      mobileMenuBtn.innerHTML = '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>';
+    });
+  });
+}
+
 // === Smooth scroll for nav links ===
 document.querySelectorAll('a[href^="#"]').forEach(anchor => {
   anchor.addEventListener('click', function(e) {
     e.preventDefault();
     const target = document.querySelector(this.getAttribute('href'));
     if (target) {
-      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const navHeight = document.querySelector('nav').offsetHeight;
+      const targetPosition = target.getBoundingClientRect().top + window.scrollY - navHeight - 20;
+      window.scrollTo({ top: targetPosition, behavior: 'smooth' });
     }
   });
 });
@@ -1185,6 +1238,25 @@ window.addEventListener('scroll', () => {
   }
   lastScroll = currentScroll;
 }, { passive: true });
+
+// === Animated number counter on scroll ===
+const counterObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const el = entry.target;
+      const text = el.textContent.trim();
+      // Only animate numeric-looking values
+      if (text.match(/^[\$<]?[\d,\.]+/)) {
+        el.classList.add('stat-reveal');
+      }
+      counterObserver.unobserve(el);
+    }
+  });
+}, { threshold: 0.5 });
+
+document.querySelectorAll('[data-count], [data-default]').forEach(el => {
+  counterObserver.observe(el);
+});
 
 // === Parallax for hero elements ===
 window.addEventListener('scroll', () => {

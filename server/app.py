@@ -170,7 +170,11 @@ def _list_artifact_files(base: Path) -> list[dict]:
 
 
 async def _run_sprint_background(run_id: str, concept: str, sim_scale: str) -> None:
-    """Run the full sprint in the background, persisting results to DB."""
+    """Run the full sprint in the background, persisting results to DB.
+
+    Hooks into the StateBus so every agent event is broadcast to WebSocket
+    clients in real-time as it happens (not just after the sprint finishes).
+    """
     try:
         # Update status to running
         async with get_session() as session:
@@ -184,29 +188,114 @@ async def _run_sprint_background(run_id: str, concept: str, sim_scale: str) -> N
 
         await ws_manager.broadcast(run_id, {"type": "status", "status": "running"})
 
+        # Broadcast initial agent statuses
+        for agent_name in ("CEO", "CTO", "CFO", "CMO", "Legal"):
+            await ws_manager.broadcast(run_id, {
+                "type": "agent_status",
+                "agent": agent_name,
+                "status": "idle",
+            })
+
         # Change cwd to project root so relative paths work
         original_cwd = os.getcwd()
         os.chdir(str(ROOT_DIR))
 
         try:
             from main import run_sprint
+            from coordination.state import StateBus
 
-            # Determine scale params
-            scale_map = {
-                "demo": (10, 3),
-                "standard": (30, 5),
-                "large": (50, 5),
-                "million": (50, 5),
-            }
-            personas, rounds = scale_map.get(sim_scale, (10, 3))
+            # ----------------------------------------------------------
+            # Monkey-patch StateBus so ANY instance created by run_sprint
+            # automatically broadcasts events to WebSocket clients.
+            # ----------------------------------------------------------
+            _original_init = StateBus.__init__
 
-            sprint_result = await run_sprint(
-                startup_idea=concept,
-                num_personas=personas,
-                num_rounds=rounds,
-                skip_simulation=False,
-                sim_scale=sim_scale if sim_scale in ("demo", "standard", "large", "million") else None,
-            )
+            def _patched_init(self_bus: Any, *args: Any, **kwargs: Any) -> None:
+                _original_init(self_bus, *args, **kwargs)
+
+                async def _ws_broadcast_hook(event: Any) -> None:
+                    """Forward every StateBus event to WebSocket clients."""
+                    try:
+                        if hasattr(event, "to_trace_dict"):
+                            event_data = event.to_trace_dict()
+                        else:
+                            event_data = str(event)
+
+                        # Broadcast the event itself
+                        await ws_manager.broadcast(run_id, {
+                            "type": "event",
+                            "data": event_data,
+                            "event": {
+                                "id": getattr(event, "id", ""),
+                                "source_agent": getattr(event, "source", "unknown"),
+                                "event_type": event_data.get("event_type", "UPDATE") if isinstance(event_data, dict) else "UPDATE",
+                                "payload": event_data.get("payload", {}) if isinstance(event_data, dict) else {},
+                                "triggered_by": getattr(event, "triggered_by", None),
+                                "iteration": getattr(event, "iteration", 1),
+                            },
+                        })
+
+                        # Broadcast agent status change based on event type
+                        source = getattr(event, "source", None)
+                        etype = ""
+                        if hasattr(event, "type"):
+                            etype = event.type.value if hasattr(event.type, "value") else str(event.type)
+
+                        if source:
+                            if etype in ("STRATEGY", "PIVOT"):
+                                status = "thinking"
+                            elif etype == "BLOCKER":
+                                status = "blocked"
+                            elif etype in ("UPDATE", "PROTOTYPE", "FINANCIAL_MODEL", "GTM", "COMPLIANCE"):
+                                status = "building"
+                            elif etype == "SIMULATION_RESULT":
+                                status = "analyzing"
+                            else:
+                                status = "active"
+                            await ws_manager.broadcast(run_id, {
+                                "type": "agent_status",
+                                "agent": source,
+                                "status": status,
+                            })
+                    except Exception:
+                        pass  # Never let broadcast errors kill the sprint
+
+                self_bus.subscribe_all(_ws_broadcast_hook)
+
+            StateBus.__init__ = _patched_init  # type: ignore[assignment]
+
+            try:
+                # Determine scale params
+                scale_map = {
+                    "demo": (10, 3),
+                    "standard": (30, 5),
+                    "large": (50, 5),
+                    "million": (50, 5),
+                }
+                personas, rounds = scale_map.get(sim_scale, (10, 3))
+
+                # Broadcast phase start
+                await ws_manager.broadcast(run_id, {
+                    "type": "phase",
+                    "phase": "strategy_build",
+                    "message": "Phase 1: Strategy + Build",
+                })
+                await ws_manager.broadcast(run_id, {
+                    "type": "agent_status",
+                    "agent": "CEO",
+                    "status": "thinking",
+                })
+
+                sprint_result = await run_sprint(
+                    startup_idea=concept,
+                    num_personas=personas,
+                    num_rounds=rounds,
+                    skip_simulation=False,
+                    sim_scale=sim_scale if sim_scale in ("demo", "standard", "large", "million") else None,
+                )
+            finally:
+                # Always restore the original StateBus.__init__
+                StateBus.__init__ = _original_init  # type: ignore[assignment]
         finally:
             os.chdir(original_cwd)
 

@@ -164,7 +164,13 @@ Respond with ONLY the presentation text, no JSON."""
         self.log(
             findings,
             action="simulation_review",
-            reasoning=f"Presenting simulation results to board. Sentiment: {payload.overall_sentiment:.2f}, concerns: {concerns}, strengths: {strengths}. Asking team to propose adaptations before making pivot decision.",
+            reasoning=(
+                f"Presenting simulation results to board. Sentiment: {payload.overall_sentiment:.2f}, "
+                f"concerns: {concerns}, strengths: {strengths}. "
+                f"Asking each executive to propose specific adaptations before making a collective pivot decision."
+            ),
+            addressed_to="all agents",
+            in_response_to="Market simulation results",
         )
         return findings
 
@@ -174,7 +180,17 @@ Respond with ONLY the presentation text, no JSON."""
         if not isinstance(payload, SimulationResultPayload):
             return
 
-        self.log(f"Reviewing simulation: sentiment={payload.overall_sentiment:.2f}", action="simulation_review")
+        concerns = "; ".join(payload.key_concerns[:3]) if payload.key_concerns else "none"
+        self.log(
+            f"Reviewing simulation: sentiment={payload.overall_sentiment:.2f}",
+            action="simulation_review",
+            reasoning=(
+                f"Market simulation returned overall sentiment of {payload.overall_sentiment:.2f} "
+                f"with confidence {payload.confidence:.2f}. Top concerns: {concerns}. "
+                f"{'Pivot is recommended by the simulation.' if payload.pivot_recommended else 'No pivot recommended.'}"
+            ),
+            in_response_to="Simulation engine results",
+        )
 
         if self.pivot_count >= self.MAX_PIVOTS:
             self.log(f"Max pivots ({self.MAX_PIVOTS}) reached, absorbing simulation signal", action="max_pivots")
@@ -389,6 +405,8 @@ Be SPECIFIC. Reference concrete numbers, regulations, market segments, and techn
                 f"  - Legal: {impact_legal}\n\n"
                 f"Risk assessment: {risk_assessment}"
             ),
+            "addressed_to": "all agents",
+            "in_response_to": trigger_quote_from_llm[:200] if trigger_quote_from_llm else reason,
             "iteration": self._current_iteration,
             # Structured fields for programmatic access
             "pivot_reasoning": {
