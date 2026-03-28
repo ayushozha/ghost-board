@@ -298,7 +298,37 @@ class MiroFishBridge:
         # Enhance with BettaFish sentiment if available
         signal = await self._enhance_with_bettafish(sim_result, signal)
 
+        # Export geo data for globe visualization
+        self._save_geo_data(personas, sim_result)
+
         return sim_result, signal
+
+    def _save_geo_data(self, personas: list, sim_result: SimulationResult) -> None:
+        """Save persona geographic data for 3D globe visualization."""
+        import os as _os
+        _os.makedirs("outputs", exist_ok=True)
+        geo_data = []
+        for p in personas:
+            geo = getattr(p, 'geographic_location', None)
+            entry = {
+                "name": p.name,
+                "archetype": p.archetype,
+                "lat": geo.lat if geo else 0.0,
+                "lng": geo.lng if geo else 0.0,
+                "city": geo.city if geo else "",
+                "country": geo.country if geo else "",
+                "initial_stance": p.initial_stance,
+                "influence": p.influence_score,
+                "company": getattr(p, 'real_company_reference', ''),
+            }
+            # Add final stance and messages
+            entry["final_stance"] = sim_result.final_stances.get(p.name, "neutral")
+            msgs = [m for r in sim_result.rounds for m in r.messages if m.persona_name == p.name]
+            entry["messages"] = [{"round": m.round_num, "content": m.content, "sentiment": m.sentiment} for m in msgs]
+            geo_data.append(entry)
+
+        with open("outputs/simulation_geo.json", "w", encoding="utf-8") as f:
+            json.dump(geo_data, f, indent=2)
 
     async def _enhance_with_bettafish(
         self, sim_result: SimulationResult, signal: MarketSignal

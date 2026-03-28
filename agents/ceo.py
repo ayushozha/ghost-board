@@ -70,6 +70,11 @@ Respond in JSON with these exact fields:
             )
 
         self.current_strategy = strategy
+        self.log(
+            f"Strategy: {strategy.startup_idea} - {strategy.business_model} for {strategy.target_market}",
+            action="strategy",
+            reasoning=f"Chose {strategy.business_model} model because it aligns with {strategy.target_market}. Key differentiators: {', '.join(strategy.key_differentiators)}. Constraints to address: {', '.join(strategy.constraints)}.",
+        )
         await self.publish(AgentEvent(
             type=EventType.STRATEGY_SET,
             source=self.name,
@@ -119,7 +124,11 @@ Respond in JSON with these exact fields:
     async def _pivot(self, reason: str, triggered_by: str | None = None) -> PivotPayload:
         """Execute a strategy pivot using LLM reasoning."""
         self.pivot_count += 1
-        self.log(f"Pivot #{self.pivot_count}: {reason}", action="pivot")
+        self.log(
+            f"Pivot #{self.pivot_count}: {reason}",
+            action="pivot",
+            reasoning=f"Triggering pivot because: {reason}. This is pivot #{self.pivot_count}. Evaluating how to adjust strategy to address this while preserving core value proposition.",
+        )
 
         old_strategy_str = self.current_strategy.model_dump_json() if self.current_strategy else "{}"
 

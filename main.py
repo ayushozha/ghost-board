@@ -258,8 +258,13 @@ async def run_sprint(
             int_table.add_row(component, f"[{color}]{st}[/{color}]")
         console.print(int_table)
 
+    # Save board discussion
+    from agents.base import BaseAgent
+    BaseAgent.save_board_discussion()
+
     console.print(f"\n  Outputs: [link=file://outputs/]outputs/[/link]")
     console.print(f"  Trace: [link=file://outputs/trace.json]outputs/trace.json[/link]")
+    console.print(f"  Board: [link=file://outputs/board_discussion.json]outputs/board_discussion.json[/link]")
 
     if hasattr(logger, 'wandb_url') and logger.wandb_url:
         console.print(f"  W&B: [link={logger.wandb_url}]{logger.wandb_url}[/link]")

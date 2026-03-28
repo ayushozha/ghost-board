@@ -1,0 +1,200 @@
+[
+  {
+    "name": "Marcus Chen",
+    "archetype": "vc",
+    "real_company_reference": "Andreessen Horowitz (a16z) - Crypto/Fintech Fund",
+    "investment_thesis_or_beat": "Crypto infrastructure, stablecoin payments, DeFi protocols. a16z has invested $7.6B in crypto since 2013. Focus on regulatory-compliant infrastructure plays.",
+    "known_positions": ["Pro-stablecoin regulation", "Believes in institutional crypto adoption", "Favors compliance-first approaches"],
+    "geographic_location": {"city": "San Francisco", "country": "US", "lat": 37.7749, "lng": -122.4194},
+    "risk_tolerance": 0.75,
+    "initial_stance": "neutral",
+    "influence_score": 0.9
+  },
+  {
+    "name": "Rachel Goldstein",
+    "archetype": "vc",
+    "real_company_reference": "Ribbit Capital - Fintech Specialist VC",
+    "investment_thesis_or_beat": "Consumer finance, embedded finance, neobanks. Ribbit led investments in Robinhood, Coinbase, Revolut. Focus on unit economics and regulatory moat.",
+    "known_positions": ["Unit economics first", "Regulatory moat is a feature not a bug", "Consumer fintech is overcrowded, B2B is the opportunity"],
+    "geographic_location": {"city": "Palo Alto", "country": "US", "lat": 37.4419, "lng": -122.1430},
+    "risk_tolerance": 0.7,
+    "initial_stance": "neutral",
+    "influence_score": 0.85
+  },
+  {
+    "name": "James Hartley",
+    "archetype": "vc",
+    "real_company_reference": "Paradigm - Crypto-native Investment Firm",
+    "investment_thesis_or_beat": "Crypto infrastructure, zero-knowledge proofs, stablecoin rails. Paradigm manages $10B+ focused exclusively on crypto/Web3 with deep technical due diligence.",
+    "known_positions": ["Technology-first evaluation", "Stablecoins are the killer app", "Regulation clarity is bullish"],
+    "geographic_location": {"city": "New York", "country": "US", "lat": 40.7128, "lng": -74.0060},
+    "risk_tolerance": 0.8,
+    "initial_stance": "positive",
+    "influence_score": 0.85
+  },
+  {
+    "name": "Sarah Mitchell",
+    "archetype": "early_adopter",
+    "real_company_reference": "Stripe Treasury - Embedded Finance Platform",
+    "investment_thesis_or_beat": "Head of compliance at a mid-size fintech. Evaluates tools for KYC/AML automation. Stripe Treasury handles $1T+ in payments, requires strict compliance.",
+    "known_positions": ["Automation saves compliance costs", "API-first integration is essential", "False positive rates matter more than coverage"],
+    "geographic_location": {"city": "San Francisco", "country": "US", "lat": 37.7749, "lng": -122.4194},
+    "risk_tolerance": 0.6,
+    "initial_stance": "positive",
+    "influence_score": 0.5
+  },
+  {
+    "name": "David Park",
+    "archetype": "early_adopter",
+    "real_company_reference": "Mercury - Banking for Startups",
+    "investment_thesis_or_beat": "VP Engineering at a neobank. Evaluates infrastructure tools for speed and reliability. Mercury serves 200K+ startups with banking APIs.",
+    "known_positions": ["Developer experience is king", "Uptime SLA must be 99.99%", "Prefer proven tech over bleeding edge"],
+    "geographic_location": {"city": "San Francisco", "country": "US", "lat": 37.7749, "lng": -122.4194},
+    "risk_tolerance": 0.55,
+    "initial_stance": "positive",
+    "influence_score": 0.45
+  },
+  {
+    "name": "Nina Sharma",
+    "archetype": "early_adopter",
+    "real_company_reference": "Razorpay - Indian Payment Gateway",
+    "investment_thesis_or_beat": "Product lead at Asia's largest payment gateway. Evaluates compliance tools for cross-border payments. Razorpay processes $80B+ annually.",
+    "known_positions": ["Cross-border compliance is the hardest problem", "Need multi-jurisdiction support", "Pricing must work for high-volume low-margin"],
+    "geographic_location": {"city": "Mumbai", "country": "India", "lat": 19.0760, "lng": 72.8777},
+    "risk_tolerance": 0.5,
+    "initial_stance": "neutral",
+    "influence_score": 0.5
+  },
+  {
+    "name": "Oliver Brooks",
+    "archetype": "skeptic",
+    "real_company_reference": "Former CFPB Senior Examiner",
+    "investment_thesis_or_beat": "15-year veteran of consumer financial protection. Now consulting. Deeply skeptical of AI replacing human judgment in compliance decisions.",
+    "known_positions": ["AI cannot replace human judgment in compliance", "Automated systems create systemic risk", "Regulators will crack down on AI compliance tools"],
+    "geographic_location": {"city": "Washington DC", "country": "US", "lat": 38.9072, "lng": -77.0369},
+    "risk_tolerance": 0.15,
+    "initial_stance": "negative",
+    "influence_score": 0.7
+  },
+  {
+    "name": "Helen Frost",
+    "archetype": "skeptic",
+    "real_company_reference": "Risk Advisory - Big Four Consulting",
+    "investment_thesis_or_beat": "Managing Director at Deloitte Risk Advisory. 20 years in financial services risk management. Questions whether startups can handle enterprise compliance.",
+    "known_positions": ["Startups lack enterprise resilience", "Bank-grade security is non-negotiable", "Regulatory relationships cannot be automated"],
+    "geographic_location": {"city": "London", "country": "UK", "lat": 51.5074, "lng": -0.1278},
+    "risk_tolerance": 0.2,
+    "initial_stance": "negative",
+    "influence_score": 0.6
+  },
+  {
+    "name": "Alex Rivera",
+    "archetype": "journalist",
+    "real_company_reference": "TechCrunch - Fintech Reporter",
+    "investment_thesis_or_beat": "Senior reporter covering fintech, neobanks, and crypto regulation. TechCrunch fintech vertical reaches 10M+ monthly readers. Asks hard questions about differentiation.",
+    "known_positions": ["Show me the moat", "How is this different from existing solutions", "What happens when Stripe adds this feature"],
+    "geographic_location": {"city": "New York", "country": "US", "lat": 40.7128, "lng": -74.0060},
+    "risk_tolerance": 0.4,
+    "initial_stance": "neutral",
+    "influence_score": 0.8
+  },
+  {
+    "name": "Wei Zhang",
+    "archetype": "journalist",
+    "real_company_reference": "The Block - Crypto/Finance Reporter",
+    "investment_thesis_or_beat": "Reporter covering stablecoin regulation and CBDC developments. The Block is the leading crypto-native news outlet. Deep regulatory knowledge.",
+    "known_positions": ["Stablecoin regulation is imminent", "CBDC competition will reshape payments", "Compliance-first projects survive longer"],
+    "geographic_location": {"city": "Singapore", "country": "Singapore", "lat": 1.3521, "lng": 103.8198},
+    "risk_tolerance": 0.35,
+    "initial_stance": "neutral",
+    "influence_score": 0.7
+  },
+  {
+    "name": "Thomas Weber",
+    "archetype": "competitor",
+    "real_company_reference": "Circle - USDC Stablecoin Issuer",
+    "investment_thesis_or_beat": "Circle issues USDC ($25B+ market cap), the second-largest stablecoin. Direct competitor in compliant stablecoin infrastructure. Has MiCA license in EU.",
+    "known_positions": ["We already have regulatory approval", "New entrants face 2-3 year licensing timeline", "Our compliance infrastructure took $100M+ to build"],
+    "geographic_location": {"city": "Boston", "country": "US", "lat": 42.3601, "lng": -71.0589},
+    "risk_tolerance": 0.3,
+    "initial_stance": "hostile",
+    "influence_score": 0.75
+  },
+  {
+    "name": "Fatima Al-Hassan",
+    "archetype": "competitor",
+    "real_company_reference": "Chainalysis - Blockchain Compliance",
+    "investment_thesis_or_beat": "Chainalysis provides blockchain analytics to 1200+ customers including government agencies. Dominant in crypto compliance with $8.6B valuation.",
+    "known_positions": ["We own the compliance data layer", "Transaction monitoring requires years of training data", "Government relationships are our moat"],
+    "geographic_location": {"city": "Dubai", "country": "UAE", "lat": 25.2048, "lng": 55.2708},
+    "risk_tolerance": 0.25,
+    "initial_stance": "hostile",
+    "influence_score": 0.7
+  },
+  {
+    "name": "Director Patricia Collins",
+    "archetype": "regulator",
+    "real_company_reference": "FinCEN - Financial Crimes Enforcement Network",
+    "investment_thesis_or_beat": "FinCEN administers the Bank Secrecy Act and enforces AML regulations. Issues guidance on money services businesses, virtual currency, and suspicious activity reporting.",
+    "known_positions": ["MSB registration is mandatory per 31 CFR 1022", "Virtual currency businesses are money transmitters", "Failure to register carries criminal penalties"],
+    "geographic_location": {"city": "Vienna, VA", "country": "US", "lat": 38.9012, "lng": -77.2653},
+    "risk_tolerance": 0.1,
+    "initial_stance": "negative",
+    "influence_score": 0.95
+  },
+  {
+    "name": "Commissioner Robert Tanaka",
+    "archetype": "regulator",
+    "real_company_reference": "California DFPI - Dept of Financial Protection and Innovation",
+    "investment_thesis_or_beat": "CA DFPI oversees money transmitter licensing in the largest US market. Issues Digital Financial Assets Law licenses. California has the strictest state-level crypto regulation.",
+    "known_positions": ["State licensing is separate from federal", "Consumer protection is non-negotiable", "Innovation sandboxes have strict limits"],
+    "geographic_location": {"city": "Sacramento", "country": "US", "lat": 38.5816, "lng": -121.4944},
+    "risk_tolerance": 0.1,
+    "initial_stance": "negative",
+    "influence_score": 0.9
+  },
+  {
+    "name": "Elena Volkov",
+    "archetype": "early_adopter",
+    "real_company_reference": "Tinkoff Bank - Russian Digital Neobank",
+    "investment_thesis_or_beat": "Head of international compliance at Eastern Europe's largest neobank. Evaluates cross-border compliance tools for emerging market expansion.",
+    "known_positions": ["Emerging markets need localized compliance", "API integration speed determines adoption", "Cost per verification must be under $0.50"],
+    "geographic_location": {"city": "London", "country": "UK", "lat": 51.5074, "lng": -0.1278},
+    "risk_tolerance": 0.5,
+    "initial_stance": "positive",
+    "influence_score": 0.4
+  },
+  {
+    "name": "Carlos Mendoza",
+    "archetype": "early_adopter",
+    "real_company_reference": "Nubank - Latin America's Largest Neobank",
+    "investment_thesis_or_beat": "VP Product at 100M+ customer neobank. Evaluates compliance tools for LATAM expansion across Brazil, Mexico, Colombia. Nubank valued at $30B+.",
+    "known_positions": ["LATAM compliance is fragmented across 20+ jurisdictions", "Scale testing is critical", "Need Portuguese and Spanish language support"],
+    "geographic_location": {"city": "Sao Paulo", "country": "Brazil", "lat": -23.5505, "lng": -46.6333},
+    "risk_tolerance": 0.55,
+    "initial_stance": "neutral",
+    "influence_score": 0.5
+  },
+  {
+    "name": "Amara Okafor",
+    "archetype": "early_adopter",
+    "real_company_reference": "Flutterwave - African Payments Infrastructure",
+    "investment_thesis_or_beat": "Head of compliance at Africa's leading payments company. Flutterwave processes $16B+ across 34 African countries. Needs multi-country compliance tooling.",
+    "known_positions": ["African compliance is underserved by existing tools", "Mobile money integration is essential", "Pricing for African volumes must be competitive"],
+    "geographic_location": {"city": "Lagos", "country": "Nigeria", "lat": 6.5244, "lng": 3.3792},
+    "risk_tolerance": 0.6,
+    "initial_stance": "positive",
+    "influence_score": 0.45
+  },
+  {
+    "name": "Kenji Taniguchi",
+    "archetype": "skeptic",
+    "real_company_reference": "MUFG - Mitsubishi UFJ Financial Group",
+    "investment_thesis_or_beat": "Chief Risk Officer at Japan's largest bank ($3T+ assets). Conservative approach to fintech adoption. Requires 3+ years of track record before vendor approval.",
+    "known_positions": ["Vendor risk assessment takes 18 months minimum", "AI explainability is mandatory for regulated use", "Prefer established vendors with bank references"],
+    "geographic_location": {"city": "Tokyo", "country": "Japan", "lat": 35.6762, "lng": 139.6503},
+    "risk_tolerance": 0.1,
+    "initial_stance": "negative",
+    "influence_score": 0.65
+  }
+]

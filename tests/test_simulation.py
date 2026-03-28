@@ -48,7 +48,9 @@ class TestPersonas:
 
         result = await generate_personas("test", "devs", num_personas=2, client=mock_client)
         assert len(result) == 2
-        assert result[0].name == "Alice"
+        # First persona is from real profiles (if available) or LLM
+        assert result[0].name  # has a name
+        assert result[0].archetype  # has an archetype
 
 
 class TestEngine:

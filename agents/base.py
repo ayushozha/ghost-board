@@ -135,8 +135,10 @@ class BaseAgent:
         self.log(f"Tool call failed after {retries} attempts: {last_error}", action="error")
         return None
 
-    def log(self, message: str, action: str = "info") -> None:
-        """Log an action to the trace logger."""
+    _board_discussion: list[dict] = []
+
+    def log(self, message: str, action: str = "info", reasoning: str = "") -> None:
+        """Log an action to the trace logger and board discussion."""
         from coordination.events import UpdatePayload
 
         event = AgentEvent(
@@ -150,6 +152,32 @@ class BaseAgent:
             iteration=self._current_iteration,
         )
         self.logger.log_event(event)
+
+        # Board discussion entry
+        if reasoning or action in ("strategy", "pivot", "blocker_found", "blocker_review",
+                                     "compliance_scan", "financial_model", "gtm_generate",
+                                     "codex_generate", "pivot_response", "simulation_review"):
+            from datetime import datetime, timezone
+            BaseAgent._board_discussion.append({
+                "agent": self.name,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "event_type": action,
+                "message": message,
+                "reasoning": reasoning or message,
+                "iteration": self._current_iteration,
+            })
+
+    @classmethod
+    def save_board_discussion(cls) -> None:
+        """Save board discussion to JSON file."""
+        import json, os
+        os.makedirs("outputs", exist_ok=True)
+        with open("outputs/board_discussion.json", "w", encoding="utf-8") as f:
+            json.dump(cls._board_discussion, f, indent=2)
+
+    @classmethod
+    def get_board_discussion(cls) -> list[dict]:
+        return list(cls._board_discussion)
 
     async def publish(self, event: AgentEvent) -> None:
         """Publish an event to the bus and log it."""

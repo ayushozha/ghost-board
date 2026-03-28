@@ -10,6 +10,14 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
 
+class GeoLocation(BaseModel):
+    """Geographic location for persona."""
+    city: str = ""
+    country: str = ""
+    lat: float = 0.0
+    lng: float = 0.0
+
+
 class MarketPersona(BaseModel):
     """A synthetic stakeholder for market simulation."""
     name: str
@@ -19,6 +27,8 @@ class MarketPersona(BaseModel):
     risk_tolerance: float = Field(ge=0.0, le=1.0, default=0.5)
     initial_stance: str = Field(default="neutral", description="positive, neutral, negative, hostile")
     influence_score: float = Field(ge=0.0, le=1.0, default=0.5)
+    real_company_reference: str = ""
+    geographic_location: GeoLocation = Field(default_factory=GeoLocation)
 
 
 # Archetype distribution for realistic simulation
@@ -32,16 +42,54 @@ ARCHETYPE_DISTRIBUTION = {
 }
 
 
+PROFILES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "personas", "profiles")
+
+
+def load_real_personas(profile_file: str = "fintech_personas.json") -> list[MarketPersona]:
+    """Load real-company-grounded personas from JSON profiles."""
+    path = os.path.join(PROFILES_DIR, profile_file)
+    if not os.path.exists(path):
+        return []
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    personas = []
+    for p in data:
+        geo = p.get("geographic_location", {})
+        personas.append(MarketPersona(
+            name=p["name"],
+            archetype=p["archetype"],
+            background=p.get("investment_thesis_or_beat", ""),
+            priorities=p.get("known_positions", []),
+            risk_tolerance=p.get("risk_tolerance", 0.5),
+            initial_stance=p.get("initial_stance", "neutral"),
+            influence_score=p.get("influence_score", 0.5),
+            real_company_reference=p.get("real_company_reference", ""),
+            geographic_location=GeoLocation(
+                city=geo.get("city", ""),
+                country=geo.get("country", ""),
+                lat=geo.get("lat", 0.0),
+                lng=geo.get("lng", 0.0),
+            ),
+        ))
+    return personas
+
+
 async def generate_personas(
     startup_idea: str,
     target_market: str,
     num_personas: int = 10,
     client: AsyncOpenAI | None = None,
 ) -> list[MarketPersona]:
-    """Generate a diverse set of market personas using gpt-4o-mini.
+    """Generate a diverse set of market personas.
 
-    Uses archetype distribution to ensure realistic mix of stakeholders.
+    First loads real-company-grounded personas from profiles/,
+    then fills remaining slots with LLM-generated personas.
     """
+    # Start with real profiles
+    real_personas = load_real_personas()
+    if real_personas and len(real_personas) >= num_personas:
+        return real_personas[:num_personas]
+
     if client is None:
         client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
 
