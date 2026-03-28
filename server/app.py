@@ -734,22 +734,45 @@ async def get_stats() -> dict[str, Any]:
         )
         total_cost = total_cost_result.scalar() or 0.0
 
-    # If no DB data, try reading from latest outputs
-    if total_runs == 0 and (OUTPUTS_DIR / "trace.json").exists():
-        total_runs = 1
+    # Enrich stats from output files when DB has no meaningful data.
+    # This covers the case where DB has stale test runs with all-zero stats.
+    has_meaningful_db_data = (int(total_agents) > 0 or float(total_cost) > 0 or int(total_pivots) > 0)
+    if not has_meaningful_db_data and (OUTPUTS_DIR / "trace.json").exists():
+        if total_runs == 0:
+            total_runs = 1
         summary = _read_json_file(OUTPUTS_DIR / "sprint_summary.json")
         if summary:
             total_cost = summary.get("total_cost", 0.0)
+            total_pivots = summary.get("pivots", 0)
         sim_results = _read_json_file(OUTPUTS_DIR / "simulation_results.json")
         if sim_results and isinstance(sim_results, dict):
             total_agents = sim_results.get("total_agents", total_agents)
+        # Count events from trace.json
+        trace_data = _read_json_file(OUTPUTS_DIR / "trace.json")
+        total_events = len(trace_data) if isinstance(trace_data, list) else 0
+        # Count pivots from trace if summary didn't have them
+        if int(total_pivots) == 0 and isinstance(trace_data, list):
+            total_pivots = sum(1 for e in trace_data if isinstance(e, dict) and e.get("event_type") == "PIVOT")
         avg_cost = total_cost / max(total_runs, 1)
+
+    # Total events across runs (from DB or file)
+    total_events_val = 0
+    if has_meaningful_db_data:
+        async with get_session() as session:
+            evt_count_result = await session.execute(
+                select(func.coalesce(func.sum(SprintRun.total_events), 0))
+            )
+            total_events_val = evt_count_result.scalar() or 0
+    elif (OUTPUTS_DIR / "trace.json").exists():
+        trace_data = _read_json_file(OUTPUTS_DIR / "trace.json")
+        total_events_val = len(trace_data) if isinstance(trace_data, list) else 0
 
     return {
         "total_runs": total_runs,
         "total_agents": int(total_agents),
         "total_agents_simulated": int(total_agents),
         "total_pivots": int(total_pivots),
+        "total_events": int(total_events_val),
         "avg_cost": round(float(avg_cost), 4),
         "total_cost": round(float(total_cost), 4),
     }
