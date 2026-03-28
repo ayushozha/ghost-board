@@ -301,6 +301,9 @@ class MiroFishBridge:
         # Export geo data for globe visualization
         self._save_geo_data(personas, sim_result)
 
+        # Export structured simulation results
+        self._save_simulation_results(sim_result, signal, personas)
+
         return sim_result, signal
 
     def _save_geo_data(self, personas: list, sim_result: SimulationResult) -> None:
@@ -329,6 +332,60 @@ class MiroFishBridge:
 
         with open("outputs/simulation_geo.json", "w", encoding="utf-8") as f:
             json.dump(geo_data, f, indent=2)
+
+    def _save_simulation_results(
+        self, sim_result: SimulationResult, signal: MarketSignal, personas: list
+    ) -> None:
+        """Save structured simulation results for dashboard visualization."""
+        import os as _os
+        _os.makedirs("outputs", exist_ok=True)
+
+        rounds_data = []
+        for rd in sim_result.rounds:
+            sentiment_by_archetype: dict[str, list[float]] = {}
+            posts = []
+            for m in rd.messages:
+                posts.append({
+                    "persona": m.persona_name,
+                    "archetype": m.archetype,
+                    "content": m.content,
+                    "sentiment": m.sentiment,
+                    "references": m.references,
+                    "stance_change": m.stance_change,
+                })
+                if m.archetype not in sentiment_by_archetype:
+                    sentiment_by_archetype[m.archetype] = []
+                sentiment_by_archetype[m.archetype].append(m.sentiment)
+
+            avg_by_archetype = {k: sum(v) / len(v) for k, v in sentiment_by_archetype.items() if v}
+
+            rounds_data.append({
+                "round_number": rd.round_num,
+                "posts": posts,
+                "avg_sentiment": rd.avg_sentiment,
+                "sentiment_by_archetype": avg_by_archetype,
+            })
+
+        results = {
+            "total_llm_agents": len(personas),
+            "total_lightweight_agents": 0,
+            "total_agents": len(personas),
+            "rounds": len(sim_result.rounds),
+            "rounds_data": rounds_data,
+            "final_signal": {
+                "overall_sentiment": signal.overall_sentiment,
+                "confidence": signal.confidence,
+                "key_concerns": signal.key_concerns,
+                "key_strengths": signal.key_strengths,
+                "pivot_recommended": signal.pivot_recommended,
+                "pivot_suggestion": signal.pivot_suggestion,
+            },
+            "final_stances": sim_result.final_stances,
+            "total_messages": sim_result.total_messages,
+        }
+
+        with open("outputs/simulation_results.json", "w", encoding="utf-8") as f:
+            json.dump(results, f, indent=2)
 
     async def _enhance_with_bettafish(
         self, sim_result: SimulationResult, signal: MarketSignal

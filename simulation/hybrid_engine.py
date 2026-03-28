@@ -9,6 +9,7 @@ Both contribute to the final MarketSignal.
 
 from __future__ import annotations
 
+import json
 import os
 import time
 from typing import Any
@@ -157,4 +158,87 @@ async def run_hybrid_simulation(
         "swarm_history": swarm_history,
     }
 
+    # Save structured outputs for dashboard
+    _save_hybrid_outputs(sim_result, signal, llm_personas, hybrid_stats)
+
     return sim_result, signal, hybrid_stats
+
+
+def _save_hybrid_outputs(
+    sim_result: SimulationResult,
+    signal: MarketSignal,
+    personas: list,
+    hybrid_stats: dict[str, Any],
+) -> None:
+    """Save simulation geo and results data for dashboard."""
+    os.makedirs("outputs", exist_ok=True)
+
+    # Geo data
+    geo_data = []
+    for p in personas:
+        geo = getattr(p, 'geographic_location', None)
+        entry = {
+            "name": p.name,
+            "archetype": p.archetype,
+            "lat": geo.lat if geo else 0.0,
+            "lng": geo.lng if geo else 0.0,
+            "city": geo.city if geo else "",
+            "country": geo.country if geo else "",
+            "initial_stance": p.initial_stance,
+            "influence": p.influence_score,
+            "final_stance": sim_result.final_stances.get(p.name, "neutral"),
+        }
+        msgs = [m for r in sim_result.rounds for m in r.messages if m.persona_name == p.name]
+        entry["messages"] = [{"round": m.round_num, "content": m.content, "sentiment": m.sentiment} for m in msgs]
+        geo_data.append(entry)
+
+    with open("outputs/simulation_geo.json", "w", encoding="utf-8") as f:
+        json.dump(geo_data, f, indent=2)
+
+    # Structured results
+    rounds_data = []
+    for rd in sim_result.rounds:
+        sentiment_by_archetype: dict[str, list[float]] = {}
+        posts = []
+        for m in rd.messages:
+            posts.append({
+                "persona": m.persona_name,
+                "archetype": m.archetype,
+                "content": m.content,
+                "sentiment": m.sentiment,
+                "references": m.references,
+            })
+            if m.archetype not in sentiment_by_archetype:
+                sentiment_by_archetype[m.archetype] = []
+            sentiment_by_archetype[m.archetype].append(m.sentiment)
+
+        avg_by_archetype = {k: sum(v) / len(v) for k, v in sentiment_by_archetype.items() if v}
+        rounds_data.append({
+            "round_number": rd.round_num,
+            "posts": posts,
+            "avg_sentiment": rd.avg_sentiment,
+            "sentiment_by_archetype": avg_by_archetype,
+        })
+
+    results = {
+        "total_llm_agents": hybrid_stats["llm_agents"],
+        "total_lightweight_agents": hybrid_stats["lightweight_agents"],
+        "total_agents": hybrid_stats["total_agents"],
+        "rounds": hybrid_stats["rounds"],
+        "rounds_data": rounds_data,
+        "final_signal": {
+            "overall_sentiment": signal.overall_sentiment,
+            "confidence": signal.confidence,
+            "key_concerns": signal.key_concerns,
+            "key_strengths": signal.key_strengths,
+            "pivot_recommended": signal.pivot_recommended,
+            "pivot_suggestion": signal.pivot_suggestion,
+        },
+        "final_stances": sim_result.final_stances,
+        "total_messages": sim_result.total_messages,
+        "duration_seconds": hybrid_stats["duration_seconds"],
+        "swarm_history": hybrid_stats.get("swarm_history", []),
+    }
+
+    with open("outputs/simulation_results.json", "w", encoding="utf-8") as f:
+        json.dump(results, f, indent=2)
