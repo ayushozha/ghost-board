@@ -125,3 +125,55 @@ class TestAnalyzer:
         assert signal.confidence == 0.75
         assert "pricing" in signal.key_concerns
         assert signal.pivot_recommended is False
+
+
+class TestMiroFishBridge:
+    def test_integration_status_populated(self):
+        """MiroFish bridge should report integration status."""
+        from simulation.mirofish_bridge import MiroFishBridge, get_integration_status
+        bridge = MiroFishBridge(client=AsyncMock())
+        status = get_integration_status()
+        # Should have at least mirofish status
+        assert "mirofish" in status
+        # MiroFish should be REPLACED (camel-oasis needs Python <3.12)
+        assert "REPLACED" in status["mirofish"] or "NOT_FOUND" in status["mirofish"]
+
+    @pytest.mark.asyncio
+    async def test_bridge_runs_local_simulation(self):
+        """Bridge should fall back to local simulation."""
+        mock_client = AsyncMock()
+        # Mock for persona generation
+        personas_json = json.dumps([
+            {"name": "A", "archetype": "vc", "background": "VC", "priorities": ["ROI"],
+             "risk_tolerance": 0.7, "initial_stance": "neutral", "influence_score": 0.8},
+        ])
+        turn_json = json.dumps({
+            "content": "Looks promising.", "sentiment": 0.5,
+            "references": [], "stance_change": "none",
+        })
+        analysis_json = json.dumps({
+            "key_concerns": ["pricing"], "key_strengths": ["innovation"],
+            "pivot_recommended": False, "pivot_suggestion": "",
+            "confidence": 0.8, "summary": "Positive.",
+        })
+        mock_client.chat.completions.create = AsyncMock(side_effect=[
+            MockResponse(personas_json),
+            MockResponse(turn_json),   # round 1
+            MockResponse(analysis_json),
+        ])
+
+        from simulation.mirofish_bridge import MiroFishBridge
+        bridge = MiroFishBridge(client=mock_client)
+        sim_result, signal = await bridge.run_full_simulation(
+            "test", "test strategy", num_personas=1, num_rounds=1,
+        )
+        assert sim_result.total_messages == 1
+        assert isinstance(signal, MarketSignal)
+
+    def test_bettafish_sentiment_availability(self):
+        """BettaFish sentiment should report its status."""
+        from simulation.mirofish_bridge import BettaFishSentiment, get_integration_status
+        bf = BettaFishSentiment()
+        status = get_integration_status()
+        assert "bettafish" in status
+        # Should be either ACTIVE (if torch+model worked) or FALLBACK

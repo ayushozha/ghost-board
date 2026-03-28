@@ -32,7 +32,7 @@ from agents.cto import CTOAgent
 from agents.cfo import CFOAgent
 from agents.cmo import CMOAgent
 from agents.legal import LegalAgent
-from simulation.mirofish_bridge import MiroFishBridge
+from simulation.mirofish_bridge import MiroFishBridge, get_integration_status
 
 
 async def run_sprint(
@@ -214,6 +214,17 @@ async def run_sprint(
     for name, cost in costs.items():
         cost_table.add_row(name, f"{cost['total_tokens']:,}", f"${cost['estimated_cost_usd']:.4f}")
     console.print(cost_table)
+
+    # Integration status
+    status = get_integration_status()
+    if status:
+        int_table = Table(title="Vendor Integration", border_style="dim")
+        int_table.add_column("Component", style="bold")
+        int_table.add_column("Status")
+        for component, st in status.items():
+            color = "green" if "ACTIVE" in st else ("yellow" if "REPLACED" in st or "FALLBACK" in st else "red")
+            int_table.add_row(component, f"[{color}]{st}[/{color}]")
+        console.print(int_table)
 
     console.print(f"\n  Outputs: [link=file://outputs/]outputs/[/link]")
     console.print(f"  Trace: [link=file://outputs/trace.json]outputs/trace.json[/link]")
