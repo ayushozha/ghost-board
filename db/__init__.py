@@ -1,0 +1,1 @@
+"""Ghost Board database layer."""

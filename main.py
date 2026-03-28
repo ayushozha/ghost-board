@@ -245,6 +245,28 @@ async def run_sprint(
         with open("demo/wandb_url.txt", "w") as f:
             f.write(logger.wandb_url + "\n")
 
+    # Save to database
+    try:
+        from db.storage import save_simulation_run
+        run_id = save_simulation_run(
+            concept_name=startup_idea[:60],
+            concept_text=startup_idea,
+            scale="demo",
+            num_personas=num_personas,
+            num_rounds=num_rounds,
+            total_events=total_events,
+            total_pivots=pivots,
+            total_tokens=total_tokens,
+            total_cost=total_cost,
+            sim_result=None,  # sim_result is local to phase 2 scope
+            market_signal=None,
+            cost_breakdown=costs,
+            integration_status=status,
+        )
+        console.print(f"\n  [dim]Saved to database: run_id={run_id}[/dim]")
+    except Exception as e:
+        console.print(f"\n  [dim]Database save skipped: {e}[/dim]")
+
     # Finalize trace
     logger.finish()
 
