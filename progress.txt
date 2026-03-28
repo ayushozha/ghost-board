@@ -140,3 +140,8 @@ PostgreSQL on our VPS for database (see VPS.md for connection details)
 [x] PRD-119: Add type hints to all public functions in db/storage.py and db/models.py. Run mypy --ignore-missing-imports on db/ module to verify type correctness.
 [x] PRD-120: Add conftest.py with shared fixtures (mock_client, mock_bus_logger, db_engine) to reduce test duplication across test files.
 [x] PRD-121: Add --concept flag to main.py that accepts concept name (anchrix, coforge, medpulse, learnloop, saas) and loads the corresponding demo/*.txt concept file. Easier than typing full text.
+[x] PRD-122: Add conftest.py with shared test fixtures to reduce duplication. mock_openai_client, make_bus_and_logger, db_engine. Import across all test files.
+[x] PRD-123: Add test for --concept flag in test_cli.py. Verify each concept name loads correct file path. Verify invalid concept shows error.
+[x] PRD-124: Add outputs/.gitkeep files for each subdirectory (prototype, financial_model, gtm, compliance) so git tracks empty dirs.
+[x] PRD-125: Add a --list-concepts flag that lists available concepts with their file paths and first 80 chars of content.
+[x] PRD-126: Add agent reasoning quality test. Mock CEO pivot response and verify it contains specific fields: reason, affected_agents, changes_required with non-empty values for each agent.

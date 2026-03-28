@@ -27,3 +27,16 @@ class TestCLI:
         assert "standard" in result.output
         assert "large" in result.output
         assert "million" in result.output
+
+    def test_concept_flag_in_help(self):
+        runner = CliRunner()
+        result = runner.invoke(main, ["--help"])
+        assert "--concept" in result.output
+        assert "anchrix" in result.output
+        assert "coforge" in result.output
+        assert "medpulse" in result.output
+
+    def test_invalid_concept_rejected(self):
+        runner = CliRunner()
+        result = runner.invoke(main, ["--concept", "nonexistent"])
+        assert result.exit_code != 0
