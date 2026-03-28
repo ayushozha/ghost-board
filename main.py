@@ -188,8 +188,18 @@ async def run_sprint(
     pivots = ceo.pivot_count
 
     costs = {a.name: a.get_cost_summary() for a in agents}
-    total_cost = sum(c["estimated_cost_usd"] for c in costs.values())
 
+    # Estimate simulation costs (gpt-4o-mini: ~300 tokens per persona turn + analysis)
+    if not skip_simulation:
+        sim_token_est = num_personas * num_rounds * 300 + 1000  # turns + analysis
+        sim_cost_est = sim_token_est * (0.15 + 0.60) / 2 / 1_000_000  # avg in/out
+        costs["Simulation"] = {
+            "agent": "Simulation",
+            "total_tokens": sim_token_est,
+            "estimated_cost_usd": round(sim_cost_est, 4),
+        }
+
+    total_cost = sum(c["estimated_cost_usd"] for c in costs.values())
     total_tokens = sum(c["total_tokens"] for c in costs.values())
     human_equivalent = 15000.0
 
@@ -308,8 +318,8 @@ def _play_cached_demo() -> None:
 
 @click.command()
 @click.argument("startup_idea", default="AI-powered regulatory compliance automation for fintech startups")
-@click.option("--personas", "-p", default=10, help="Number of simulation personas")
-@click.option("--rounds", "-r", default=3, help="Number of simulation rounds")
+@click.option("--personas", "-p", default=30, help="Number of simulation personas")
+@click.option("--rounds", "-r", default=5, help="Number of simulation rounds")
 @click.option("--skip-simulation", is_flag=True, help="Skip market simulation phase")
 @click.option("--demo", is_flag=True, help="Run with the Anchrix demo concept")
 @click.option("--cached", is_flag=True, help="Play back cached demo results (no API calls)")

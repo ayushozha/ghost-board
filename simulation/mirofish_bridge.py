@@ -27,8 +27,9 @@ from simulation.engine import run_simulation, SimulationResult
 from simulation.analyzer import analyze_simulation, MarketSignal
 
 
-MIROFISH_DIR = Path("vendor/MiroFish")
-BETTAFISH_DIR = Path("vendor/BettaFish")
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+MIROFISH_DIR = _PROJECT_ROOT / "vendor" / "MiroFish"
+BETTAFISH_DIR = _PROJECT_ROOT / "vendor" / "BettaFish"
 
 _integration_status: dict[str, str] = {}
 
