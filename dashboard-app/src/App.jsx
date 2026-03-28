@@ -1,122 +1,175 @@
-import { useState, useCallback } from 'react'
-import MissionControl from './screens/MissionControl'
-import Boardroom from './screens/Boardroom'
-import MarketArena from './screens/MarketArena'
-import PivotTimeline from './screens/PivotTimeline'
-import SprintReport from './screens/SprintReport'
+import { useState, useEffect, useCallback, useRef } from 'react';
+import MissionControl from './screens/MissionControl';
+import Boardroom from './screens/Boardroom';
+import MarketArena from './screens/MarketArena';
+import PivotTimeline from './screens/PivotTimeline';
+import SprintReport from './screens/SprintReport';
+import { isApiAvailable, connectLive } from './api';
 
 const SCREENS = [
-  { id: 'mission',   label: 'Mission Control', icon: '\u{1F680}' },
-  { id: 'boardroom', label: 'Boardroom',       icon: '\u{1F4CB}' },
-  { id: 'arena',     label: 'Market Arena',    icon: '\u{1F30D}' },
-  { id: 'timeline',  label: 'Pivot Timeline',  icon: '\u{1F4C8}' },
-  { id: 'report',    label: 'Sprint Report',   icon: '\u{1F4CA}' },
-]
+  { id: 'mission',   label: 'Mission Control', icon: '\u{1F680}', color: 'from-cyan-400 to-blue-500' },
+  { id: 'boardroom', label: 'Boardroom',       icon: '\u{1F4CB}', color: 'from-blue-400 to-indigo-500' },
+  { id: 'arena',     label: 'Market Arena',    icon: '\u{1F30D}', color: 'from-green-400 to-emerald-500' },
+  { id: 'timeline',  label: 'Pivot Timeline',  icon: '\u{1F4C8}', color: 'from-yellow-400 to-orange-500' },
+  { id: 'report',    label: 'Sprint Report',   icon: '\u{1F4CA}', color: 'from-purple-400 to-pink-500' },
+];
 
 export default function App() {
-  const [activeScreen, setActiveScreen] = useState('mission')
-  const [runId, setRunId] = useState(null)
-  const [sprintStatus, setSprintStatus] = useState('idle') // idle | running | done
+  const [screen, setScreen] = useState('mission');
+  const [runId, setRunId] = useState(null);
+  const [isLive, setIsLive] = useState(false);
+  const [sprintStatus, setSprintStatus] = useState('idle'); // idle | running | completed
+  const wsRef = useRef(null);
 
+  // Check API availability on mount
+  useEffect(() => {
+    isApiAvailable().then(setIsLive);
+  }, []);
+
+  // WebSocket connection for live event streaming
+  useEffect(() => {
+    if (!runId || sprintStatus !== 'running') return;
+
+    const ws = connectLive(runId, {
+      onEvent: (event) => {
+        // Auto-advance screens based on event types
+        const t = event.event_type || event.type || '';
+        if (t === 'SIMULATION_START' || t === 'simulation_start') {
+          setScreen('arena');
+        } else if (t === 'SIMULATION_COMPLETE' || t === 'simulation_complete' || t === 'SIMULATION_RESULT') {
+          setScreen('timeline');
+        } else if (t === 'SPRINT_COMPLETE' || t === 'sprint_complete') {
+          setScreen('report');
+          setSprintStatus('completed');
+        }
+      },
+      onClose: () => {
+        // If WS closes while running, mark completed (sprint likely finished)
+        if (sprintStatus === 'running') {
+          setSprintStatus('completed');
+        }
+      },
+      onError: (err) => {
+        console.error('WebSocket error:', err);
+      },
+    });
+
+    wsRef.current = ws;
+
+    return () => {
+      ws.close();
+      wsRef.current = null;
+    };
+  }, [runId, sprintStatus]);
+
+  // MissionControl calls onLaunch(run_id) after it starts the sprint via API
   const handleLaunch = useCallback((newRunId) => {
-    setRunId(newRunId)
-    setSprintStatus('running')
-    setActiveScreen('boardroom')
-  }, [])
+    setRunId(newRunId);
+    setSprintStatus('running');
+    setScreen('boardroom');
+  }, []);
 
+  // Boardroom calls onDone() when inner-loop completes
   const handleSprintDone = useCallback(() => {
-    setSprintStatus('done')
-  }, [])
+    setSprintStatus('completed');
+  }, []);
 
   const handleNavigate = useCallback((screenId) => {
-    // Allow navigating to mission control always;
-    // other screens require a runId
+    // Allow mission control always; other screens need a runId
     if (screenId === 'mission' || runId) {
-      setActiveScreen(screenId)
+      setScreen(screenId);
     }
-  }, [runId])
+  }, [runId]);
 
   const renderScreen = () => {
-    switch (activeScreen) {
+    switch (screen) {
       case 'mission':
-        return <MissionControl onLaunch={handleLaunch} />
+        return <MissionControl onLaunch={handleLaunch} />;
       case 'boardroom':
-        return <Boardroom runId={runId} onDone={handleSprintDone} />
+        return <Boardroom runId={runId} onDone={handleSprintDone} />;
       case 'arena':
-        return <MarketArena runId={runId} />
+        return <MarketArena runId={runId} />;
       case 'timeline':
-        return <PivotTimeline runId={runId} />
+        return <PivotTimeline runId={runId} />;
       case 'report':
-        return <SprintReport runId={runId} />
+        return <SprintReport runId={runId} />;
       default:
-        return <MissionControl onLaunch={handleLaunch} />
+        return <MissionControl onLaunch={handleLaunch} />;
     }
-  }
+  };
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col">
       {/* ─── Top Navigation ─── */}
-      <nav className="sticky top-0 z-50 bg-gray-950/80 backdrop-blur-lg border-b border-gray-800/60">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <button
-              onClick={() => handleNavigate('mission')}
-              className="flex items-center gap-2 group cursor-pointer"
-            >
-              <span className="text-2xl font-bold bg-gradient-to-r from-purple-400 via-cyan-400 to-emerald-400 bg-clip-text text-transparent group-hover:from-purple-300 group-hover:via-cyan-300 group-hover:to-emerald-300 transition-all duration-300">
-                GHOST BOARD
+      <nav className="flex items-center justify-between px-6 py-3 bg-gray-900/80 backdrop-blur border-b border-gray-800 sticky top-0 z-50">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => handleNavigate('mission')}
+            className="flex items-center gap-2 group cursor-pointer"
+          >
+            <span className="text-xl font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent group-hover:from-cyan-300 group-hover:to-purple-400 transition-all duration-300">
+              Ghost Board
+            </span>
+          </button>
+          {isLive && (
+            <span className="flex items-center gap-1.5 text-xs font-medium text-green-400">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400" />
               </span>
-              {sprintStatus === 'running' && (
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-                </span>
-              )}
-            </button>
+              LIVE
+            </span>
+          )}
+        </div>
 
-            {/* Screen Tabs */}
-            <div className="hidden md:flex items-center gap-1">
-              {SCREENS.map((screen) => {
-                const isActive = activeScreen === screen.id
-                const isDisabled = screen.id !== 'mission' && !runId
-                return (
-                  <button
-                    key={screen.id}
-                    onClick={() => handleNavigate(screen.id)}
-                    disabled={isDisabled}
-                    className={`
-                      relative px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200
-                      ${isDisabled
-                        ? 'text-gray-600 cursor-not-allowed'
-                        : isActive
-                          ? 'text-white'
-                          : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50 cursor-pointer'
-                      }
-                    `}
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <span className="text-base">{screen.icon}</span>
-                      <span>{screen.label}</span>
-                    </span>
-                    {/* Active indicator - gradient underline */}
-                    {isActive && (
-                      <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-gradient-to-r from-purple-500 via-cyan-500 to-emerald-500 rounded-full" />
-                    )}
-                  </button>
-                )
-              })}
-            </div>
+        {/* Desktop tabs */}
+        <div className="hidden md:flex gap-1">
+          {SCREENS.map((s) => {
+            const isActive = screen === s.id;
+            const isDisabled = s.id !== 'mission' && !runId;
+            return (
+              <button
+                key={s.id}
+                onClick={() => handleNavigate(s.id)}
+                disabled={isDisabled}
+                className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  isDisabled
+                    ? 'text-gray-600 cursor-not-allowed'
+                    : isActive
+                      ? 'bg-gray-800 text-white shadow-lg'
+                      : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50 cursor-pointer'
+                }`}
+              >
+                <span className="mr-1.5">{s.icon}</span>
+                {s.label}
+                {isActive && (
+                  <span className={`absolute bottom-0 left-2 right-2 h-0.5 bg-gradient-to-r ${s.color} rounded-full`} />
+                )}
+              </button>
+            );
+          })}
+        </div>
 
-            {/* Mobile menu button */}
-            <div className="md:hidden">
-              <MobileMenu
-                screens={SCREENS}
-                activeScreen={activeScreen}
-                runId={runId}
-                onNavigate={handleNavigate}
-              />
-            </div>
+        <div className="flex items-center gap-3">
+          {sprintStatus === 'running' && (
+            <span className="text-xs text-yellow-400 animate-pulse font-medium">
+              Sprint Running...
+            </span>
+          )}
+          {sprintStatus === 'completed' && (
+            <span className="text-xs text-green-400 font-medium">
+              Sprint Complete
+            </span>
+          )}
+
+          {/* Mobile menu */}
+          <div className="md:hidden">
+            <MobileMenu
+              screens={SCREENS}
+              activeScreen={screen}
+              runId={runId}
+              onNavigate={handleNavigate}
+            />
           </div>
         </div>
       </nav>
@@ -127,20 +180,17 @@ export default function App() {
       </main>
 
       {/* ─── Footer ─── */}
-      <footer className="border-t border-gray-800/60 bg-gray-950/50">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-gray-500">
-          <span>Ghost Board &mdash; Autonomous AI Executive Team</span>
-          <span>Built at Ralphthon SF 2026</span>
-        </div>
+      <footer className="text-center py-3 text-xs text-gray-600 border-t border-gray-800">
+        Ghost Board &mdash; Built at Ralphthon SF 2026
       </footer>
     </div>
-  )
+  );
 }
 
 
 /* ─── Mobile Navigation ─── */
 function MobileMenu({ screens, activeScreen, runId, onNavigate }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="relative">
@@ -160,37 +210,35 @@ function MobileMenu({ screens, activeScreen, runId, onNavigate }) {
 
       {open && (
         <div className="absolute right-0 mt-2 w-56 bg-gray-900 border border-gray-800 rounded-xl shadow-2xl overflow-hidden z-50">
-          {screens.map((screen) => {
-            const isActive = activeScreen === screen.id
-            const isDisabled = screen.id !== 'mission' && !runId
+          {screens.map((s) => {
+            const isActive = activeScreen === s.id;
+            const isDisabled = s.id !== 'mission' && !runId;
             return (
               <button
-                key={screen.id}
+                key={s.id}
                 onClick={() => {
-                  onNavigate(screen.id)
-                  setOpen(false)
+                  onNavigate(s.id);
+                  setOpen(false);
                 }}
                 disabled={isDisabled}
-                className={`
-                  w-full text-left px-4 py-3 text-sm flex items-center gap-2 transition-colors cursor-pointer
-                  ${isDisabled
+                className={`w-full text-left px-4 py-3 text-sm flex items-center gap-2 transition-colors cursor-pointer ${
+                  isDisabled
                     ? 'text-gray-600 cursor-not-allowed'
                     : isActive
                       ? 'text-white bg-gray-800/80'
                       : 'text-gray-400 hover:text-white hover:bg-gray-800/40'
-                  }
-                `}
+                }`}
               >
-                <span>{screen.icon}</span>
-                <span>{screen.label}</span>
+                <span>{s.icon}</span>
+                <span>{s.label}</span>
                 {isActive && (
-                  <span className="ml-auto w-1.5 h-1.5 rounded-full bg-gradient-to-r from-purple-500 to-cyan-500" />
+                  <span className={`ml-auto w-1.5 h-1.5 rounded-full bg-gradient-to-r ${s.color || 'from-purple-500 to-cyan-500'}`} />
                 )}
               </button>
-            )
+            );
           })}
         </div>
       )}
     </div>
-  )
+  );
 }
