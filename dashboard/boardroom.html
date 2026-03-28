@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ghost Board - The Boardroom</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap');
+  * { font-family: 'Inter', sans-serif; }
+  code, .mono { font-family: 'JetBrains Mono', monospace; }
+  body { background: #0a0a0f; color: #e2e8f0; margin: 0; overflow: hidden; }
+
+  @keyframes gradient-shift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  .gradient-bg {
+    background: linear-gradient(-45deg, #0f172a, #1e1b4b, #0c1445, #172554);
+    background-size: 400% 400%;
+    animation: gradient-shift 15s ease infinite;
+  }
+
+  /* Agent card animations */
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 20px var(--glow-color, rgba(99,102,241,0.3)); }
+    50% { box-shadow: 0 0 40px var(--glow-color, rgba(99,102,241,0.6)); }
+  }
+  @keyframes blocker-flash {
+    0%, 100% { box-shadow: 0 0 20px rgba(239,68,68,0.3); border-color: rgba(239,68,68,0.5); }
+    50% { box-shadow: 0 0 60px rgba(239,68,68,0.8); border-color: rgba(239,68,68,1); }
+  }
+  @keyframes pivot-flash {
+    0%, 100% { box-shadow: 0 0 20px rgba(234,179,8,0.3); border-color: rgba(234,179,8,0.5); }
+    50% { box-shadow: 0 0 60px rgba(234,179,8,0.8); border-color: rgba(234,179,8,1); }
+  }
+  @keyframes speaking-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.03); }
+  }
+  @keyframes line-draw {
+    from { stroke-dashoffset: 300; }
+    to { stroke-dashoffset: 0; }
+  }
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes bubble-in {
+    from { opacity: 0; transform: scale(0.8) translateY(8px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  @keyframes line-pulse {
+    0% { opacity: 0.2; }
+    50% { opacity: 0.8; }
+    100% { opacity: 0.2; }
+  }
+
+  .agent-card {
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .agent-card.speaking {
+    animation: speaking-pulse 1.5s ease-in-out infinite;
+  }
+  .agent-card.blocker {
+    animation: blocker-flash 1s ease-in-out infinite;
+  }
+  .agent-card.pivoting {
+    animation: pivot-flash 1s ease-in-out infinite;
+  }
+
+  .speech-bubble {
+    animation: bubble-in 0.4s ease forwards;
+  }
+
+  .discussion-entry {
+    animation: fadeInUp 0.4s ease forwards;
+  }
+
+  /* Connection lines */
+  .connection-line {
+    stroke-dasharray: 300;
+    animation: line-draw 1s ease forwards;
+  }
+  .line-pulse-anim {
+    animation: line-pulse 2s ease-in-out infinite;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: rgba(30,27,75,0.5); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 3px; }
+
+  /* Event type badges */
+  .badge-strategy { background: rgba(59,130,246,0.2); color: #93c5fd; border: 1px solid rgba(59,130,246,0.3); }
+  .badge-blocker { background: rgba(239,68,68,0.2); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
+  .badge-pivot { background: rgba(234,179,8,0.2); color: #fde047; border: 1px solid rgba(234,179,8,0.3); }
+  .badge-update { background: rgba(34,197,94,0.2); color: #86efac; border: 1px solid rgba(34,197,94,0.3); }
+  .badge-simulation { background: rgba(168,85,247,0.2); color: #d8b4fe; border: 1px solid rgba(168,85,247,0.3); }
+  .badge-compliance { background: rgba(249,115,22,0.2); color: #fdba74; border: 1px solid rgba(249,115,22,0.3); }
+</style>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: { extend: { colors: { brand: { 50:'#eef2ff',500:'#6366f1',600:'#4f46e5',900:'#1e1b4b' }}}}
+}
+</script>
+</head>
+<body class="gradient-bg">
+
+<div id="app" class="w-full h-screen flex flex-col"></div>
+
+<script>
+// ── Agent config ──
+const AGENTS = {
+  CEO:   { icon: '👑', title: 'Chief Executive Officer', color: '#eab308', bgClass: 'from-yellow-500/10 to-yellow-900/5', borderClass: 'border-yellow-500/40', textClass: 'text-yellow-400' },
+  CTO:   { icon: '💻', title: 'Chief Technology Officer', color: '#3b82f6', bgClass: 'from-blue-500/10 to-blue-900/5', borderClass: 'border-blue-500/40', textClass: 'text-blue-400' },
+  CFO:   { icon: '📊', title: 'Chief Financial Officer', color: '#22c55e', bgClass: 'from-green-500/10 to-green-900/5', borderClass: 'border-green-500/40', textClass: 'text-green-400' },
+  CMO:   { icon: '🚀', title: 'Chief Marketing Officer', color: '#a855f7', bgClass: 'from-purple-500/10 to-purple-900/5', borderClass: 'border-purple-500/40', textClass: 'text-purple-400' },
+  Legal: { icon: '🛡️', title: 'General Counsel', color: '#ef4444', bgClass: 'from-red-500/10 to-red-900/5', borderClass: 'border-red-500/40', textClass: 'text-red-400' },
+};
+
+// ── Positions for circular layout (CEO top center, others around) ──
+// Positions as percentages of the container
+const AGENT_POSITIONS = {
+  CEO:   { x: 50, y: 12 },
+  CTO:   { x: 15, y: 42 },
+  Legal: { x: 85, y: 42 },
+  CMO:   { x: 25, y: 78 },
+  CFO:   { x: 75, y: 78 },
+};
+
+// Connection pairs for the event bus lines
+const CONNECTIONS = [
+  ['CEO', 'CTO'], ['CEO', 'Legal'], ['CEO', 'CFO'], ['CEO', 'CMO'],
+  ['CTO', 'CMO'], ['CFO', 'Legal'], ['CTO', 'CFO'], ['CMO', 'Legal'],
+];
+
+// ── State ──
+let discussion = [];
+let currentSpeaker = null;
+let activeConnections = [];
+let playbackIndex = 0;
+let isPlaying = false;
+let playbackSpeed = 1500; // ms between messages
+let playbackTimer = null;
+
+// ── Demo data (fallback if no file) ──
+const DEMO_DISCUSSION = [
+  { agent: "CEO", timestamp: "2026-03-28T20:53:32Z", event_type: "strategy", message: "Setting initial strategy for Anchrix: API-first stablecoin payout platform targeting US fintechs. Business model is transaction-fee based with tiered pricing for enterprise clients.", reasoning: "The stablecoin payout market is growing at 40% YoY. US fintechs need compliant rails for cross-border USDC/USDT disbursements. We'll focus on B2B API integration — lower regulatory burden than consumer-facing, faster GTM through developer channels.", iteration: 1 },
+  { agent: "CTO", timestamp: "2026-03-28T20:53:35Z", event_type: "codex_generate", message: "Generating prototype: FastAPI backend with /payouts, /webhooks, /compliance endpoints. Using OpenAI Codex for code generation.", reasoning: "FastAPI is the right choice for a financial API — async by default, automatic OpenAPI docs, Pydantic validation matches our event bus models. Starting with three core endpoints that demonstrate the full payout lifecycle.", iteration: 1 },
+  { agent: "Legal", timestamp: "2026-03-28T20:53:38Z", event_type: "compliance_scan", message: "Initiating regulatory scan for stablecoin payout platform in US jurisdiction.", reasoning: "Stablecoin operations in the US touch multiple regulatory frameworks. Need to assess Money Services Business (MSB) registration, state money transmitter licensing, FinCEN requirements, and potential SEC/CFTC implications for stablecoin classification.", iteration: 1 },
+  { agent: "Legal", timestamp: "2026-03-28T20:53:42Z", event_type: "blocker_found", message: "⚠ BLOCKER: Money transmitter licensing required in all 50 states. 31 CFR 1022.380 mandates MSB registration with FinCEN. State-by-state licensing costs estimated at $2M+ and 12-18 months. Consumer-facing stablecoin payouts trigger the most stringent requirements.", reasoning: "Under 31 CFR 1022.380, any person who provides money transmission services must register as an MSB. Consumer-facing stablecoin payouts clearly fall under 'money transmission' per FinCEN guidance FIN-2019-G001. State licensing (e.g., NY BitLicense at $5K application + $100K+ compliance) makes 50-state coverage prohibitively expensive for a startup.", iteration: 1 },
+  { agent: "CEO", timestamp: "2026-03-28T20:53:45Z", event_type: "pivot", message: "🔄 PIVOT: Shifting from consumer payout platform to B2B-only API infrastructure. Limiting initial launch to 5 states with existing fintech-friendly frameworks (WY, TX, CO, FL, NE). Partners handle end-user compliance.", reasoning: "The MSB licensing blocker makes consumer-facing operations a non-starter at our stage. By pivoting to B2B infrastructure, we become a technology provider — our fintech partners hold the licenses. Starting with 5 states reduces compliance cost from $2M to ~$50K. Wyoming's SPDI framework and Texas's Virtual Currency Act are especially favorable.", iteration: 1 },
+  { agent: "CTO", timestamp: "2026-03-28T20:53:48Z", event_type: "pivot_response", message: "Adapting prototype: Removing /consumer/* endpoints. Adding /partner/onboard, /partner/compliance-check. API-key auth per partner with rate limiting.", reasoning: "The B2B pivot simplifies our technical requirements significantly. No consumer KYC flow needed — partners handle that. I'm adding partner onboarding with compliance verification, and scoping the API to batch payouts (what enterprises actually need) rather than individual consumer transfers.", iteration: 1 },
+  { agent: "CFO", timestamp: "2026-03-28T20:53:51Z", event_type: "financial_model", message: "Updated financial model: B2B reduces compliance costs by 40x ($2M → $50K). Revenue model shifts to per-API-call pricing with volume tiers. Break-even at 15 enterprise partners.", reasoning: "The pivot dramatically improves unit economics. Customer Acquisition Cost drops from $5K (consumer marketing) to $12K (enterprise sales), but LTV jumps from $200 to $85K per partner. LTV/CAC ratio of 7.1x is excellent. 5-state launch means $50K compliance vs $2M, extending runway from 8 months to 22 months.", iteration: 1 },
+  { agent: "CMO", timestamp: "2026-03-28T20:53:54Z", event_type: "gtm_generate", message: "Repositioning from 'Pay anyone with stablecoins' to 'Enterprise stablecoin infrastructure for fintechs.' Developer-first GTM through API documentation, SDKs, and fintech conference presence.", reasoning: "B2B fintech infrastructure requires a fundamentally different positioning. Our ICP is now VP of Engineering at Series B+ fintechs processing $10M+/month in payouts. Channel strategy shifts from consumer marketing to developer relations, technical content, and strategic partnerships. Tagline candidates: 'Stablecoin rails for the next generation of finance.'", iteration: 1 },
+  { agent: "CEO", timestamp: "2026-03-28T20:54:10Z", event_type: "simulation_review", message: "Reviewing market simulation results: VCs positive on B2B pivot (+0.6 sentiment). Journalists flagging crowded market concerns. Early adopters requesting sandbox environment. Key concern: pricing at $500/mo may be too low for enterprise credibility.", reasoning: "The simulation surfaced a pricing perception issue I didn't anticipate. Multiple VC personas noted that $500/mo signals 'SMB tool' not 'enterprise infrastructure.' Enterprise buyers in fintech expect $2K-5K/mo base + usage fees. This aligns with Stripe Treasury's pricing model. Adjusting upward improves both revenue and market positioning.", iteration: 2 },
+  { agent: "CFO", timestamp: "2026-03-28T20:54:13Z", event_type: "pivot_response", message: "Modeling enterprise pricing: $2,000/mo base + $0.10/API call. At 15 partners with avg 50K calls/month, monthly recurring revenue reaches $105K. Break-even month moves from month 14 to month 9.", reasoning: "Higher pricing actually accelerates path to profitability. Enterprise willingness to pay is driven by compliance value — we save them $200K+ in licensing costs. $2K/mo with usage tiers gives us 3.5x more revenue per customer while remaining a fraction of their compliance savings.", iteration: 2 },
+  { agent: "CTO", timestamp: "2026-03-28T20:54:16Z", event_type: "pivot_response", message: "Adding sandbox environment endpoint: /sandbox/* mirrors production API with test stablecoins. Adding rate-limit dashboard and API usage analytics for enterprise customers.", reasoning: "Early adopter feedback from simulation was clear: developers won't integrate a financial API they can't test safely. The sandbox is table stakes for enterprise developer experience. Adding usage analytics gives CFO the data they need for usage-based billing.", iteration: 2 },
+  { agent: "CMO", timestamp: "2026-03-28T20:54:19Z", event_type: "pivot_response", message: "Repositioning from 'API-first' to 'Enterprise stablecoin platform.' Adding case study template, ROI calculator, and compliance savings estimator to sales toolkit.", reasoning: "Enterprise positioning requires proof of value. The ROI calculator showing '$200K compliance savings' is the killer sales tool. Shifting messaging from technical capabilities to business outcomes: 'Launch stablecoin payouts in 5 states without a single license application.'", iteration: 2 },
+];
+
+// ── Load data ──
+async function loadDiscussion() {
+  try {
+    const resp = await fetch('../outputs/board_discussion.json');
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data && data.length > 0) {
+        discussion = data;
+        return;
+      }
+    }
+  } catch (e) { /* fallback */ }
+
+  // Try trace.json for event data
+  try {
+    const resp = await fetch('../outputs/trace.json');
+    if (resp.ok) {
+      const events = await resp.json();
+      // Convert relevant trace events to discussion format
+      const converted = events
+        .filter(e => e.payload && e.source && ['STRATEGY_SET','BLOCKER','PIVOT','UPDATE','SIMULATION_RESULT'].includes(e.event_type))
+        .filter(e => {
+          const a = e.payload.action || '';
+          return ['strategy','pivot','blocker_found','blocker_review','compliance_scan',
+                  'financial_model','gtm_generate','codex_generate','pivot_response',
+                  'simulation_review'].includes(a) || e.event_type !== 'UPDATE';
+        })
+        .map(e => ({
+          agent: e.source,
+          timestamp: e.timestamp,
+          event_type: e.payload.action || e.event_type.toLowerCase(),
+          message: e.payload.details || e.payload.startup_idea || JSON.stringify(e.payload).substring(0, 200),
+          reasoning: e.payload.details || '',
+          iteration: e.iteration || 1,
+        }));
+      if (converted.length > 0) {
+        discussion = converted;
+        return;
+      }
+    }
+  } catch (e) { /* fallback */ }
+
+  discussion = DEMO_DISCUSSION;
+}
+
+// ── Badge class for event type ──
+function getBadgeClass(eventType) {
+  if (!eventType) return 'badge-update';
+  const et = eventType.toLowerCase();
+  if (et.includes('strategy')) return 'badge-strategy';
+  if (et.includes('blocker') || et.includes('compliance')) return 'badge-compliance';
+  if (et.includes('pivot')) return 'badge-pivot';
+  if (et.includes('simulation')) return 'badge-simulation';
+  return 'badge-update';
+}
+
+function getBadgeLabel(eventType) {
+  if (!eventType) return 'UPDATE';
+  const et = eventType.toLowerCase();
+  if (et.includes('strategy')) return 'STRATEGY';
+  if (et.includes('blocker')) return '⚠ BLOCKER';
+  if (et.includes('compliance')) return 'COMPLIANCE';
+  if (et.includes('pivot')) return '🔄 PIVOT';
+  if (et.includes('simulation')) return 'SIMULATION';
+  if (et.includes('codex') || et.includes('code')) return 'BUILD';
+  if (et.includes('financial')) return 'FINANCIAL';
+  if (et.includes('gtm') || et.includes('marketing')) return 'GTM';
+  return eventType.toUpperCase().replace(/_/g, ' ');
+}
+
+// ── Determine agent card state ──
+function getAgentState(agentName, entry) {
+  if (!entry || entry.agent !== agentName) return 'idle';
+  const et = (entry.event_type || '').toLowerCase();
+  if (et.includes('blocker')) return 'blocker';
+  if (et.includes('pivot')) return 'pivoting';
+  return 'speaking';
+}
+
+// ── Determine active connection lines ──
+function getActiveLines(entry) {
+  if (!entry) return [];
+  const et = (entry.event_type || '').toLowerCase();
+  const src = entry.agent;
+
+  if (et.includes('blocker') && src === 'Legal') {
+    return [{ from: 'Legal', to: 'CEO', color: '#ef4444' }];
+  }
+  if (et.includes('pivot') && src === 'CEO') {
+    return [
+      { from: 'CEO', to: 'CTO', color: '#eab308' },
+      { from: 'CEO', to: 'CFO', color: '#eab308' },
+      { from: 'CEO', to: 'CMO', color: '#eab308' },
+      { from: 'CEO', to: 'Legal', color: '#eab308' },
+    ];
+  }
+  if (et.includes('pivot_response') || et.includes('codex') || et.includes('financial') || et.includes('gtm')) {
+    return [{ from: src, to: 'CEO', color: AGENTS[src]?.color || '#6366f1' }];
+  }
+  return [];
+}
+
+// ── SVG connection line between two agents ──
+function createConnectionSVG(container) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'absolute inset-0 w-full h-full pointer-events-none');
+  svg.setAttribute('style', 'z-index: 1;');
+  svg.id = 'connections-svg';
+  container.appendChild(svg);
+  return svg;
+}
+
+function drawConnections(svg, lines, allCards) {
+  svg.innerHTML = '';
+  const rect = svg.getBoundingClientRect();
+
+  // Draw faint base connections
+  CONNECTIONS.forEach(([a, b]) => {
+    const cardA = allCards[a];
+    const cardB = allCards[b];
+    if (!cardA || !cardB) return;
+    const rA = cardA.getBoundingClientRect();
+    const rB = cardB.getBoundingClientRect();
+    const x1 = rA.left + rA.width / 2 - rect.left;
+    const y1 = rA.top + rA.height / 2 - rect.top;
+    const x2 = rB.left + rB.width / 2 - rect.left;
+    const y2 = rB.top + rB.height / 2 - rect.top;
+
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+    line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+    line.setAttribute('stroke', '#334155');
+    line.setAttribute('stroke-width', '1');
+    line.setAttribute('opacity', '0.3');
+    svg.appendChild(line);
+  });
+
+  // Draw active connections
+  lines.forEach(({ from, to, color }) => {
+    const cardA = allCards[from];
+    const cardB = allCards[to];
+    if (!cardA || !cardB) return;
+    const rA = cardA.getBoundingClientRect();
+    const rB = cardB.getBoundingClientRect();
+    const x1 = rA.left + rA.width / 2 - rect.left;
+    const y1 = rA.top + rA.height / 2 - rect.top;
+    const x2 = rB.left + rB.width / 2 - rect.left;
+    const y2 = rB.top + rB.height / 2 - rect.top;
+
+    // Glow line
+    const glow = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    glow.setAttribute('x1', x1); glow.setAttribute('y1', y1);
+    glow.setAttribute('x2', x2); glow.setAttribute('y2', y2);
+    glow.setAttribute('stroke', color);
+    glow.setAttribute('stroke-width', '6');
+    glow.setAttribute('opacity', '0.3');
+    glow.setAttribute('class', 'line-pulse-anim');
+    svg.appendChild(glow);
+
+    // Main line
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+    line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+    line.setAttribute('stroke', color);
+    line.setAttribute('stroke-width', '2.5');
+    line.setAttribute('class', 'connection-line');
+    svg.appendChild(line);
+
+    // Arrow at midpoint
+    const mx = (x1 + x2) / 2;
+    const my = (y1 + y2) / 2;
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', mx); circle.setAttribute('cy', my);
+    circle.setAttribute('r', '4');
+    circle.setAttribute('fill', color);
+    circle.setAttribute('class', 'line-pulse-anim');
+    svg.appendChild(circle);
+  });
+}
+
+// ── Render ──
+function render() {
+  const app = document.getElementById('app');
+  const currentEntry = playbackIndex < discussion.length ? discussion[playbackIndex] : null;
+  const visibleEntries = discussion.slice(0, playbackIndex + 1);
+  const activeLines = getActiveLines(currentEntry);
+
+  app.innerHTML = `
+    <!-- Header -->
+    <div class="flex items-center justify-between px-6 py-3 border-b border-white/10 bg-black/30 backdrop-blur-sm" style="z-index: 50;">
+      <div class="flex items-center gap-3">
+        <div class="text-xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text" style="-webkit-text-fill-color: transparent;">◆ THE BOARDROOM</div>
+        <span class="text-xs text-slate-500 mono">Ghost Board Executive Session</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="text-xs text-slate-500">Message ${playbackIndex + 1} / ${discussion.length}</span>
+        <span class="text-xs px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 mono">
+          Phase ${currentEntry ? currentEntry.iteration || 1 : 1}
+        </span>
+      </div>
+    </div>
+
+    <div class="flex flex-1 overflow-hidden">
+      <!-- Left: Agent Circle Area -->
+      <div class="flex-1 relative" id="agent-area" style="min-width: 55%;">
+        <!-- Agent cards will be positioned here -->
+        ${Object.entries(AGENTS).map(([name, cfg]) => {
+          const pos = AGENT_POSITIONS[name];
+          const state = getAgentState(name, currentEntry);
+          const stateClass = state === 'blocker' ? 'blocker' : state === 'pivoting' ? 'pivoting' : state === 'speaking' ? 'speaking' : '';
+          const borderColor = state === 'blocker' ? 'border-red-500' : state === 'pivoting' ? 'border-yellow-500' : cfg.borderClass;
+          const statusDot = state === 'speaking' ? 'bg-green-400' : state === 'blocker' ? 'bg-red-400 animate-pulse' : state === 'pivoting' ? 'bg-yellow-400 animate-pulse' : 'bg-slate-600';
+          const statusText = state === 'speaking' ? 'Speaking' : state === 'blocker' ? 'BLOCKER' : state === 'pivoting' ? 'PIVOTING' : 'Idle';
+
+          // Speech bubble
+          let bubble = '';
+          if (currentEntry && currentEntry.agent === name) {
+            const msg = currentEntry.message.length > 120 ? currentEntry.message.substring(0, 120) + '...' : currentEntry.message;
+            bubble = `
+              <div class="speech-bubble absolute left-1/2 -translate-x-1/2 w-56 p-2.5 rounded-lg bg-black/80 backdrop-blur border border-white/10 text-xs text-slate-300 leading-relaxed" style="top: calc(100% + 12px); z-index: 30;">
+                <div class="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-black/80 border-l border-t border-white/10 rotate-45"></div>
+                ${msg}
+              </div>
+            `;
+          }
+
+          return `
+            <div class="agent-card ${stateClass} absolute flex flex-col items-center"
+                 id="card-${name}"
+                 data-agent="${name}"
+                 style="left: ${pos.x}%; top: ${pos.y}%; transform: translate(-50%, -50%); z-index: 10; width: 140px;">
+              <div class="relative w-full rounded-xl border ${borderColor} bg-gradient-to-b ${cfg.bgClass} backdrop-blur-sm p-3 text-center">
+                <!-- Status dot -->
+                <div class="absolute top-2 right-2 flex items-center gap-1">
+                  <div class="w-2 h-2 rounded-full ${statusDot}"></div>
+                  <span class="text-[9px] ${state === 'idle' ? 'text-slate-600' : cfg.textClass}">${statusText}</span>
+                </div>
+                <!-- Avatar -->
+                <div class="text-3xl mb-1">${cfg.icon}</div>
+                <!-- Name -->
+                <div class="text-sm font-bold ${cfg.textClass}">${name}</div>
+                <div class="text-[10px] text-slate-500 leading-tight">${cfg.title}</div>
+              </div>
+              ${bubble}
+            </div>
+          `;
+        }).join('')}
+      </div>
+
+      <!-- Right: Discussion Feed -->
+      <div class="w-[45%] max-w-lg border-l border-white/10 bg-black/20 backdrop-blur-sm flex flex-col">
+        <div class="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+          <div class="text-sm font-semibold text-slate-300">Discussion Feed</div>
+          <div class="flex items-center gap-2">
+            <button id="btn-prev" class="px-2 py-1 rounded text-xs bg-white/5 hover:bg-white/10 text-slate-400 transition-colors" onclick="stepBack()">◀ Prev</button>
+            <button id="btn-play" class="px-3 py-1 rounded text-xs font-semibold transition-colors ${isPlaying ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500/30'}" onclick="togglePlay()">
+              ${isPlaying ? '⏸ Pause' : '▶ Play'}
+            </button>
+            <button id="btn-next" class="px-2 py-1 rounded text-xs bg-white/5 hover:bg-white/10 text-slate-400 transition-colors" onclick="stepForward()">Next ▶</button>
+          </div>
+        </div>
+        <div id="discussion-feed" class="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+          ${visibleEntries.map((entry, i) => {
+            const cfg = AGENTS[entry.agent] || AGENTS.CEO;
+            const isCurrent = i === playbackIndex;
+            const badgeClass = getBadgeClass(entry.event_type);
+            const badgeLabel = getBadgeLabel(entry.event_type);
+            const time = entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+
+            return `
+              <div class="discussion-entry ${isCurrent ? 'ring-1 ring-indigo-500/30 bg-indigo-500/5' : ''} rounded-lg p-3 border border-white/5 hover:border-white/10 transition-colors cursor-pointer" onclick="jumpTo(${i})">
+                <div class="flex items-center gap-2 mb-1.5">
+                  <span class="text-lg">${cfg.icon}</span>
+                  <span class="text-sm font-semibold ${cfg.textClass}">${entry.agent}</span>
+                  <span class="text-[10px] px-1.5 py-0.5 rounded-full ${badgeClass} mono">${badgeLabel}</span>
+                  <span class="text-[10px] text-slate-600 ml-auto mono">${time}</span>
+                </div>
+                <div class="text-xs text-slate-300 leading-relaxed mb-1.5">${escapeHtml(entry.message)}</div>
+                ${entry.reasoning && entry.reasoning !== entry.message ? `
+                  <div class="text-[11px] text-slate-500 leading-relaxed border-l-2 border-slate-700 pl-2 mt-1.5 italic">
+                    💭 ${escapeHtml(entry.reasoning.length > 250 ? entry.reasoning.substring(0, 250) + '...' : entry.reasoning)}
+                  </div>
+                ` : ''}
+              </div>
+            `;
+          }).join('')}
+        </div>
+
+        <!-- Speed control -->
+        <div class="px-4 py-2 border-t border-white/10 flex items-center gap-3">
+          <span class="text-[10px] text-slate-500">Speed:</span>
+          <input type="range" min="300" max="4000" step="100" value="${playbackSpeed}"
+                 class="flex-1 h-1 bg-slate-700 rounded-full appearance-none cursor-pointer accent-indigo-500"
+                 oninput="setSpeed(this.value)">
+          <span class="text-[10px] text-slate-500 mono w-12 text-right">${(playbackSpeed/1000).toFixed(1)}s</span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Draw SVG connections
+  requestAnimationFrame(() => {
+    const area = document.getElementById('agent-area');
+    if (!area) return;
+    let svg = document.getElementById('connections-svg');
+    if (!svg) svg = createConnectionSVG(area);
+    const cards = {};
+    Object.keys(AGENTS).forEach(name => {
+      cards[name] = document.getElementById('card-' + name);
+    });
+    drawConnections(svg, activeLines, cards);
+
+    // Auto-scroll feed
+    const feed = document.getElementById('discussion-feed');
+    if (feed) feed.scrollTop = feed.scrollHeight;
+  });
+}
+
+// ── Controls ──
+function stepForward() {
+  if (playbackIndex < discussion.length - 1) {
+    playbackIndex++;
+    render();
+  }
+}
+
+function stepBack() {
+  if (playbackIndex > 0) {
+    playbackIndex--;
+    render();
+  }
+}
+
+function jumpTo(index) {
+  playbackIndex = index;
+  render();
+}
+
+function togglePlay() {
+  if (isPlaying) {
+    isPlaying = false;
+    clearInterval(playbackTimer);
+  } else {
+    isPlaying = true;
+    playbackTimer = setInterval(() => {
+      if (playbackIndex < discussion.length - 1) {
+        playbackIndex++;
+        render();
+      } else {
+        isPlaying = false;
+        clearInterval(playbackTimer);
+        render();
+      }
+    }, playbackSpeed);
+  }
+  render();
+}
+
+function setSpeed(val) {
+  playbackSpeed = parseInt(val);
+  if (isPlaying) {
+    clearInterval(playbackTimer);
+    playbackTimer = setInterval(() => {
+      if (playbackIndex < discussion.length - 1) {
+        playbackIndex++;
+        render();
+      } else {
+        isPlaying = false;
+        clearInterval(playbackTimer);
+        render();
+      }
+    }, playbackSpeed);
+  }
+}
+
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// ── Handle resize ──
+window.addEventListener('resize', () => {
+  const svg = document.getElementById('connections-svg');
+  if (svg) {
+    const area = document.getElementById('agent-area');
+    const cards = {};
+    Object.keys(AGENTS).forEach(name => {
+      cards[name] = document.getElementById('card-' + name);
+    });
+    const currentEntry = playbackIndex < discussion.length ? discussion[playbackIndex] : null;
+    drawConnections(svg, getActiveLines(currentEntry), cards);
+  }
+});
+
+// ── Keyboard shortcuts ──
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight' || e.key === 'l') stepForward();
+  if (e.key === 'ArrowLeft' || e.key === 'h') stepBack();
+  if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+});
+
+// ── Init ──
+loadDiscussion().then(() => {
+  playbackIndex = 0;
+  render();
+});
+</script>
+</body>
+</html>
