@@ -120,3 +120,8 @@ PostgreSQL on our VPS for database (see VPS.md for connection details)
 [x] PRD-99: Final verification sweep. Run ALL tests. Run ALL demo concepts. Verify ALL artifacts are real. Verify ALL dashboard views work. Verify landing page is stunning. Verify W&B is logging. Verify PostgreSQL has history. Fix anything broken.
 [x] PRD-100: Record a 1-minute demo walkthrough. Save script to demo/DEMO_VIDEO_SCRIPT.md. Cover: one-liner intro, Legal blocker with real citation, CEO pivot with rationale, market simulation with 1M agents shown, sentiment shift causing second pivot, final artifacts, cost comparison, all 3 problem statements addressed.
 [x] PRD-101: Keep improving. You are in an infinite loop. Generate 5 new [ ] tasks focused on whatever is weakest right now: visual polish, agent depth, simulation scale, test coverage, documentation, performance. Run tests and demo after each change. Push after each change. Never stop.
+[x] PRD-102: Add requirements.txt entry for numpy and sqlalchemy. Verify pip install -r requirements.txt installs everything needed. Test from clean venv.
+[x] PRD-103: Add pytest.ini or pyproject.toml with asyncio_mode=auto so tests don't need @pytest.mark.asyncio on every test. Clean up test boilerplate.
+[x] PRD-104: Add simulation __init__.py export for hybrid_engine and lightweight_agents. Update ARCHITECTURE.md with million agent section.
+[x] PRD-105: Add a demo/DEMO_VIDEO_SCRIPT.md covering: one-liner intro, Legal blocker, CEO pivot, 1M agent simulation, sentiment chart, cost comparison, all 3 Ralphthon statements.
+[x] PRD-106: Improve dashboard embedded demo data to include hybrid simulation stats (total_agents, lightweight_agents, swarm_history). Show "1,000,050 agents" prominently.
