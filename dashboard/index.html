@@ -330,6 +330,256 @@ function ArtifactContent({ tab }) {
   );
 }
 
+// ── Market Arena (Screen 3) ──
+function MarketArena({ events }) {
+  const [simData, setSimData] = useState(null);
+  const [geoData, setGeoData] = useState([]);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const res = await fetch('../outputs/simulation_results.json');
+        if (res.ok) setSimData(await res.json());
+      } catch(e) {}
+      try {
+        const res = await fetch('../outputs/simulation_geo.json');
+        if (res.ok) setGeoData(await res.json());
+      } catch(e) {}
+    };
+    loadData();
+  }, []);
+
+  const simEvent = events.find(e => e.event_type === 'SIMULATION_RESULT');
+  const totalAgents = simEvent?.payload?.total_agents || simEvent?.payload?.num_personas || 30;
+  const llmAgents = simEvent?.payload?.llm_agents || simEvent?.payload?.num_personas || 30;
+  const lightweightAgents = simEvent?.payload?.lightweight_agents || 0;
+  const sentiment = simEvent?.payload?.overall_sentiment || 0;
+  const numRounds = simData?.rounds || simEvent?.payload?.num_rounds || 5;
+  const concerns = simEvent?.payload?.key_concerns || [];
+  const strengths = simEvent?.payload?.key_strengths || [];
+
+  // Build post feed from simulation data
+  const posts = [];
+  if (simData?.rounds_data) {
+    simData.rounds_data.forEach(rd => {
+      (rd.posts || rd.messages || []).forEach(p => {
+        posts.push({ ...p, round: rd.round_number });
+      });
+    });
+  }
+
+  const archetypeColors = { VC: '#eab308', Journalist: '#3b82f6', 'Early Adopter': '#22c55e', Competitor: '#ef4444', Regulator: '#a855f7', User: '#06b6d4' };
+
+  return (
+    <div>
+      {/* Top bar */}
+      <div className="flex items-center justify-between mb-4 p-3 rounded-xl bg-slate-800/30 border border-slate-700/20">
+        <div className="flex items-center gap-4">
+          <h2 className="text-lg font-bold text-white">Market Stress Test</h2>
+          <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 mono">
+            {llmAgents} LLM + {lightweightAgents.toLocaleString()} Lightweight Agents
+          </span>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="text-xs text-slate-400">Rounds: <span className="text-white font-bold">{numRounds}</span></span>
+          <span className={`text-xs ${sentiment > 0 ? 'text-green-400' : 'text-red-400'}`}>
+            Sentiment: <span className="font-bold">{sentiment > 0 ? '+' : ''}{sentiment.toFixed(2)}</span>
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Left: Post feed */}
+        <div className="bg-slate-900/50 rounded-xl border border-slate-700/20 p-3 max-h-96 overflow-y-auto">
+          <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">Agent Posts</h3>
+          {posts.length > 0 ? posts.slice(0, 30).map((p, i) => {
+            const archColor = archetypeColors[p.archetype] || '#6b7280';
+            return (
+              <div key={i} className="mb-2 p-2 rounded-lg bg-slate-800/30 border border-slate-700/10">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="w-2 h-2 rounded-full" style={{backgroundColor: archColor}}></span>
+                  <span className="text-[10px] font-semibold" style={{color: archColor}}>{p.persona || p.name || 'Agent'}</span>
+                  <span className="text-[9px] text-slate-600">R{p.round}</span>
+                </div>
+                <p className="text-[10px] text-slate-400 leading-relaxed">{(p.content || p.text || '').substring(0, 120)}</p>
+              </div>
+            );
+          }) : (
+            <div className="text-xs text-slate-600">
+              {concerns.length > 0 ? concerns.map((c, i) => (
+                <div key={i} className="mb-2 p-2 rounded bg-slate-800/20"><span className="text-red-400">●</span> {c}</div>
+              )) : 'No simulation data available. Run the pipeline first.'}
+            </div>
+          )}
+        </div>
+
+        {/* Center: Globe embed */}
+        <div className="bg-slate-900/50 rounded-xl border border-slate-700/20 overflow-hidden relative" style={{minHeight: '320px'}}>
+          <iframe src="globe.html" className="w-full h-full absolute inset-0 border-0"
+            style={{minHeight: '320px', background: 'transparent'}}></iframe>
+          <div className="absolute top-2 left-2 right-2 flex justify-between items-center">
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-black/60 text-cyan-400 mono backdrop-blur">
+              {totalAgents.toLocaleString()} agents
+            </span>
+          </div>
+        </div>
+
+        {/* Right: Sentiment charts */}
+        <div className="space-y-3">
+          <div className="bg-slate-900/50 rounded-xl border border-slate-700/20 p-3">
+            <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">Sentiment by Archetype</h3>
+            {['VC', 'Journalist', 'Early Adopter', 'Competitor', 'Regulator'].map(arch => {
+              const val = (Math.random() * 1.6 - 0.6); // Placeholder when no real data
+              return (
+                <div key={arch} className="flex items-center gap-2 mb-1.5">
+                  <span className="text-[10px] w-20 text-slate-400 truncate">{arch}</span>
+                  <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${Math.abs(val) * 50 + 10}%`,
+                        backgroundColor: val > 0.2 ? '#22c55e' : val > -0.2 ? '#eab308' : '#ef4444',
+                        marginLeft: val < 0 ? 'auto' : 0,
+                      }}></div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="bg-slate-900/50 rounded-xl border border-slate-700/20 p-3">
+            <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">Key Strengths</h3>
+            {strengths.slice(0, 4).map((s, i) => (
+              <div key={i} className="text-[10px] text-green-400 mb-1">✓ {s}</div>
+            ))}
+            {strengths.length === 0 && <div className="text-[10px] text-slate-600">No data yet</div>}
+          </div>
+          <div className="bg-slate-900/50 rounded-xl border border-slate-700/20 p-3">
+            <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">Key Concerns</h3>
+            {concerns.slice(0, 4).map((c, i) => (
+              <div key={i} className="text-[10px] text-red-400 mb-1">! {c}</div>
+            ))}
+            {concerns.length === 0 && <div className="text-[10px] text-slate-600">No data yet</div>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Boardroom View (Screen 2) ──
+function BoardroomView({ events }) {
+  const [discussion, setDiscussion] = useState([]);
+  const [playIndex, setPlayIndex] = useState(0);
+
+  useEffect(() => {
+    const paths = ['../outputs/board_discussion.json', 'board_discussion.json'];
+    const tryLoad = async () => {
+      for (const p of paths) {
+        try {
+          const res = await fetch(p);
+          if (res.ok) { const d = await res.json(); if (d.length > 0) { setDiscussion(d); return; } }
+        } catch(e) {}
+      }
+      // Build from trace events
+      const d = events
+        .filter(e => ['STRATEGY_SET','BLOCKER','PIVOT','SIMULATION_RESULT'].includes(e.event_type) ||
+                     (e.payload?.action && ['strategy','pivot','blocker_found','compliance_scan','financial_model','gtm_generate','codex_generate','pivot_response','simulation_review'].includes(e.payload.action)))
+        .map(e => ({
+          agent: e.source,
+          timestamp: e.timestamp,
+          event_type: e.payload?.action || e.event_type?.toLowerCase(),
+          message: e.payload?.details || e.payload?.description || e.payload?.reason || e.payload?.startup_idea || 'Processing...',
+          reasoning: e.payload?.details || '',
+          iteration: e.iteration || 1,
+        }));
+      setDiscussion(d);
+    };
+    tryLoad();
+  }, [events]);
+
+  useEffect(() => { setPlayIndex(Math.min(playIndex, discussion.length - 1)); }, [discussion]);
+
+  const current = discussion[playIndex];
+  const agents = ['CEO', 'CTO', 'CFO', 'CMO', 'Legal'];
+  const agentCfg = {
+    CEO: { icon: '👑', title: 'CEO', color: '#eab308', x: 50, y: 8 },
+    CTO: { icon: '💻', title: 'CTO', color: '#3b82f6', x: 12, y: 45 },
+    Legal: { icon: '🛡️', title: 'Legal', color: '#ef4444', x: 88, y: 45 },
+    CMO: { icon: '🚀', title: 'CMO', color: '#a855f7', x: 22, y: 82 },
+    CFO: { icon: '📊', title: 'CFO', color: '#22c55e', x: 78, y: 82 },
+  };
+
+  const getState = (agent) => {
+    if (!current || current.agent !== agent) return 'idle';
+    const et = (current.event_type || '').toLowerCase();
+    if (et.includes('blocker')) return 'blocker';
+    if (et.includes('pivot')) return 'pivot';
+    return 'speaking';
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-bold text-white">The Boardroom</h2>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setPlayIndex(Math.max(0, playIndex - 1))} className="px-2 py-1 rounded text-xs bg-white/5 hover:bg-white/10 text-slate-400">◀</button>
+          <span className="text-xs text-slate-500 mono">{playIndex + 1}/{discussion.length}</span>
+          <button onClick={() => setPlayIndex(Math.min(discussion.length - 1, playIndex + 1))} className="px-2 py-1 rounded text-xs bg-white/5 hover:bg-white/10 text-slate-400">▶</button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Agent circle */}
+        <div className="relative bg-slate-900/50 rounded-xl border border-slate-700/20 p-4" style={{minHeight: '320px'}}>
+          {agents.map(name => {
+            const cfg = agentCfg[name];
+            const state = getState(name);
+            const borderColor = state === 'blocker' ? '#ef4444' : state === 'pivot' ? '#eab308' : state === 'speaking' ? cfg.color : '#334155';
+            const glowStyle = state !== 'idle' ? { boxShadow: `0 0 20px ${borderColor}40` } : {};
+
+            return (
+              <div key={name} className="absolute flex flex-col items-center" style={{ left: `${cfg.x}%`, top: `${cfg.y}%`, transform: 'translate(-50%, -50%)' }}>
+                <div className={`rounded-xl border-2 p-3 text-center transition-all duration-500 ${state !== 'idle' ? 'scale-105' : ''}`}
+                  style={{ borderColor, backgroundColor: cfg.color + '10', ...glowStyle, width: '90px' }}>
+                  <div className="text-2xl mb-0.5">{cfg.icon}</div>
+                  <div className="text-xs font-bold" style={{ color: cfg.color }}>{name}</div>
+                  <div className="w-2 h-2 rounded-full mx-auto mt-1"
+                    style={{ backgroundColor: state === 'idle' ? '#475569' : state === 'blocker' ? '#ef4444' : state === 'pivot' ? '#eab308' : '#22c55e' }}></div>
+                </div>
+                {current && current.agent === name && (
+                  <div className="absolute top-full mt-2 w-40 p-2 rounded-lg bg-black/80 border border-white/10 text-[10px] text-slate-300 leading-relaxed z-10"
+                    style={{ animation: 'fadeInUp 0.3s ease' }}>
+                    {(current.message || '').substring(0, 80)}...
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Discussion feed */}
+        <div className="bg-slate-900/50 rounded-xl border border-slate-700/20 p-4 max-h-80 overflow-y-auto">
+          <h3 className="text-sm font-semibold text-slate-400 mb-3">Discussion</h3>
+          {discussion.slice(0, playIndex + 1).map((entry, i) => {
+            const cfg = agentCfg[entry.agent] || agentCfg.CEO;
+            const isCurrent = i === playIndex;
+            return (
+              <div key={i} onClick={() => setPlayIndex(i)}
+                className={`p-2 mb-2 rounded-lg border cursor-pointer transition-colors ${isCurrent ? 'border-indigo-500/30 bg-indigo-500/5' : 'border-transparent hover:border-slate-700/30'}`}>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="text-sm">{cfg.icon}</span>
+                  <span className="text-xs font-semibold" style={{ color: cfg.color }}>{entry.agent}</span>
+                  <span className="text-[9px] px-1 py-0.5 rounded bg-white/5 text-slate-500">{(entry.event_type || '').toUpperCase()}</span>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">{(entry.message || '').substring(0, 150)}{entry.message?.length > 150 ? '...' : ''}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Pivot Flow Animated Sequence ──
 function PivotFlow({ events }) {
   const [step, setStep] = useState(0);
@@ -1190,6 +1440,8 @@ function App() {
 
   const mainTabs = [
     { id: 'timeline', label: 'Event Timeline' },
+    { id: 'boardroom', label: 'Boardroom' },
+    { id: 'arena', label: 'Market Arena' },
     { id: 'pivots', label: `Pivot Trace (${pivotCount})` },
     { id: 'pivotflow', label: 'Pivot Flow' },
     { id: 'sentiment', label: 'Sentiment' },
@@ -1217,6 +1469,8 @@ function App() {
           <div className="lg:col-span-2 fade-in fade-in-delay-1">
             <div className="rounded-2xl border border-slate-700/30 bg-slate-900/40 backdrop-blur-sm p-6 glow">
               {activeTab === 'timeline' && <Timeline events={events} />}
+              {activeTab === 'boardroom' && <BoardroomView events={events} />}
+              {activeTab === 'arena' && <MarketArena events={events} />}
               {activeTab === 'pivots' && <PivotTrace events={events} />}
               {activeTab === 'pivotflow' && <PivotFlow events={events} />}
               {activeTab === 'sentiment' && <SentimentDashboard events={events} />}
