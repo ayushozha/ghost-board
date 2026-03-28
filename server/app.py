@@ -406,10 +406,12 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://localhost:5174",
+        "http://localhost:8000",
         "http://localhost:8080",
         "http://localhost:3000",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:5174",
+        "http://127.0.0.1:8000",
         "http://127.0.0.1:8080",
         "http://127.0.0.1:3000",
     ],
@@ -457,28 +459,41 @@ async def list_runs() -> dict[str, Any]:
         runs = result.scalars().all()
         run_list = [_run_to_summary(r) for r in runs]
 
-    # If no DB runs but outputs/ has trace.json, show a "latest" entry
-    if not run_list and (OUTPUTS_DIR / "trace.json").exists():
+    # Always include a file-based "latest" entry when outputs/trace.json exists.
+    # This ensures the dashboard can show real data even when DB runs are stale
+    # or empty (e.g. test entries with 0 events).
+    if (OUTPUTS_DIR / "trace.json").exists():
         summary = _read_json_file(OUTPUTS_DIR / "sprint_summary.json") or {}
-        run_list.append({
+        sim_results = _read_json_file(OUTPUTS_DIR / "simulation_results.json")
+        total_agents_sim = 0
+        if isinstance(sim_results, dict):
+            total_agents_sim = sim_results.get("total_agents", 0)
+        trace_data = _read_json_file(OUTPUTS_DIR / "trace.json")
+        trace_event_count = len(trace_data) if isinstance(trace_data, list) else summary.get("events", 0)
+        pivot_count = summary.get("pivots", 0)
+        if isinstance(trace_data, list) and pivot_count == 0:
+            pivot_count = sum(1 for e in trace_data if isinstance(e, dict) and e.get("event_type") == "PIVOT")
+        latest_entry = {
             "run_id": "latest",
             "id": "latest",
-            "concept": summary.get("concept", "Unknown"),
+            "concept": summary.get("concept") or "Latest Sprint (from outputs/)",
             "sim_scale": "unknown",
             "status": "completed",
             "started_at": None,
             "finished_at": None,
             "completed_at": None,
             "created_at": None,
-            "total_events": summary.get("events", 0),
-            "total_pivots": summary.get("pivots", 0),
-            "total_agents_simulated": 0,
+            "total_events": trace_event_count,
+            "total_pivots": pivot_count,
+            "total_agents_simulated": total_agents_sim,
             "api_cost_usd": summary.get("total_cost", 0.0),
-            "events": summary.get("events", 0),
-            "pivots": summary.get("pivots", 0),
+            "events": trace_event_count,
+            "pivots": pivot_count,
             "total_cost": summary.get("total_cost", 0.0),
-            "wandb_url": None,
-        })
+            "wandb_url": summary.get("wandb_url"),
+        }
+        # Insert at the beginning so the file-based run shows first
+        run_list.insert(0, latest_entry)
 
     return {"runs": run_list}
 

@@ -41,6 +41,35 @@ ARCHETYPE_DISTRIBUTION = {
 }
 
 
+# Geographic locations for diverse global distribution
+GEO_LOCATIONS = [
+    GeoLocation(city="San Francisco", country="US", lat=37.77, lng=-122.42),
+    GeoLocation(city="New York", country="US", lat=40.71, lng=-74.01),
+    GeoLocation(city="Miami", country="US", lat=25.76, lng=-80.19),
+    GeoLocation(city="Austin", country="US", lat=30.27, lng=-97.74),
+    GeoLocation(city="Boston", country="US", lat=42.36, lng=-71.06),
+    GeoLocation(city="London", country="UK", lat=51.51, lng=-0.13),
+    GeoLocation(city="Berlin", country="Germany", lat=52.52, lng=13.41),
+    GeoLocation(city="Zurich", country="Switzerland", lat=47.38, lng=8.54),
+    GeoLocation(city="Singapore", country="Singapore", lat=1.35, lng=103.82),
+    GeoLocation(city="Tokyo", country="Japan", lat=35.68, lng=139.69),
+    GeoLocation(city="Mumbai", country="India", lat=19.08, lng=72.88),
+    GeoLocation(city="Dubai", country="UAE", lat=25.20, lng=55.27),
+]
+
+
+def _assign_geo_locations(personas: list[MarketPersona]) -> list[MarketPersona]:
+    """Assign real geographic locations to personas that lack them (lat=0, lng=0)."""
+    for i, p in enumerate(personas):
+        geo = p.geographic_location
+        if geo.lat == 0.0 and geo.lng == 0.0:
+            loc = GEO_LOCATIONS[i % len(GEO_LOCATIONS)]
+            p.geographic_location = GeoLocation(
+                city=loc.city, country=loc.country, lat=loc.lat, lng=loc.lng,
+            )
+    return personas
+
+
 PROFILES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "personas", "profiles")
 
 
@@ -114,6 +143,8 @@ async def generate_personas(
                 if diff >= 0:
                     break
 
+    geo_examples = [{"city": g.city, "country": g.country, "lat": g.lat, "lng": g.lng} for g in GEO_LOCATIONS]
+
     prompt = f"""Generate {num_personas} synthetic market personas for testing a startup:
 
 Startup: {startup_idea}
@@ -130,9 +161,11 @@ Each persona needs:
 - risk_tolerance: 0.0-1.0 (VCs ~0.7, skeptics ~0.2, regulators ~0.1)
 - initial_stance: positive/neutral/negative/hostile
 - influence_score: 0.0-1.0 (how much they influence others)
+- geographic_location: an object with city, country, lat, lng. Distribute personas globally across cities like: {json.dumps(geo_examples[:6])}
 
 Make them realistic and diverse. VCs should evaluate ROI, skeptics should poke holes,
 journalists should ask hard questions, competitors should challenge differentiation.
+Distribute them geographically across US, Europe, and Asia.
 
 Respond with ONLY a JSON array."""
 
@@ -151,7 +184,20 @@ Respond with ONLY a JSON array."""
         data = json.loads(content.strip().removeprefix("```json").removesuffix("```").strip())
         if not isinstance(data, list):
             data = [data]
-        return [MarketPersona(**p) for p in data[:num_personas]]
+        personas = []
+        for p in data[:num_personas]:
+            # Parse geographic_location if provided by LLM
+            geo_raw = p.pop("geographic_location", None)
+            if geo_raw and isinstance(geo_raw, dict):
+                p["geographic_location"] = GeoLocation(
+                    city=geo_raw.get("city", ""),
+                    country=geo_raw.get("country", ""),
+                    lat=float(geo_raw.get("lat", 0.0)),
+                    lng=float(geo_raw.get("lng", 0.0)),
+                )
+            personas.append(MarketPersona(**p))
+        # Ensure all personas have real geo coordinates
+        return _assign_geo_locations(personas)
     except (json.JSONDecodeError, Exception):
         # Fallback: generate deterministic personas
         return _fallback_personas(startup_idea, num_personas)

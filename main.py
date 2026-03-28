@@ -257,6 +257,7 @@ async def run_sprint(
         console.print("\n[dim]Phase 2-3: Skipped (--skip-simulation)[/dim]\n")
 
     # ── Summary ──
+    sprint_duration = time.time() - sprint_start
     trace = bus.get_trace()
     total_events = len(trace)
     pivots = ceo.pivot_count
@@ -277,18 +278,36 @@ async def run_sprint(
     total_tokens = sum(c["total_tokens"] for c in costs.values())
     human_equivalent = 15000.0
 
-    # Summary table
-    summary_table = Table(title="Sprint Complete!", border_style="bright_blue")
-    summary_table.add_column("Metric", style="bold")
-    summary_table.add_column("Value", justify="right")
-    summary_table.add_row("Events", str(total_events))
-    summary_table.add_row("Pivots", str(pivots))
-    summary_table.add_row("Total tokens", f"{total_tokens:,}")
-    summary_table.add_row("API cost", f"[green]${total_cost:.4f}[/green]")
-    summary_table.add_row("Human equivalent", f"[dim]~${human_equivalent:,.0f}[/dim]")
-    summary_table.add_row("Savings", f"[bold green]{human_equivalent / max(total_cost, 0.01):,.0f}x cheaper[/bold green]")
-    console.print()
-    console.print(summary_table)
+    # Compute total agents simulated
+    if sim_scale and sim_scale in SCALE_PRESETS:
+        _llm_n, _light_n, _ = SCALE_PRESETS[sim_scale]
+        total_agents_simulated = _llm_n + _light_n
+    else:
+        total_agents_simulated = num_personas
+
+    # Format duration
+    mins = int(sprint_duration) // 60
+    secs = int(sprint_duration) % 60
+    duration_str = f"{mins}m {secs:02d}s" if mins > 0 else f"{secs}s"
+    savings_mult = human_equivalent / max(total_cost, 0.01)
+
+    # Summary box
+    summary_lines = (
+        f"[bold white]Events:[/bold white] {total_events}  "
+        f"[bold white]Pivots:[/bold white] {pivots}\n"
+        f"[bold white]Agents:[/bold white] {total_agents_simulated:,}  "
+        f"[bold white]Cost:[/bold white] [green]${total_cost:.4f}[/green]\n"
+        f"[bold white]Tokens:[/bold white] {total_tokens:,}  "
+        f"[bold white]Duration:[/bold white] {duration_str}\n"
+        f"[bold white]Savings:[/bold white] [bold green]{savings_mult:,.0f}x cheaper[/bold green] vs ~${human_equivalent:,.0f} consulting\n"
+        f"[bold white]Outputs:[/bold white] outputs/"
+    )
+    console.print(Panel(
+        summary_lines,
+        title="[bold bright_white]Sprint Complete[/bold bright_white]",
+        border_style="green",
+        padding=(1, 2),
+    ))
 
     # Cost breakdown
     cost_table = Table(title="Cost by Agent", border_style="dim")
@@ -662,14 +681,14 @@ def main(startup_idea: str, personas: int, rounds: int, sim_scale: str | None, s
         demo_path = Path("demo/anchrix_concept.txt")
         if demo_path.exists():
             startup_idea = demo_path.read_text().strip()
-            print(f"[Demo mode] Using Anchrix concept from {demo_path}")
+            console.print(f"[dim]Demo mode: loaded concept from {demo_path}[/dim]")
         else:
             startup_idea = (
                 "Anchrix: AI-powered identity verification and compliance platform "
                 "for fintech. Uses biometric + document verification with real-time "
                 "regulatory monitoring across CFPB, FinCEN, and state regulations."
             )
-            print("[Demo mode] Using built-in Anchrix concept")
+            console.print("[dim]Demo mode: using built-in Anchrix concept[/dim]")
 
     # Start live dashboard server if requested
     if live:
