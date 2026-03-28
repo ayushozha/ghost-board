@@ -9,6 +9,8 @@
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap');
   * { font-family: 'Inter', sans-serif; }
@@ -328,6 +330,246 @@ function ArtifactContent({ tab }) {
   );
 }
 
+// ── Advanced Charts ──
+function AdvancedCharts({ events }) {
+  const sankeyRef = useRef(null);
+  const radarRef = useRef(null);
+  const radarInstance = useRef(null);
+  const waterfallRef = useRef(null);
+  const waterfallInstance = useRef(null);
+  const heatmapRef = useRef(null);
+
+  // Sankey diagram using D3
+  useEffect(() => {
+    if (!sankeyRef.current || events.length === 0 || typeof d3 === 'undefined' || typeof d3.sankey === 'undefined') return;
+    const container = sankeyRef.current;
+    container.innerHTML = '';
+
+    const width = container.clientWidth || 600;
+    const height = 300;
+
+    // Build Sankey nodes and links from event flow
+    const nodeNames = ['Concept', 'Strategy', 'CTO Build', 'CFO Model', 'CMO GTM', 'Legal Scan', 'Blockers', 'Pivot', 'Simulation', 'Rebuild', 'Final'];
+    const nodes = nodeNames.map(name => ({ name }));
+    const nodeIndex = Object.fromEntries(nodeNames.map((n, i) => [n, i]));
+
+    const stratCount = events.filter(e => e.event_type === 'STRATEGY_SET').length;
+    const buildCount = events.filter(e => e.source === 'CTO').length;
+    const cfoCount = events.filter(e => e.source === 'CFO').length;
+    const cmoCount = events.filter(e => e.source === 'CMO').length;
+    const legalCount = events.filter(e => e.source === 'Legal').length;
+    const blockerCount = events.filter(e => e.event_type === 'BLOCKER').length;
+    const pivotCount = events.filter(e => e.event_type === 'PIVOT').length;
+    const simCount = events.filter(e => e.event_type === 'SIMULATION_RESULT').length;
+
+    const links = [
+      { source: nodeIndex['Concept'], target: nodeIndex['Strategy'], value: Math.max(stratCount, 1) },
+      { source: nodeIndex['Strategy'], target: nodeIndex['CTO Build'], value: Math.max(buildCount, 1) },
+      { source: nodeIndex['Strategy'], target: nodeIndex['CFO Model'], value: Math.max(cfoCount, 1) },
+      { source: nodeIndex['Strategy'], target: nodeIndex['CMO GTM'], value: Math.max(cmoCount, 1) },
+      { source: nodeIndex['Strategy'], target: nodeIndex['Legal Scan'], value: Math.max(legalCount, 1) },
+      { source: nodeIndex['Legal Scan'], target: nodeIndex['Blockers'], value: Math.max(blockerCount, 1) },
+      { source: nodeIndex['Blockers'], target: nodeIndex['Pivot'], value: Math.max(pivotCount, 1) },
+      { source: nodeIndex['Pivot'], target: nodeIndex['Simulation'], value: Math.max(simCount, 1) },
+      { source: nodeIndex['Simulation'], target: nodeIndex['Rebuild'], value: Math.max(pivotCount, 1) },
+      { source: nodeIndex['Rebuild'], target: nodeIndex['Final'], value: Math.max(1, 1) },
+    ];
+
+    const svg = d3.select(container).append('svg').attr('width', width).attr('height', height);
+    const sankey = d3.sankey().nodeWidth(15).nodePadding(10).extent([[1, 5], [width - 1, height - 5]]);
+    const { nodes: sNodes, links: sLinks } = sankey({ nodes: nodes.map(d => ({...d})), links: links.map(d => ({...d})) });
+
+    const colorScale = d3.scaleOrdinal()
+      .domain(nodeNames)
+      .range(['#6366f1', '#3b82f6', '#3b82f6', '#22c55e', '#a855f7', '#ef4444', '#ef4444', '#eab308', '#06b6d4', '#22c55e', '#6366f1']);
+
+    svg.append('g').selectAll('rect').data(sNodes).join('rect')
+      .attr('x', d => d.x0).attr('y', d => d.y0)
+      .attr('height', d => Math.max(d.y1 - d.y0, 2)).attr('width', d => d.x1 - d.x0)
+      .attr('fill', d => colorScale(d.name)).attr('opacity', 0.9).attr('rx', 2);
+
+    svg.append('g').attr('fill', 'none').selectAll('path').data(sLinks).join('path')
+      .attr('d', d3.sankeyLinkHorizontal())
+      .attr('stroke', d => colorScale(d.source.name)).attr('stroke-width', d => Math.max(d.width, 1.5))
+      .attr('opacity', 0.35);
+
+    svg.append('g').selectAll('text').data(sNodes).join('text')
+      .attr('x', d => d.x0 < width / 2 ? d.x1 + 6 : d.x0 - 6)
+      .attr('y', d => (d.y1 + d.y0) / 2).attr('dy', '0.35em')
+      .attr('text-anchor', d => d.x0 < width / 2 ? 'start' : 'end')
+      .text(d => d.name).attr('fill', '#94a3b8').attr('font-size', '10px');
+  }, [events]);
+
+  // Radar chart - startup readiness
+  useEffect(() => {
+    if (!radarRef.current) return;
+    if (radarInstance.current) radarInstance.current.destroy();
+
+    const simEvent = events.find(e => e.event_type === 'SIMULATION_RESULT');
+    const blockers = events.filter(e => e.event_type === 'BLOCKER').length;
+    const sentiment = simEvent?.payload?.overall_sentiment || 0;
+
+    const legal = Math.max(0, Math.min(100, 90 - blockers * 15));
+    const market = Math.max(0, Math.min(100, 50 + sentiment * 40));
+    const financial = events.some(e => e.event_type === 'FINANCIAL_MODEL_READY') ? 75 : 40;
+    const tech = events.some(e => e.event_type === 'PROTOTYPE_READY') ? 85 : 45;
+    const gtm = events.some(e => e.event_type === 'GTM_READY') ? 80 : 35;
+
+    radarInstance.current = new Chart(radarRef.current, {
+      type: 'radar',
+      data: {
+        labels: ['Legal Readiness', 'Market Fit', 'Financial Viability', 'Tech Feasibility', 'GTM'],
+        datasets: [{
+          label: 'Readiness %',
+          data: [legal, market, financial, tech, gtm],
+          backgroundColor: 'rgba(99,102,241,0.15)',
+          borderColor: '#6366f1',
+          pointBackgroundColor: '#6366f1',
+          pointBorderColor: '#6366f1',
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          r: { min: 0, max: 100, grid: { color: '#1e293b' }, angleLines: { color: '#1e293b' }, ticks: { display: false }, pointLabels: { color: '#94a3b8', font: { size: 11 } } }
+        },
+        plugins: { legend: { display: false } },
+      }
+    });
+    return () => { if (radarInstance.current) radarInstance.current.destroy(); };
+  }, [events]);
+
+  // Cost waterfall
+  useEffect(() => {
+    if (!waterfallRef.current) return;
+    if (waterfallInstance.current) waterfallInstance.current.destroy();
+
+    const phases = ['Strategy', 'Legal', 'CTO', 'CFO', 'CMO', 'Simulation', 'Pivot'];
+    const phaseTokens = phases.map(phase => {
+      const key = phase === 'Strategy' ? 'CEO' : phase === 'Simulation' ? 'Simulation' : phase === 'Legal' ? 'Legal' : phase;
+      return events.filter(e => e.source === key).length * 500; // Estimate tokens
+    });
+
+    waterfallInstance.current = new Chart(waterfallRef.current, {
+      type: 'bar',
+      data: {
+        labels: phases,
+        datasets: [{
+          label: 'Est. Tokens',
+          data: phaseTokens,
+          backgroundColor: ['#eab308', '#ef4444', '#3b82f6', '#22c55e', '#a855f7', '#06b6d4', '#f97316'],
+          borderRadius: 4,
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b' } },
+          x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } }
+        },
+        plugins: { legend: { display: false } },
+      }
+    });
+    return () => { if (waterfallInstance.current) waterfallInstance.current.destroy(); };
+  }, [events]);
+
+  // Agent activity heatmap using D3
+  useEffect(() => {
+    if (!heatmapRef.current || events.length === 0 || typeof d3 === 'undefined') return;
+    const container = heatmapRef.current;
+    container.innerHTML = '';
+
+    const agents = ['CEO', 'CTO', 'CFO', 'CMO', 'Legal', 'Simulation'];
+    const maxIter = Math.max(...events.map(e => e.iteration || 1), 1);
+    const iterations = Array.from({ length: maxIter }, (_, i) => i + 1);
+
+    const activityMap = {};
+    events.forEach(e => {
+      const key = `${e.source}-${e.iteration || 1}`;
+      activityMap[key] = (activityMap[key] || 0) + 1;
+    });
+
+    const width = container.clientWidth || 500;
+    const cellW = Math.min(60, (width - 80) / iterations.length);
+    const cellH = 28;
+    const margin = { top: 30, left: 80 };
+    const height = margin.top + agents.length * cellH + 10;
+
+    const svg = d3.select(container).append('svg').attr('width', width).attr('height', height);
+
+    const maxActivity = Math.max(...Object.values(activityMap), 1);
+    const colorScale = d3.scaleSequential(d3.interpolateViridis).domain([0, maxActivity]);
+
+    // Cells
+    agents.forEach((agent, ai) => {
+      iterations.forEach((iter, ii) => {
+        const count = activityMap[`${agent}-${iter}`] || 0;
+        svg.append('rect')
+          .attr('x', margin.left + ii * cellW).attr('y', margin.top + ai * cellH)
+          .attr('width', cellW - 2).attr('height', cellH - 2)
+          .attr('fill', count > 0 ? colorScale(count) : '#0f172a')
+          .attr('rx', 3).attr('opacity', 0.85);
+
+        if (count > 0) {
+          svg.append('text')
+            .attr('x', margin.left + ii * cellW + cellW / 2 - 1)
+            .attr('y', margin.top + ai * cellH + cellH / 2)
+            .attr('dy', '0.35em').attr('text-anchor', 'middle')
+            .text(count).attr('fill', '#fff').attr('font-size', '9px');
+        }
+      });
+    });
+
+    // Agent labels
+    agents.forEach((agent, ai) => {
+      svg.append('text')
+        .attr('x', margin.left - 8).attr('y', margin.top + ai * cellH + cellH / 2)
+        .attr('dy', '0.35em').attr('text-anchor', 'end')
+        .text(agent).attr('fill', '#94a3b8').attr('font-size', '10px');
+    });
+
+    // Iteration labels
+    iterations.forEach((iter, ii) => {
+      svg.append('text')
+        .attr('x', margin.left + ii * cellW + cellW / 2 - 1)
+        .attr('y', margin.top - 8).attr('text-anchor', 'middle')
+        .text(`P${iter}`).attr('fill', '#64748b').attr('font-size', '9px');
+    });
+  }, [events]);
+
+  return (
+    <div>
+      <h2 className="text-xl font-bold text-white mb-6">Advanced Analytics</h2>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        {/* Sankey */}
+        <div className="rounded-xl bg-slate-800/30 border border-slate-700/20 p-4 md:col-span-2">
+          <h3 className="text-sm font-semibold text-slate-400 mb-3">Event Flow (Sankey)</h3>
+          <div ref={sankeyRef} style={{width:'100%', minHeight:'300px'}}></div>
+        </div>
+
+        {/* Radar */}
+        <div className="rounded-xl bg-slate-800/30 border border-slate-700/20 p-4">
+          <h3 className="text-sm font-semibold text-slate-400 mb-3">Startup Readiness</h3>
+          <canvas ref={radarRef}></canvas>
+        </div>
+
+        {/* Cost waterfall */}
+        <div className="rounded-xl bg-slate-800/30 border border-slate-700/20 p-4">
+          <h3 className="text-sm font-semibold text-slate-400 mb-3">Token Usage by Phase</h3>
+          <canvas ref={waterfallRef}></canvas>
+        </div>
+      </div>
+
+      {/* Activity heatmap */}
+      <div className="rounded-xl bg-slate-800/30 border border-slate-700/20 p-4">
+        <h3 className="text-sm font-semibold text-slate-400 mb-3">Agent Activity Heatmap</h3>
+        <div ref={heatmapRef} style={{width:'100%', minHeight:'220px'}}></div>
+      </div>
+    </div>
+  );
+}
+
 // ── Sentiment Dashboard ──
 function SentimentDashboard({ events }) {
   const [simData, setSimData] = useState(null);
@@ -619,6 +861,7 @@ function App() {
     { id: 'timeline', label: 'Event Timeline' },
     { id: 'pivots', label: `Pivot Trace (${pivotCount})` },
     { id: 'sentiment', label: 'Sentiment' },
+    { id: 'analytics', label: 'Analytics' },
     { id: 'artifacts', label: 'Artifacts' },
   ];
 
@@ -644,6 +887,7 @@ function App() {
               {activeTab === 'timeline' && <Timeline events={events} />}
               {activeTab === 'pivots' && <PivotTrace events={events} />}
               {activeTab === 'sentiment' && <SentimentDashboard events={events} />}
+              {activeTab === 'analytics' && <AdvancedCharts events={events} />}
               {activeTab === 'artifacts' && <ArtifactViewer />}
             </div>
           </div>
