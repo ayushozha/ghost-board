@@ -156,7 +156,8 @@ class BaseAgent:
         # Board discussion entry
         if reasoning or action in ("strategy", "pivot", "blocker_found", "blocker_review",
                                      "compliance_scan", "financial_model", "gtm_generate",
-                                     "codex_generate", "pivot_response", "simulation_review"):
+                                     "codex_generate", "pivot_response", "simulation_review",
+                                     "simulation_response"):
             from datetime import datetime, timezone
             BaseAgent._board_discussion.append({
                 "agent": self.name,
@@ -192,6 +193,35 @@ class BaseAgent:
         """Subscribe this agent to specific event types on the bus."""
         for et in event_types:
             self.bus.subscribe(et, self.handle_event)
+
+    async def respond_to_simulation_findings(self, ceo_findings: str, strategy_json: str) -> str:
+        """Respond to CEO's presentation of simulation findings.
+
+        Each agent proposes how they would adapt their work based on the market
+        feedback. Override in subclasses for specialized responses.
+        """
+        prompt = f"""You are the {self.name} of a startup. The CEO just presented market simulation results to the executive team:
+
+"{ceo_findings}"
+
+Current strategy: {strategy_json}
+
+As {self.name}, respond in 1-2 sentences with what YOU will specifically change or do differently based on this feedback. Be concrete and actionable. Reference specific concerns raised.
+
+Respond with ONLY your response text."""
+
+        response = await self.call_llm([
+            {"role": "system", "content": f"You are a startup {self.name}. Be specific and actionable."},
+            {"role": "user", "content": prompt},
+        ])
+
+        text = response.strip()
+        self.log(
+            text,
+            action="simulation_response",
+            reasoning=f"Responding to CEO's simulation findings with proposed adaptations for {self.name}'s domain.",
+        )
+        return text
 
     async def run(self, context: dict[str, Any] | None = None) -> None:
         """Main agent execution. Override in subclasses."""

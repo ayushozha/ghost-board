@@ -103,6 +103,39 @@ Respond in JSON with these exact fields:
                 triggered_by=event.id,
             )
 
+    async def present_simulation_findings(self, payload: SimulationResultPayload) -> str:
+        """CEO presents simulation findings to the board for discussion."""
+        concerns = ", ".join(payload.key_concerns[:5]) if payload.key_concerns else "none flagged"
+        strengths = ", ".join(payload.key_strengths[:5]) if payload.key_strengths else "none noted"
+        strategy_str = self.current_strategy.model_dump_json() if self.current_strategy else "{}"
+
+        prompt = f"""You are a CEO presenting market simulation results to your executive team.
+
+Simulation data:
+- Overall sentiment: {payload.overall_sentiment:.2f} (-1 negative, +1 positive)
+- Confidence: {payload.confidence:.2f}
+- Key concerns from simulated stakeholders: {concerns}
+- Key strengths noted: {strengths}
+- Pivot recommendation: {"Yes - " + (payload.pivot_suggestion or "") if payload.pivot_recommended else "No"}
+- Current strategy: {strategy_str}
+
+Present findings in 2-3 sentences. Be specific about what VCs, journalists, early adopters, and competitors said. Reference specific concerns and positive signals. End by asking each executive how they would adapt.
+
+Respond with ONLY the presentation text, no JSON."""
+
+        response = await self.call_llm([
+            {"role": "system", "content": "You are a startup CEO presenting market research findings concisely."},
+            {"role": "user", "content": prompt},
+        ])
+
+        findings = response.strip()
+        self.log(
+            findings,
+            action="simulation_review",
+            reasoning=f"Presenting simulation results to board. Sentiment: {payload.overall_sentiment:.2f}, concerns: {concerns}, strengths: {strengths}. Asking team to propose adaptations before making pivot decision.",
+        )
+        return findings
+
     async def process_simulation_result(self, event: AgentEvent) -> None:
         """Process simulation results and decide whether to pivot."""
         payload = event.payload

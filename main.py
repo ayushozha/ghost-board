@@ -180,6 +180,27 @@ async def run_sprint(
         )
         await bus.publish(sim_event)
 
+        # ── Board Discussion: CEO presents findings, agents respond ──
+        console.print(f"\n[bold cyan]Board Discussion: Simulation Debrief[/bold cyan]")
+        console.print("[dim]" + "-" * 50 + "[/dim]")
+
+        sim_payload = sim_event.payload
+        findings = await ceo.present_simulation_findings(sim_payload)
+        console.print(f"  [bold yellow]CEO[/bold yellow]: {findings[:200]}{'...' if len(findings) > 200 else ''}")
+
+        strategy_json = ceo.current_strategy.model_dump_json() if ceo.current_strategy else "{}"
+        agent_responses = await asyncio.gather(
+            cto.respond_to_simulation_findings(findings, strategy_json),
+            cfo.respond_to_simulation_findings(findings, strategy_json),
+            cmo.respond_to_simulation_findings(findings, strategy_json),
+            legal.respond_to_simulation_findings(findings, strategy_json),
+            return_exceptions=True,
+        )
+        for agent, resp in zip([cto, cfo, cmo, legal], agent_responses):
+            if isinstance(resp, str):
+                color = {"CTO": "blue", "CFO": "green", "CMO": "magenta", "Legal": "red"}.get(agent.name, "white")
+                console.print(f"  [bold {color}]{agent.name}[/bold {color}]: {resp[:200]}{'...' if len(resp) > 200 else ''}")
+
         # ── Phase 3: Pivot + Rebuild (if needed) ──
         if market_signal.pivot_recommended:
             console.print(f"\n[bold cyan]Phase 3: Pivot + Rebuild[/bold cyan]")
