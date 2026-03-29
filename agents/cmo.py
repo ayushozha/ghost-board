@@ -228,14 +228,18 @@ CRITICAL REQUIREMENTS:
         tagline = data.get("tagline", "")
         if not tagline and data.get("taglines"):
             tagline = data["taglines"][0].get("tagline", "")
+
+        self._save_gtm(data)
+
+        competitive_analysis_text = await self._generate_competitive_analysis(strategy)
+
         payload = GTMPayload(
             positioning=data.get("positioning", ""),
             tagline=tagline,
             target_channels=data.get("target_channels", []),
             output_path="outputs/gtm",
+            competitive_analysis=competitive_analysis_text,
         )
-
-        self._save_gtm(data)
 
         await self.publish(AgentEvent(
             type=EventType.GTM_READY,
@@ -733,6 +737,155 @@ CRITICAL REQUIREMENTS:
                 for pp in proof_points:
                     f.write(f"- {pp}\n")
                 f.write("\n")
+
+    async def _generate_competitive_analysis(self, strategy: StrategyPayload) -> str:
+        """Make a dedicated LLM call for structured competitive analysis and save to file."""
+        self.log(
+            "Generating dedicated competitive analysis",
+            action="competitive_analysis_generate",
+            reasoning=(
+                f"Producing a focused competitive landscape for '{strategy.startup_idea}' "
+                f"with 3 real named competitors, 5-dimension comparison matrix, and positioning gap."
+            ),
+        )
+
+        pivot_note = ""
+        if self._pivot_context:
+            pivot_note = f"\nIMPORTANT PIVOT CONTEXT:\n{self._pivot_context}\nReflect the pivoted strategy in the competitive positioning.\n"
+
+        prompt = f"""You are a startup CMO conducting a competitive landscape analysis. Provide a rigorous competitive analysis for:
+
+Startup: {strategy.startup_idea}
+Target Market: {strategy.target_market}
+Business Model: {strategy.business_model}
+Key Differentiators: {', '.join(strategy.key_differentiators)}
+{pivot_note}
+Return ONLY valid JSON with this exact structure:
+{{
+  "competitors": [
+    {{
+      "name": "Actual company name (e.g. Stripe, Brex, Rippling)",
+      "description": "One sentence description of what they do",
+      "pricing": "Their pricing model and price points",
+      "target_market": "Their primary customer segment",
+      "key_features": ["Feature 1", "Feature 2", "Feature 3"],
+      "distribution": "How they acquire and distribute to customers",
+      "weaknesses": "Their key gaps and shortcomings"
+    }}
+  ],
+  "comparison_matrix": {{
+    "pricing": {{"us": "Our approach", "competitor_1": "...", "competitor_2": "...", "competitor_3": "..."}},
+    "target_market": {{"us": "Our segment", "competitor_1": "...", "competitor_2": "...", "competitor_3": "..."}},
+    "key_features": {{"us": "Our strengths", "competitor_1": "...", "competitor_2": "...", "competitor_3": "..."}},
+    "distribution": {{"us": "Our channels", "competitor_1": "...", "competitor_2": "...", "competitor_3": "..."}},
+    "weaknesses": {{"us": "Our gaps to address", "competitor_1": "...", "competitor_2": "...", "competitor_3": "..."}}
+  }},
+  "positioning_gap": "2-3 paragraph analysis of the white space in the market and the specific positioning opportunity we should own"
+}}
+
+REQUIREMENTS:
+- Name exactly 3 real, existing companies as competitors (use their actual names)
+- Fill every field — no placeholders, no '...' in the final output
+- Use competitor_1/competitor_2/competitor_3 keys in comparison_matrix mapped to the order in competitors array
+- positioning_gap must reference specific weaknesses of competitors and explain why our approach wins"""
+
+        try:
+            response = await self.call_llm([
+                {"role": "system", "content": "You are a startup CMO. Respond only with valid JSON."},
+                {"role": "user", "content": prompt},
+            ])
+            ca_data = json.loads(response.strip().removeprefix("```json").removesuffix("```").strip())
+        except (json.JSONDecodeError, Exception) as exc:
+            self.log(
+                f"Competitive analysis LLM call failed: {exc}",
+                action="competitive_analysis_error",
+            )
+            return ""
+
+        md_lines: list[str] = ["# Competitive Analysis\n"]
+
+        # Competitors section
+        competitors = ca_data.get("competitors", [])
+        if competitors:
+            md_lines.append("## Competitors\n")
+            for i, comp in enumerate(competitors, 1):
+                name = comp.get("name", f"Competitor {i}")
+                md_lines.append(f"### {i}. {name}\n")
+                if comp.get("description"):
+                    md_lines.append(f"_{comp['description']}_\n")
+                if comp.get("pricing"):
+                    md_lines.append(f"**Pricing:** {comp['pricing']}\n")
+                if comp.get("target_market"):
+                    md_lines.append(f"**Target Market:** {comp['target_market']}\n")
+                features = comp.get("key_features", [])
+                if features:
+                    md_lines.append("**Key Features:**")
+                    for feat in features:
+                        md_lines.append(f"- {feat}")
+                    md_lines.append("")
+                if comp.get("distribution"):
+                    md_lines.append(f"**Distribution:** {comp['distribution']}\n")
+                if comp.get("weaknesses"):
+                    md_lines.append(f"**Weaknesses:** {comp['weaknesses']}\n")
+                md_lines.append("")
+
+        # Comparison matrix section
+        matrix = ca_data.get("comparison_matrix", {})
+        if matrix and competitors:
+            comp_names = [c.get("name", f"Competitor {i+1}") for i, c in enumerate(competitors)]
+            # Build header: Us + up to 3 competitor names
+            header_cols = ["Us"] + comp_names[:3]
+            header = "| Dimension | " + " | ".join(header_cols) + " |"
+            sep = "|-----------|" + "|".join(["-----------"] * len(header_cols)) + "|"
+            md_lines.append("## Comparison Matrix\n")
+            md_lines.append(header)
+            md_lines.append(sep)
+            dim_labels = {
+                "pricing": "Pricing",
+                "target_market": "Target Market",
+                "key_features": "Key Features",
+                "distribution": "Distribution",
+                "weaknesses": "Weaknesses",
+            }
+            for dim_key, dim_label in dim_labels.items():
+                dim_vals = matrix.get(dim_key, {})
+                if isinstance(dim_vals, dict):
+                    us_val = str(dim_vals.get("us", ""))
+                    c1_val = str(dim_vals.get("competitor_1", ""))
+                    c2_val = str(dim_vals.get("competitor_2", ""))
+                    c3_val = str(dim_vals.get("competitor_3", ""))
+                    row_vals = [us_val, c1_val, c2_val, c3_val][:len(header_cols)]
+                    md_lines.append("| " + dim_label + " | " + " | ".join(row_vals) + " |")
+            md_lines.append("")
+
+        # Positioning gap section
+        gap = ca_data.get("positioning_gap", "")
+        if gap:
+            md_lines.append("## Positioning Gap\n")
+            md_lines.append(gap)
+            md_lines.append("")
+
+        markdown_text = "\n".join(md_lines)
+
+        try:
+            os.makedirs("outputs/gtm", exist_ok=True)
+            with open("outputs/gtm/competitive_analysis.md", "w") as f:
+                f.write(markdown_text)
+            self.log(
+                "Competitive analysis saved to outputs/gtm/competitive_analysis.md",
+                action="competitive_analysis_save",
+                reasoning=(
+                    f"Saved analysis with {len(competitors)} competitors and "
+                    f"{'positioning gap' if gap else 'no gap section'}."
+                ),
+            )
+        except OSError as exc:
+            self.log(
+                f"Failed to save competitive_analysis.md: {exc}",
+                action="competitive_analysis_save_error",
+            )
+
+        return markdown_text
 
     async def run(self, context: dict[str, Any] | None = None) -> None:
         if self.current_strategy:

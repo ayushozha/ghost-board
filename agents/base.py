@@ -6,6 +6,7 @@ import asyncio
 import json
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
@@ -43,6 +44,8 @@ class BaseAgent:
         self.logger = logger
         self.client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
         self.total_tokens = 0
+        self.prompt_tokens = 0
+        self.completion_tokens = 0
         self.estimated_cost = 0.0
         self._current_iteration = 1
 
@@ -77,6 +80,8 @@ class BaseAgent:
                 usage = response.usage
                 if usage:
                     self.total_tokens += usage.total_tokens
+                    self.prompt_tokens += usage.prompt_tokens
+                    self.completion_tokens += usage.completion_tokens
                     costs = MODEL_COSTS.get(use_model, MODEL_COSTS["gpt-4o"])
                     self.estimated_cost += (
                         usage.prompt_tokens * costs["input"] / 1_000_000
@@ -120,6 +125,8 @@ class BaseAgent:
                 usage = response.usage
                 if usage:
                     self.total_tokens += usage.total_tokens
+                    self.prompt_tokens += usage.prompt_tokens
+                    self.completion_tokens += usage.completion_tokens
                     costs = MODEL_COSTS.get(use_model, MODEL_COSTS["gpt-4o"])
                     self.estimated_cost += (
                         usage.prompt_tokens * costs["input"] / 1_000_000
@@ -252,9 +259,80 @@ Respond with ONLY your response text."""
         raise NotImplementedError(f"{self.name}.run() not implemented")
 
     def get_cost_summary(self) -> dict[str, Any]:
-        """Return cost tracking summary."""
+        """Return cost tracking summary with per-token breakdown."""
         return {
             "agent": self.name,
             "total_tokens": self.total_tokens,
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
             "estimated_cost_usd": round(self.estimated_cost, 4),
         }
+
+    def reset_costs(self) -> None:
+        """Clear all token and cost accumulators."""
+        self.total_tokens = 0
+        self.prompt_tokens = 0
+        self.completion_tokens = 0
+        self.estimated_cost = 0.0
+
+    # ------------------------------------------------------------------
+    # Agent memory (file-based, persists across rounds)
+    # ------------------------------------------------------------------
+
+    def _memory_path(self) -> Path:
+        """Return the path to this agent's memory file."""
+        memory_dir = Path("outputs/memory")
+        memory_dir.mkdir(parents=True, exist_ok=True)
+        return memory_dir / f"{self.name}.json"
+
+    def load_memory(self) -> list[dict[str, Any]]:
+        """Load past memory entries from disk.
+
+        Returns an empty list if the file does not exist yet.
+        Each entry has keys: timestamp, sprint_id, key_decision, outcome.
+        """
+        path = self._memory_path()
+        if not path.exists():
+            return []
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+            return data if isinstance(data, list) else []
+        except (json.JSONDecodeError, OSError):
+            return []
+
+    def save_memory(self, entry: dict[str, Any]) -> None:
+        """Append *entry* to the agent's memory file, keeping only the last 3 entries.
+
+        Expected entry structure: {timestamp, sprint_id, key_decision, outcome}.
+        """
+        entries = self.load_memory()
+        entries.append(entry)
+        # Keep only the most recent 3 entries
+        entries = entries[-3:]
+        path = self._memory_path()
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(entries, f, indent=2)
+        except OSError as exc:
+            self.log(f"Failed to save memory: {exc}", action="error")
+
+    def get_memory_context(self) -> str:
+        """Return a human-readable summary of past decisions for inclusion in LLM prompts.
+
+        Returns an empty string when there are no past entries.
+        """
+        entries = self.load_memory()
+        if not entries:
+            return ""
+        lines = ["PAST DECISIONS (from previous sprints):"]
+        for i, e in enumerate(entries, 1):
+            ts = e.get("timestamp", "unknown time")
+            decision = e.get("key_decision", "")
+            outcome = e.get("outcome", "")
+            sprint = e.get("sprint_id", "")
+            lines.append(
+                f"  [{i}] Sprint {sprint} ({ts}): {decision}"
+                + (f" -> Outcome: {outcome}" if outcome else "")
+            )
+        return "\n".join(lines)

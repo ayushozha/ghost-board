@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, createContext, lazy, Suspense } from 'react';
+import Toast from './components/Toast';
 import LandingPage from './screens/LandingPage';
 import MissionControl from './screens/MissionControl';
 import Boardroom from './screens/Boardroom';
@@ -45,7 +46,14 @@ export default function App() {
   const [isLive, setIsLive] = useState(false);
   const [sprintStatus, setSprintStatus] = useState('idle');
   const [activeConcept, setActiveConcept] = useState('');
+  const [toast, setToast] = useState(null);
   const wsRef = useRef(null);
+  // Track whether the completion toast has already been shown for the current run
+  const completionToastShownRef = useRef(false);
+
+  const showToast = useCallback((title, message, type = 'info', action = null, duration = 5000) => {
+    setToast({ title, message, type, action, duration });
+  }, []);
 
   // Theme state — read from localStorage on mount, default to 'dark'
   const [theme, setTheme] = useState(() => {
@@ -89,6 +97,16 @@ export default function App() {
         } else if (t === 'SPRINT_COMPLETE' || t === 'sprint_complete') {
           setScreen('report');
           setSprintStatus('completed');
+          if (!completionToastShownRef.current) {
+            completionToastShownRef.current = true;
+            showToast(
+              'Sprint Complete!',
+              'Your results are ready.',
+              'success',
+              { label: 'View Report', onClick: () => handleNavigate('report') },
+              5000,
+            );
+          }
         }
       },
       onClose: () => {
@@ -134,6 +152,16 @@ export default function App() {
         if (runData?.status === 'completed') {
           setSprintStatus('completed');
           setScreen('report');
+          if (!completionToastShownRef.current) {
+            completionToastShownRef.current = true;
+            showToast(
+              'Sprint Complete!',
+              'Your results are ready.',
+              'success',
+              { label: 'View Report', onClick: () => handleNavigate('report') },
+              5000,
+            );
+          }
         }
       } catch {
         // Best-effort fallback when live events are unavailable.
@@ -151,20 +179,23 @@ export default function App() {
 
   const handleLaunch = useCallback((newRunId, concept) => {
     if (newRunId) {
+      completionToastShownRef.current = false;
       setRunId(newRunId);
       setSprintStatus('running');
       if (concept) setActiveConcept(concept);
       setScreen('boardroom');
+      showToast('Sprint Launched', 'Building your startup...', 'info', null, 3000);
     } else {
       setScreen('report');
     }
-  }, []);
+  }, [showToast]);
 
   const handleEnterDashboard = useCallback(() => {
     setScreen('mission');
   }, []);
 
   const handleNewSprint = useCallback(() => {
+    completionToastShownRef.current = false;
     setRunId(null);
     setSprintStatus('idle');
     setActiveConcept('');
@@ -335,6 +366,8 @@ export default function App() {
           Ghost Board &mdash; Built at Ralphthon SF 2026
         </footer>
       )}
+
+      <Toast toast={toast} onClose={() => setToast(null)} />
     </div>
     </ThemeContext.Provider>
   );

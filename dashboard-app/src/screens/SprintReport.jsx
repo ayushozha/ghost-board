@@ -430,9 +430,132 @@ function FinancialTab({ runId }) {
 }
 
 // ---------------------------------------------------------------------------
-// Tab: GTM (positioning, taglines, competitive matrix)
+// Helper: simple markdown renderer for competitive analysis
+// ---------------------------------------------------------------------------
+function renderCompetitiveMarkdown(md) {
+  if (!md) return null;
+  const lines = md.split('\n');
+  const elements = [];
+  let tableBuffer = [];
+  let inTable = false;
+
+  const flushTable = (key) => {
+    if (tableBuffer.length === 0) return;
+    const rows = tableBuffer.map((row) =>
+      row.split('|').map((c) => c.trim()).filter((c) => c !== '')
+    );
+    // Filter out separator rows (--- cells)
+    const filtered = rows.filter((r) => !r.every((c) => /^[-:]+$/.test(c)));
+    if (filtered.length === 0) { tableBuffer = []; return; }
+    const [header, ...body] = filtered;
+    elements.push(
+      <div key={`tbl-${key}`} className="overflow-x-auto my-4">
+        <table className="w-full text-sm border-collapse">
+          <thead>
+            <tr className="bg-gray-800/60">
+              {header.map((h, hi) => (
+                <th key={hi} className="text-left p-2 border border-gray-700 text-xs text-gray-300 font-semibold">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {body.map((row, ri) => (
+              <tr key={ri} className="border-b border-gray-800/50 hover:bg-white/[0.02]">
+                {row.map((cell, ci) => (
+                  <td key={ci} className="p-2 border border-gray-700 text-xs text-gray-400">{cell}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+    tableBuffer = [];
+  };
+
+  lines.forEach((line, i) => {
+    if (line.includes('|')) {
+      inTable = true;
+      tableBuffer.push(line);
+      return;
+    }
+    if (inTable) {
+      flushTable(i);
+      inTable = false;
+    }
+    if (line.startsWith('### ')) {
+      elements.push(<h3 key={i} className="text-base font-bold text-white mt-5 mb-2">{line.slice(4)}</h3>);
+    } else if (line.startsWith('## ')) {
+      elements.push(<h2 key={i} className="text-lg font-bold text-white mt-6 mb-3 pb-1 border-b border-gray-700">{line.slice(3)}</h2>);
+    } else if (line.startsWith('# ')) {
+      elements.push(<h1 key={i} className="text-xl font-bold text-white mt-6 mb-4">{line.slice(2)}</h1>);
+    } else if (/^\s*[-*]\s/.test(line)) {
+      elements.push(
+        <div key={i} className="flex items-start gap-2 my-0.5 ml-2">
+          <span className="text-gray-500 mt-1 flex-shrink-0">&bull;</span>
+          <span className="text-gray-300 text-sm">{line.replace(/^\s*[-*]\s/, '')}</span>
+        </div>
+      );
+    } else if (line.trim() === '') {
+      elements.push(<div key={i} className="h-2" />);
+    } else {
+      elements.push(<p key={i} className="text-gray-300 text-sm leading-relaxed my-1">{line}</p>);
+    }
+  });
+  if (inTable) flushTable('end');
+  return elements;
+}
+
+// ---------------------------------------------------------------------------
+// GTM sub-tab: Competitive
+// ---------------------------------------------------------------------------
+function GtmCompetitiveSubTab({ runId }) {
+  const [content, setContent] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [unavailable, setUnavailable] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setUnavailable(false);
+
+    // Try dedicated artifact endpoint first, then direct fallback path
+    fetch('/api/artifacts/gtm/competitive_analysis.md')
+      .then((r) => r.ok ? r.text() : Promise.reject('not found'))
+      .catch(() =>
+        // fallback: try run-specific artifact path
+        fetch(`/api/runs/${runId || 'latest'}/artifacts/gtm/competitive_analysis.md`)
+          .then((r) => r.ok ? r.text() : Promise.reject('not found'))
+      )
+      .then((text) => { if (!cancelled) setContent(text); })
+      .catch(() => { if (!cancelled) setUnavailable(true); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+
+    return () => { cancelled = true; };
+  }, [runId]);
+
+  if (loading) return <LoadingState />;
+  if (unavailable || !content) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+        <div className="text-4xl mb-3">{'\uD83D\uDCC2'}</div>
+        <div>Competitive analysis not yet generated</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 max-h-[640px] overflow-y-auto">
+      <div className="max-w-4xl mx-auto">{renderCompetitiveMarkdown(content)}</div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tab: GTM (positioning, taglines, competitive matrix) with sub-tabs
 // ---------------------------------------------------------------------------
 function GtmTab({ runId }) {
+  const [gtmSubTab, setGtmSubTab] = useState('copy');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -447,140 +570,176 @@ function GtmTab({ runId }) {
     return () => { cancelled = true; };
   }, [runId]);
 
-  if (loading) return <LoadingState />;
-  if (!data) return <EmptyState message="No GTM data found" />;
+  const GTM_SUB_TABS = [
+    { id: 'copy', label: 'Copy' },
+    { id: 'competitive', label: 'Competitive' },
+  ];
 
-  const framework = data.messaging_framework || {};
-  const taglines = data.taglines || [];
+  // Derived from data (safe when data is null — only used inside !data guard)
+  const framework = data?.messaging_framework || {};
+  const taglines = data?.taglines || [];
   const byPersona = framework.by_persona || {};
-  const compMatrix = data.competitive_matrix || data.competitive_landscape || [];
-  const proofPoints = framework.proof_points || data.proof_points || [];
+  const compMatrix = data?.competitive_matrix || data?.competitive_landscape || [];
+  const proofPoints = framework.proof_points || data?.proof_points || [];
 
   return (
-    <div className="space-y-6 p-4 overflow-auto">
-      {/* Positioning statement - large text */}
-      {data.positioning && (
-        <div className="p-6 rounded-xl bg-gradient-to-r from-purple-500/5 to-indigo-500/5 border border-purple-500/20">
-          <div className="text-[10px] text-purple-400 font-mono uppercase tracking-wider mb-3">Positioning Statement</div>
-          <p className="text-xl text-gray-100 leading-relaxed font-medium">{data.positioning}</p>
-        </div>
-      )}
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Sub-tab navigation */}
+      <div className="flex items-center gap-1 px-4 pt-3 pb-2 border-b border-gray-800 flex-shrink-0">
+        {GTM_SUB_TABS.map((st) => (
+          <button
+            key={st.id}
+            onClick={() => setGtmSubTab(st.id)}
+            className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              gtmSubTab === st.id
+                ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.03] border border-transparent'
+            }`}
+          >
+            {st.label}
+          </button>
+        ))}
+      </div>
 
-      {/* Taglines as cards */}
-      {taglines.length > 0 && (
-        <div className="bg-gray-900/50 rounded-lg border border-gray-800 p-5">
-          <h3 className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mb-3">Taglines</h3>
-          <div className="grid gap-3 md:grid-cols-2">
-            {taglines.map((t, i) => (
-              <div key={i} className="p-4 rounded-lg bg-indigo-900/15 border border-indigo-800/30 hover:border-indigo-600/50 transition-colors">
-                <div className="text-lg font-bold text-indigo-200 italic">&ldquo;{typeof t === 'string' ? t : t.tagline}&rdquo;</div>
-                {(typeof t !== 'string' && t.reasoning) && <div className="text-xs text-gray-400 mt-2">{t.reasoning}</div>}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Competitive sub-tab */}
+      {gtmSubTab === 'competitive' && <GtmCompetitiveSubTab runId={runId} />}
 
-      {/* Competitive matrix as table */}
-      {compMatrix.length > 0 && (
-        <div className="bg-gray-900/50 rounded-lg border border-gray-800 overflow-hidden">
-          <div className="p-3 border-b border-gray-800">
-            <h3 className="text-[10px] text-gray-500 font-mono uppercase tracking-wider">Competitive Matrix</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-800 text-gray-500">
-                  <th className="text-left p-3 font-medium text-xs">Competitor</th>
-                  {compMatrix[0] && Object.keys(compMatrix[0]).filter((k) => k !== 'name' && k !== 'competitor').map((col) => (
-                    <th key={col} className="text-center p-3 font-medium text-xs capitalize">{col.replace(/_/g, ' ')}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {compMatrix.map((row, i) => {
-                  const name = row.name || row.competitor || `Entry ${i + 1}`;
-                  const cols = Object.entries(row).filter(([k]) => k !== 'name' && k !== 'competitor');
-                  return (
-                    <tr key={i} className="border-b border-gray-800/50 hover:bg-white/[0.02] transition-colors">
-                      <td className="p-3 text-gray-200 font-semibold text-xs">{name}</td>
-                      {cols.map(([key, val]) => {
-                        const v = typeof val === 'string' ? val.toLowerCase() : '';
-                        const cellColor =
-                          v.includes('strong') || v.includes('yes') || v.includes('high') || val === true
-                            ? 'bg-green-900/30 text-green-300'
-                            : v.includes('weak') || v.includes('no') || v.includes('low') || val === false
-                              ? 'bg-red-900/30 text-red-300'
-                              : v.includes('medium') || v.includes('partial')
-                                ? 'bg-yellow-900/30 text-yellow-300'
-                                : 'text-gray-300';
-                        return (
-                          <td key={key} className={`p-3 text-center text-xs ${cellColor}`}>
-                            {typeof val === 'boolean' ? (val ? 'Yes' : 'No') : String(val)}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {/* Copy sub-tab */}
+      {gtmSubTab === 'copy' && (
+        <>
+          {loading ? (
+            <LoadingState />
+          ) : !data ? (
+            <EmptyState message="No GTM data found" />
+          ) : (
+            <div className="space-y-6 p-4 overflow-auto flex-1">
+              {/* Positioning statement - large text */}
+              {data.positioning && (
+                <div className="p-6 rounded-xl bg-gradient-to-r from-purple-500/5 to-indigo-500/5 border border-purple-500/20">
+                  <div className="text-[10px] text-purple-400 font-mono uppercase tracking-wider mb-3">Positioning Statement</div>
+                  <p className="text-xl text-gray-100 leading-relaxed font-medium">{data.positioning}</p>
+                </div>
+              )}
 
-      {/* Elevator pitches */}
-      {(framework.elevator_pitch_30s || data.elevator_pitch) && (
-        <div className="bg-gray-900/50 rounded-lg border border-gray-800 p-5">
-          <h3 className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mb-3">Elevator Pitch</h3>
-          <div className="space-y-3">
-            {framework.elevator_pitch_30s && (
-              <div><span className="text-xs font-semibold text-yellow-400 mr-2">30s:</span><span className="text-gray-300 text-sm">{framework.elevator_pitch_30s}</span></div>
-            )}
-            {framework.elevator_pitch_60s && (
-              <div><span className="text-xs font-semibold text-orange-400 mr-2">60s:</span><span className="text-gray-300 text-sm">{framework.elevator_pitch_60s}</span></div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Messaging by persona */}
-      {Object.keys(byPersona).length > 0 && (
-        <div className="bg-gray-900/50 rounded-lg border border-gray-800 p-5">
-          <h3 className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mb-3">Messaging by Persona</h3>
-          <div className="grid gap-4 md:grid-cols-3">
-            {Object.entries(byPersona).map(([persona, pData]) => (
-              <div key={persona} className="p-4 rounded-lg bg-white/[0.02] border border-gray-700">
-                <div className="text-xs font-bold text-cyan-400 uppercase mb-2">{persona.replace(/_/g, ' ')}</div>
-                <div className="text-sm text-white font-semibold mb-2">{pData.headline}</div>
-                {pData.key_messages && (
-                  <ul className="space-y-1">
-                    {pData.key_messages.map((msg, j) => (
-                      <li key={j} className="text-xs text-gray-400 flex items-start gap-1.5">
-                        <span className="text-gray-600 mt-0.5">&bull;</span>{msg}
-                      </li>
+              {/* Taglines as cards */}
+              {taglines.length > 0 && (
+                <div className="bg-gray-900/50 rounded-lg border border-gray-800 p-5">
+                  <h3 className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mb-3">Taglines</h3>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {taglines.map((t, i) => (
+                      <div key={i} className="p-4 rounded-lg bg-indigo-900/15 border border-indigo-800/30 hover:border-indigo-600/50 transition-colors">
+                        <div className="text-lg font-bold text-indigo-200 italic">&ldquo;{typeof t === 'string' ? t : t.tagline}&rdquo;</div>
+                        {(typeof t !== 'string' && t.reasoning) && <div className="text-xs text-gray-400 mt-2">{t.reasoning}</div>}
+                      </div>
                     ))}
-                  </ul>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+                  </div>
+                </div>
+              )}
 
-      {/* Proof points */}
-      {proofPoints.length > 0 && (
-        <div className="bg-gray-900/50 rounded-lg border border-gray-800 p-5">
-          <h3 className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mb-3">Proof Points</h3>
-          <div className="grid gap-2 md:grid-cols-2">
-            {proofPoints.map((pp, i) => (
-              <div key={i} className="flex items-center gap-2 p-2 rounded bg-green-900/10 border border-green-800/25">
-                <span className="text-green-400 text-sm">{'\u2713'}</span>
-                <span className="text-sm text-gray-300">{pp}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+              {/* Competitive matrix as table */}
+              {compMatrix.length > 0 && (
+                <div className="bg-gray-900/50 rounded-lg border border-gray-800 overflow-hidden">
+                  <div className="p-3 border-b border-gray-800">
+                    <h3 className="text-[10px] text-gray-500 font-mono uppercase tracking-wider">Competitive Matrix</h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-800 text-gray-500">
+                          <th className="text-left p-3 font-medium text-xs">Competitor</th>
+                          {compMatrix[0] && Object.keys(compMatrix[0]).filter((k) => k !== 'name' && k !== 'competitor').map((col) => (
+                            <th key={col} className="text-center p-3 font-medium text-xs capitalize">{col.replace(/_/g, ' ')}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {compMatrix.map((row, i) => {
+                          const name = row.name || row.competitor || `Entry ${i + 1}`;
+                          const cols = Object.entries(row).filter(([k]) => k !== 'name' && k !== 'competitor');
+                          return (
+                            <tr key={i} className="border-b border-gray-800/50 hover:bg-white/[0.02] transition-colors">
+                              <td className="p-3 text-gray-200 font-semibold text-xs">{name}</td>
+                              {cols.map(([key, val]) => {
+                                const v = typeof val === 'string' ? val.toLowerCase() : '';
+                                const cellColor =
+                                  v.includes('strong') || v.includes('yes') || v.includes('high') || val === true
+                                    ? 'bg-green-900/30 text-green-300'
+                                    : v.includes('weak') || v.includes('no') || v.includes('low') || val === false
+                                      ? 'bg-red-900/30 text-red-300'
+                                      : v.includes('medium') || v.includes('partial')
+                                        ? 'bg-yellow-900/30 text-yellow-300'
+                                        : 'text-gray-300';
+                                return (
+                                  <td key={key} className={`p-3 text-center text-xs ${cellColor}`}>
+                                    {typeof val === 'boolean' ? (val ? 'Yes' : 'No') : String(val)}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Elevator pitches */}
+              {(framework.elevator_pitch_30s || data.elevator_pitch) && (
+                <div className="bg-gray-900/50 rounded-lg border border-gray-800 p-5">
+                  <h3 className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mb-3">Elevator Pitch</h3>
+                  <div className="space-y-3">
+                    {framework.elevator_pitch_30s && (
+                      <div><span className="text-xs font-semibold text-yellow-400 mr-2">30s:</span><span className="text-gray-300 text-sm">{framework.elevator_pitch_30s}</span></div>
+                    )}
+                    {framework.elevator_pitch_60s && (
+                      <div><span className="text-xs font-semibold text-orange-400 mr-2">60s:</span><span className="text-gray-300 text-sm">{framework.elevator_pitch_60s}</span></div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Messaging by persona */}
+              {Object.keys(byPersona).length > 0 && (
+                <div className="bg-gray-900/50 rounded-lg border border-gray-800 p-5">
+                  <h3 className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mb-3">Messaging by Persona</h3>
+                  <div className="grid gap-4 md:grid-cols-3">
+                    {Object.entries(byPersona).map(([persona, pData]) => (
+                      <div key={persona} className="p-4 rounded-lg bg-white/[0.02] border border-gray-700">
+                        <div className="text-xs font-bold text-cyan-400 uppercase mb-2">{persona.replace(/_/g, ' ')}</div>
+                        <div className="text-sm text-white font-semibold mb-2">{pData.headline}</div>
+                        {pData.key_messages && (
+                          <ul className="space-y-1">
+                            {pData.key_messages.map((msg, j) => (
+                              <li key={j} className="text-xs text-gray-400 flex items-start gap-1.5">
+                                <span className="text-gray-600 mt-0.5">&bull;</span>{msg}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Proof points */}
+              {proofPoints.length > 0 && (
+                <div className="bg-gray-900/50 rounded-lg border border-gray-800 p-5">
+                  <h3 className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mb-3">Proof Points</h3>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {proofPoints.map((pp, i) => (
+                      <div key={i} className="flex items-center gap-2 p-2 rounded bg-green-900/10 border border-green-800/25">
+                        <span className="text-green-400 text-sm">{'\u2713'}</span>
+                        <span className="text-sm text-gray-300">{pp}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -725,36 +884,75 @@ function ComplianceTab({ runId }) {
 // ---------------------------------------------------------------------------
 function CostTab({ runData, runId }) {
   const [summary, setSummary] = useState(null);
+  const [costDetail, setCostDetail] = useState(null);
+  const [costDetailError, setCostDetailError] = useState(false);
+  const [wandbData, setWandbData] = useState(undefined); // undefined = loading, null = no URL
   const [loading, setLoading] = useState(true);
   const [animating, setAnimating] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     const id = runId || 'latest';
-    apiFetch(`/runs/${id}/summary`)
-      .then((r) => r.json())
-      .then((d) => { if (!cancelled) setSummary(d.summary || d); })
-      .catch(() => { if (!cancelled) setSummary(null); })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false);
-          // Start animation after data loads
-          setTimeout(() => setAnimating(true), 100);
+
+    // Fetch summary, cost detail, and W&B link in parallel
+    Promise.all([
+      apiFetch(`/runs/${id}/summary`)
+        .then((r) => r.json())
+        .then((d) => d.summary || d)
+        .catch(() => null),
+      fetch(`/api/runs/${id}/cost`)
+        .then((r) => r.ok ? r.json() : Promise.reject(r.status))
+        .catch(() => null),
+      fetch(`/api/runs/${id}/wandb`)
+        .then((r) => r.ok ? r.json() : Promise.reject(r.status))
+        .catch(() => null),
+    ]).then(([summaryData, costData, wandb]) => {
+      if (!cancelled) {
+        setSummary(summaryData);
+        if (costData === null) {
+          setCostDetailError(true);
+        } else {
+          setCostDetail(costData);
         }
-      });
+        // wandb endpoint returns { url: "..." } or { url: null }
+        setWandbData(wandb?.url ?? null);
+      }
+    }).finally(() => {
+      if (!cancelled) {
+        setLoading(false);
+        setTimeout(() => setAnimating(true), 100);
+      }
+    });
+
     return () => { cancelled = true; };
   }, [runId]);
 
-  const apiCost = summary?.total_cost || runData?.api_cost_usd || runData?.total_cost || 0.19;
+  // Prefer cost detail data, fall back to summary, then runData defaults
+  const apiCost =
+    costDetail?.estimated_cost_usd ??
+    summary?.total_cost ??
+    runData?.api_cost_usd ??
+    runData?.total_cost ??
+    0.19;
+  const totalTokens =
+    costDetail?.total_tokens ??
+    summary?.total_tokens ??
+    0;
+  const promptTokens = costDetail?.prompt_tokens ?? null;
+  const completionTokens = costDetail?.completion_tokens ?? null;
+
   const consultingCost = 15000;
   const multiplier = apiCost > 0 ? Math.round(consultingCost / apiCost) : 77359;
-  const totalTokens = summary?.total_tokens || 0;
   const totalEvents = summary?.events || runData?.events || runData?.total_events || 0;
   const totalPivots = summary?.pivots || runData?.pivots || runData?.total_pivots || 0;
   const totalAgents = summary?.total_agents || 1000050;
   const duration = summary?.duration || runData?.duration || '< 5 min';
   const costs = summary?.costs || {};
-  const wandbUrl = summary?.wandb_url || runData?.wandb_url;
+
+  // W&B URL: prefer dedicated endpoint result, fall back to summary/runData
+  const wandbUrl = wandbData !== undefined
+    ? wandbData
+    : (summary?.wandb_url || runData?.wandb_url || null);
 
   const animatedMultiplier = useCountUp(multiplier, 2500, animating);
 
@@ -827,6 +1025,39 @@ function CostTab({ runData, runId }) {
         <StatCard label="Duration" value={typeof duration === 'number' ? `${Math.round(duration / 60)}m ${duration % 60}s` : duration} icon={'\u23F1'} />
       </div>
 
+      {/* Token / cost detail from /api/runs/{id}/cost */}
+      {costDetailError ? (
+        <div className="bg-gray-900/50 rounded-lg border border-gray-800 p-4 text-sm text-gray-500 text-center">
+          Cost data not available for this run
+        </div>
+      ) : costDetail && (
+        <div className="bg-gray-900/50 rounded-lg border border-gray-800 p-4">
+          <div className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mb-3">API Cost Detail</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-3 rounded-lg bg-white/[0.02] border border-gray-700 text-center">
+              <div className="text-xs text-gray-400 mb-1">Estimated Cost</div>
+              <div className="text-lg font-bold text-cyan-300 font-mono">{formatUsd(costDetail.estimated_cost_usd)}</div>
+            </div>
+            <div className="p-3 rounded-lg bg-white/[0.02] border border-gray-700 text-center">
+              <div className="text-xs text-gray-400 mb-1">Total Tokens</div>
+              <div className="text-lg font-bold text-white font-mono">{(costDetail.total_tokens ?? 0).toLocaleString()}</div>
+            </div>
+            {promptTokens !== null && (
+              <div className="p-3 rounded-lg bg-white/[0.02] border border-gray-700 text-center">
+                <div className="text-xs text-gray-400 mb-1">Prompt Tokens</div>
+                <div className="text-lg font-bold text-purple-300 font-mono">{promptTokens.toLocaleString()}</div>
+              </div>
+            )}
+            {completionTokens !== null && (
+              <div className="p-3 rounded-lg bg-white/[0.02] border border-gray-700 text-center">
+                <div className="text-xs text-gray-400 mb-1">Completion Tokens</div>
+                <div className="text-lg font-bold text-yellow-300 font-mono">{completionTokens.toLocaleString()}</div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Per-agent cost table */}
       {Object.keys(costs).length > 0 && (
         <div className="bg-gray-900/50 rounded-lg border border-gray-800 overflow-hidden">
@@ -884,17 +1115,31 @@ function CostTab({ runData, runId }) {
       )}
 
       {/* W&B link */}
-      {wandbUrl && (
-        <div className="bg-gray-900/50 rounded-lg border border-gray-800 p-4 flex items-center justify-between">
-          <div>
-            <div className="text-xs text-gray-400 mb-1">W&B Dashboard</div>
-            <a href={wandbUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline text-sm">{wandbUrl}</a>
+      <div className="bg-gray-900/50 rounded-lg border border-gray-800 p-4">
+        <div className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mb-2">Weights &amp; Biases</div>
+        {wandbUrl ? (
+          <div className="flex items-center justify-between">
+            <a
+              href={wandbUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-400 hover:text-blue-300 underline text-sm truncate max-w-[70%]"
+            >
+              {wandbUrl}
+            </a>
+            <a
+              href={wandbUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-500 text-black text-sm font-semibold rounded transition-colors whitespace-nowrap ml-3"
+            >
+              View W&B Dashboard &rarr;
+            </a>
           </div>
-          <a href={wandbUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-500 text-black text-sm font-semibold rounded transition-colors">
-            Open W&B
-          </a>
-        </div>
-      )}
+        ) : (
+          <span className="text-gray-500 text-sm">W&B logging not configured</span>
+        )}
+      </div>
     </div>
   );
 }

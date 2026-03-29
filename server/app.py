@@ -1052,6 +1052,99 @@ async def get_summary(run_id: str) -> Any:
     return {"summary": summary}
 
 
+@app.get("/api/runs/{run_id}/cost")
+async def get_cost(run_id: str) -> dict[str, Any]:
+    """Return token-usage and cost breakdown for a run.
+
+    Reads from outputs/runs/{run_id}/cost.json (or outputs/cost.json for
+    'latest').  Falls back to the api_cost_usd stored in the DB run record.
+    Returns zeros with an 'error' key when no cost data is available.
+    """
+    if not await _verify_run_exists(run_id):
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    # Try the per-run cost file first
+    out = _run_outputs_dir(run_id)
+    cost_data = _read_json_file(out / "cost.json")
+    if isinstance(cost_data, dict):
+        cost_data.setdefault("run_id", run_id)
+        return cost_data
+
+    # Fall back to DB api_cost_usd for a real run_id
+    if run_id != "latest":
+        async with get_session() as session:
+            result = await session.execute(
+                select(SprintRun).where(SprintRun.id == run_id)
+            )
+            run = result.scalar_one_or_none()
+            if run and run.api_cost_usd:
+                return {
+                    "run_id": run_id,
+                    "total_tokens": 0,
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "estimated_cost_usd": float(run.api_cost_usd),
+                    "model_breakdown": {},
+                }
+
+    # Also check the shared outputs/sprint_summary.json for 'latest'
+    summary = _read_json_file(OUTPUTS_DIR / "sprint_summary.json")
+    if isinstance(summary, dict) and summary.get("total_cost"):
+        return {
+            "run_id": run_id,
+            "total_tokens": 0,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "estimated_cost_usd": float(summary["total_cost"]),
+            "model_breakdown": {},
+        }
+
+    return {
+        "run_id": run_id,
+        "total_tokens": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "estimated_cost_usd": 0.0,
+        "model_breakdown": {},
+        "error": "no cost data",
+    }
+
+
+@app.get("/api/runs/{run_id}/wandb")
+async def get_wandb(run_id: str) -> dict[str, Any]:
+    """Return the W&B run URL for a sprint run, or null if unavailable."""
+    if not await _verify_run_exists(run_id):
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    # Check DB run record first
+    if run_id != "latest":
+        async with get_session() as session:
+            result = await session.execute(
+                select(SprintRun).where(SprintRun.id == run_id)
+            )
+            run = result.scalar_one_or_none()
+            if run and run.wandb_url:
+                return {"url": run.wandb_url}
+
+    # Fall back to the persisted URL file (written by TraceLogger)
+    out = _run_outputs_dir(run_id)
+    url_file = out / "wandb_url.txt"
+    if url_file.exists():
+        try:
+            url = url_file.read_text(encoding="utf-8").strip()
+            if url:
+                return {"url": url}
+        except OSError:
+            pass
+
+    # Also check the sprint_summary.json which records wandb_url
+    summary = _read_json_file(OUTPUTS_DIR / "sprint_summary.json")
+    if isinstance(summary, dict) and summary.get("wandb_url"):
+        return {"url": summary["wandb_url"]}
+
+    return {"url": None}
+
+
 @app.get("/api/concepts")
 async def list_concepts():
     """List available demo concepts from demo/*.txt files."""

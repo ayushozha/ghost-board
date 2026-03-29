@@ -726,107 +726,236 @@ export async function getRunReport(runId) {
  * Create or subscribe to a shared live WebSocket for a sprint run.
  * Returns a small handle with `close()` and `readyState`.
  *
+ * Reconnect behaviour (per-subscriber, not shared):
+ *   - On unexpected close/error: retry up to 5 times with exponential backoff
+ *     capped at 16 000 ms: delay = Math.min(1000 * 2^attempt, 16000)
+ *   - After 5 failed attempts: calls onMaxRetriesExceeded(), then starts
+ *     polling GET /api/runs/{runId} every 3 s and feeds results to onEvent.
+ *   - Set intentionallyClosed = true (via close()) to stop reconnects.
+ *
+ * New optional callbacks:
+ *   onReconnecting(attempt, delayMs) – called each time a reconnect is
+ *     scheduled (attempt is 1-based, delayMs is the back-off delay used).
+ *   onMaxRetriesExceeded()           – called once when all 5 retries fail.
+ *
  * Usage:
  *   const ws = connectLive('run-123', {
  *     onEvent: (event) => console.log(event),
  *     onClose: () => console.log('closed'),
  *     onError: (err) => console.error(err),
+ *     onReconnecting: (attempt, delay) => console.log(`retry ${attempt} in ${delay}ms`),
+ *     onMaxRetriesExceeded: () => console.warn('falling back to polling'),
  *   });
  *   // later: ws.close();
  */
-export function connectLive(runId, { onEvent, onClose, onError, onOpen } = {}) {
+export function connectLive(
+  runId,
+  { onEvent, onClose, onError, onOpen, onReconnecting, onMaxRetriesExceeded } = {},
+) {
   if (!runId) {
     throw new Error('connectLive requires a runId');
   }
 
-  let entry = sharedLiveSockets.get(runId);
-  if (!entry || entry.ws.readyState >= WebSocket.CLOSING) {
-    const ws = new WebSocket(resolveWsUrl(api.baseUrl, runId));
-    entry = { ws, subscribers: new Set(), heartbeatTimer: null };
-    sharedLiveSockets.set(runId, entry);
+  // ── Per-subscriber reconnect state ──────────────────────────────────
+  const MAX_RECONNECT_ATTEMPTS = 5;
+  let reconnectAttempt = 0;
+  let intentionallyClosed = false;
+  let reconnectTimer = null;
+  let pollTimer = null;
 
-    ws.onopen = () => {
-      if (entry.heartbeatTimer) {
-        clearInterval(entry.heartbeatTimer);
-      }
-      entry.heartbeatTimer = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          try {
-            ws.send('ping');
-          } catch {
-            // Ignore keepalive send errors; close handlers take over.
-          }
-        }
-      }, WS_HEARTBEAT_INTERVAL_MS);
-      for (const subscriber of entry.subscribers) {
-        subscriber.onOpen?.();
-      }
-    };
+  // Cleans up reconnect / poll timers.
+  function clearReconnectTimers() {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }
 
-    ws.onmessage = (msg) => {
+  // Polling fallback: called after all reconnect attempts are exhausted.
+  function startPollingFallback() {
+    if (pollTimer) return; // already polling
+    onMaxRetriesExceeded?.();
+    pollTimer = setInterval(async () => {
       try {
-        const rawEvent = JSON.parse(msg.data);
-        if (rawEvent?.type === 'pong') {
-          return;
+        const data = await api.getRun(runId);
+        if (data) {
+          // Synthesise a normalised event so callers can process it uniformly.
+          const syntheticEvent = {
+            type: 'status',
+            source: 'polling',
+            run_id: runId,
+            payload: data,
+            data,
+          };
+          onEvent?.(syntheticEvent);
         }
-        const event = normalizeLiveEvent(rawEvent);
-        for (const subscriber of entry.subscribers) {
-          subscriber.onEvent?.(event);
-        }
-      } catch (e) {
-        console.error('Failed to parse WebSocket message:', e);
+      } catch {
+        // Polling failed silently; will retry next interval.
       }
-    };
-
-    ws.onerror = (err) => {
-      for (const subscriber of entry.subscribers) {
-        subscriber.onError?.(err);
-      }
-    };
-
-    ws.onclose = (evt) => {
-      if (entry.heartbeatTimer) {
-        clearInterval(entry.heartbeatTimer);
-        entry.heartbeatTimer = null;
-      }
-      sharedLiveSockets.delete(runId);
-      const subscribers = [...entry.subscribers];
-      entry.subscribers.clear();
-      for (const subscriber of subscribers) {
-        subscriber.onClose?.(evt);
-      }
-    };
+    }, 3000);
   }
 
-  const subscriber = { onEvent, onClose, onError, onOpen };
-  entry.subscribers.add(subscriber);
-
-  if (entry.ws.readyState === WebSocket.OPEN) {
-    queueMicrotask(() => {
-      if (entry.subscribers.has(subscriber)) {
-        subscriber.onOpen?.();
-      }
-    });
-  }
-
-  return {
-    close() {
-      if (!entry.subscribers.delete(subscriber)) {
-        return;
-      }
-      if (!entry.subscribers.size) {
+  // Schedules a reconnect attempt with exponential backoff.
+  function scheduleReconnect() {
+    if (intentionallyClosed) return;
+    if (reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
+      startPollingFallback();
+      return;
+    }
+    reconnectAttempt += 1;
+    const delayMs = Math.min(1000 * Math.pow(2, reconnectAttempt - 1), 16000);
+    onReconnecting?.(reconnectAttempt, delayMs);
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      // Re-open the shared socket (or create a new one) by removing the stale
+      // entry so the next getOrCreate call builds a fresh WebSocket.
+      const stale = sharedLiveSockets.get(runId);
+      if (stale && stale.ws.readyState >= WebSocket.CLOSING) {
         sharedLiveSockets.delete(runId);
+      }
+      resubscribe();
+    }, delayMs);
+  }
+
+  // ── Shared socket management ─────────────────────────────────────────
+
+  function getOrCreateEntry() {
+    let entry = sharedLiveSockets.get(runId);
+    if (!entry || entry.ws.readyState >= WebSocket.CLOSING) {
+      const ws = new WebSocket(resolveWsUrl(api.baseUrl, runId));
+      entry = { ws, subscribers: new Set(), heartbeatTimer: null };
+      sharedLiveSockets.set(runId, entry);
+
+      ws.onopen = () => {
+        if (entry.heartbeatTimer) {
+          clearInterval(entry.heartbeatTimer);
+        }
+        entry.heartbeatTimer = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            try {
+              ws.send('ping');
+            } catch {
+              // Ignore keepalive send errors; close handlers take over.
+            }
+          }
+        }, WS_HEARTBEAT_INTERVAL_MS);
+        for (const sub of entry.subscribers) {
+          sub.onOpen?.();
+        }
+      };
+
+      ws.onmessage = (msg) => {
+        try {
+          const rawEvent = JSON.parse(msg.data);
+          if (rawEvent?.type === 'pong') return;
+          const event = normalizeLiveEvent(rawEvent);
+          for (const sub of entry.subscribers) {
+            sub.onEvent?.(event);
+          }
+        } catch (e) {
+          console.error('Failed to parse WebSocket message:', e);
+        }
+      };
+
+      ws.onerror = (err) => {
+        for (const sub of entry.subscribers) {
+          sub.onError?.(err);
+        }
+      };
+
+      ws.onclose = (evt) => {
         if (entry.heartbeatTimer) {
           clearInterval(entry.heartbeatTimer);
           entry.heartbeatTimer = null;
         }
-        if (entry.ws.readyState < WebSocket.CLOSING) {
-          entry.ws.close(1000, 'No listeners remain');
+        sharedLiveSockets.delete(runId);
+        const subscribers = [...entry.subscribers];
+        entry.subscribers.clear();
+        for (const sub of subscribers) {
+          sub.onClose?.(evt);
         }
+      };
+    }
+    return entry;
+  }
+
+  // The subscriber object routes shared-socket callbacks to this subscriber's
+  // handlers and drives per-subscriber reconnect logic.
+  let currentEntry = null;
+
+  const subscriber = {
+    onOpen() {
+      // Successful (re-)connect: reset attempt counter and stop polling fallback.
+      reconnectAttempt = 0;
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+      onOpen?.();
+    },
+    onEvent(event) {
+      onEvent?.(event);
+    },
+    onError(err) {
+      onError?.(err);
+      // onerror is always followed by onclose; reconnect logic lives in onClose.
+    },
+    onClose(evt) {
+      if (intentionallyClosed) {
+        onClose?.(evt);
+        return;
+      }
+      // Normal closure (code 1000) — treat as intentional.
+      if (evt && evt.code === 1000) {
+        onClose?.(evt);
+        return;
+      }
+      onClose?.(evt);
+      scheduleReconnect();
+    },
+  };
+
+  function resubscribe() {
+    if (intentionallyClosed) return;
+    currentEntry = getOrCreateEntry();
+    currentEntry.subscribers.add(subscriber);
+    if (currentEntry.ws.readyState === WebSocket.OPEN) {
+      queueMicrotask(() => {
+        if (currentEntry && currentEntry.subscribers.has(subscriber)) {
+          subscriber.onOpen();
+        }
+      });
+    }
+  }
+
+  // Initial subscription.
+  resubscribe();
+
+  return {
+    close() {
+      intentionallyClosed = true;
+      clearReconnectTimers();
+      if (currentEntry) {
+        if (!currentEntry.subscribers.delete(subscriber)) return;
+        if (!currentEntry.subscribers.size) {
+          sharedLiveSockets.delete(runId);
+          if (currentEntry.heartbeatTimer) {
+            clearInterval(currentEntry.heartbeatTimer);
+            currentEntry.heartbeatTimer = null;
+          }
+          if (currentEntry.ws.readyState < WebSocket.CLOSING) {
+            currentEntry.ws.close(1000, 'No listeners remain');
+          }
+        }
+        currentEntry = null;
       }
     },
     get readyState() {
-      return entry.ws.readyState;
+      return currentEntry?.ws?.readyState ?? WebSocket.CLOSED;
     },
   };
 }

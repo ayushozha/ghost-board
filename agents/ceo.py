@@ -41,6 +41,9 @@ class CEOAgent(BaseAgent):
 
     async def set_strategy(self, startup_idea: str, context: dict[str, Any] | None = None) -> StrategyPayload:
         """Generate initial strategy using LLM."""
+        # Load past decisions so the CEO can learn from previous sprints
+        memory_context = self.get_memory_context()
+
         self.log(
             "Setting initial strategy for the team",
             action="strategy",
@@ -48,11 +51,12 @@ class CEOAgent(BaseAgent):
             addressed_to="all agents",
         )
 
+        memory_section = ("\n" + memory_context + "\n") if memory_context else ""
         prompt = f"""You are the CEO of a startup. Define a clear strategy for:
 Idea: {startup_idea}
 
 Additional context: {json.dumps(context or {})}
-
+{memory_section}
 Respond in JSON with these exact fields:
 - startup_idea: string
 - target_market: string
@@ -151,7 +155,7 @@ Simulation data:
 - Pivot recommendation: {"Yes - " + (payload.pivot_suggestion or "") if payload.pivot_recommended else "No"}
 - Current strategy: {strategy_str}
 
-Present findings in 2-3 sentences. Be specific about what VCs, journalists, early adopters, and competitors said. Reference specific concerns and positive signals. End by asking each executive how they would adapt.
+Present findings in 2-3 sentences. Be specific: name individual personas by archetype and name (e.g., "VC Sarah Kim flagged liquidity risk in round 2", "journalist Marcus Chen called it a 'crowded market' in round 3"). Reference specific round numbers when describing how sentiment shifted. State any specific dollar or risk figures that are driving the concern. End by asking each executive how they would adapt.
 
 Respond with ONLY the presentation text, no JSON."""
 
@@ -200,10 +204,18 @@ Respond with ONLY the presentation text, no JSON."""
             # Build a detailed trigger quote from simulation data
             concerns = "; ".join(payload.key_concerns[:5]) if payload.key_concerns else "general negative sentiment"
             strengths = "; ".join(payload.key_strengths[:3]) if payload.key_strengths else "none noted"
+            # Include round number and per-round sentiment trend if available
+            round_info = ""
+            if hasattr(payload, "round_number") and payload.round_number:
+                round_info = f"Round {payload.round_number}: "
+            sentiment_trend = ""
+            if hasattr(payload, "round_sentiments") and payload.round_sentiments:
+                trend_parts = [f"round {i+1}={s:.2f}" for i, s in enumerate(payload.round_sentiments)]
+                sentiment_trend = f" Sentiment by round: {', '.join(trend_parts)}."
             trigger_quote = (
-                f"[Market Simulation Result] Overall sentiment: {payload.overall_sentiment:.2f}, "
-                f"confidence: {payload.confidence:.2f}. "
-                f"Key concerns from stakeholders: {concerns}. "
+                f"[Market Simulation Result] {round_info}Overall sentiment: {payload.overall_sentiment:.2f}, "
+                f"confidence: {payload.confidence:.2f}.{sentiment_trend} "
+                f"Key concerns from stakeholders (cite persona names in your rationale): {concerns}. "
                 f"Strengths noted: {strengths}. "
                 f"Pivot suggestion: {payload.pivot_suggestion}"
             )
@@ -292,12 +304,19 @@ You MUST think through this pivot carefully. Respond in JSON with ALL of the fol
   "impact_on_legal": "<specific changes Legal must review or update in compliance analysis>"
 }}
 
-Be SPECIFIC. Reference concrete numbers, regulations, market segments, and technical changes. Do not use vague language like 'adjust accordingly'."""
+Be SPECIFIC. Requirements:
+- If the trigger references simulation results, cite specific persona names and archetypes (e.g., "VC Sarah Kim flagged liquidity risk", "journalist Marcus Chen wrote 'crowded market'").
+- Reference specific round numbers when describing sentiment trends (e.g., "In round 3, sentiment dropped from +0.4 to -0.1").
+- State the specific dollar or risk impact of the pivot (e.g., "This pivot reduces MSB licensing cost from $2M+ to $50K by limiting to 5 states").
+- Do not use vague language like 'adjust accordingly' or 'address the concerns'."""
 
         response = await self.call_llm([
             {"role": "system", "content": (
                 "You are a startup CEO making a strategic pivot. "
                 "You consider multiple alternatives before deciding. "
+                "Always cite specific persona names and their feedback when making pivot decisions. "
+                "Reference specific round numbers when describing simulation trends (e.g., 'In round 3, sentiment dropped from +0.4 to -0.1'). "
+                "State the specific dollar or risk impact of each pivot decision (e.g., 'This pivot reduces MSB licensing cost from $2M to $50K'). "
                 "Respond only with valid JSON. No markdown fences."
             )},
             {"role": "user", "content": prompt},

@@ -41,29 +41,84 @@ ARCHETYPE_DISTRIBUTION = {
 }
 
 
-# Geographic locations for diverse global distribution
-GEO_LOCATIONS = [
+# Comprehensive geographic distribution across 25+ cities and 20+ countries
+GEOGRAPHIC_DISTRIBUTION = [
     GeoLocation(city="San Francisco", country="US", lat=37.77, lng=-122.42),
     GeoLocation(city="New York", country="US", lat=40.71, lng=-74.01),
-    GeoLocation(city="Miami", country="US", lat=25.76, lng=-80.19),
     GeoLocation(city="Austin", country="US", lat=30.27, lng=-97.74),
+    GeoLocation(city="Chicago", country="US", lat=41.88, lng=-87.63),
+    GeoLocation(city="Miami", country="US", lat=25.76, lng=-80.19),
     GeoLocation(city="Boston", country="US", lat=42.36, lng=-71.06),
     GeoLocation(city="London", country="UK", lat=51.51, lng=-0.13),
+    GeoLocation(city="Paris", country="France", lat=48.86, lng=2.35),
     GeoLocation(city="Berlin", country="Germany", lat=52.52, lng=13.41),
-    GeoLocation(city="Zurich", country="Switzerland", lat=47.38, lng=8.54),
+    GeoLocation(city="Amsterdam", country="Netherlands", lat=52.37, lng=4.90),
+    GeoLocation(city="Stockholm", country="Sweden", lat=59.33, lng=18.07),
+    GeoLocation(city="Tel Aviv", country="Israel", lat=32.08, lng=34.78),
+    GeoLocation(city="Dubai", country="UAE", lat=25.20, lng=55.27),
+    GeoLocation(city="Riyadh", country="Saudi Arabia", lat=24.69, lng=46.72),
+    GeoLocation(city="Istanbul", country="Turkey", lat=41.01, lng=28.95),
+    GeoLocation(city="Cairo", country="Egypt", lat=30.04, lng=31.24),
+    GeoLocation(city="Nairobi", country="Kenya", lat=-1.29, lng=36.82),
+    GeoLocation(city="Lagos", country="Nigeria", lat=6.52, lng=3.38),
+    GeoLocation(city="Cape Town", country="South Africa", lat=-33.93, lng=18.42),
+    GeoLocation(city="Mumbai", country="India", lat=19.08, lng=72.88),
+    GeoLocation(city="Bangalore", country="India", lat=12.97, lng=77.59),
     GeoLocation(city="Singapore", country="Singapore", lat=1.35, lng=103.82),
     GeoLocation(city="Tokyo", country="Japan", lat=35.68, lng=139.69),
-    GeoLocation(city="Mumbai", country="India", lat=19.08, lng=72.88),
-    GeoLocation(city="Dubai", country="UAE", lat=25.20, lng=55.27),
+    GeoLocation(city="Seoul", country="South Korea", lat=37.57, lng=126.98),
+    GeoLocation(city="Jakarta", country="Indonesia", lat=-6.21, lng=106.85),
+    GeoLocation(city="Manila", country="Philippines", lat=14.60, lng=120.98),
+    GeoLocation(city="Sydney", country="Australia", lat=-33.87, lng=151.21),
+    GeoLocation(city="São Paulo", country="Brazil", lat=-23.55, lng=-46.63),
+    GeoLocation(city="Buenos Aires", country="Argentina", lat=-34.60, lng=-58.38),
+    GeoLocation(city="Mexico City", country="Mexico", lat=19.43, lng=-99.13),
+    GeoLocation(city="Toronto", country="Canada", lat=43.65, lng=-79.38),
 ]
+
+# Backward-compatible alias
+GEO_LOCATIONS = GEOGRAPHIC_DISTRIBUTION
+
+# Archetype -> preferred city pool for weighted geo assignment
+ARCHETYPE_GEO_WEIGHTS: dict[str, list[str]] = {
+    "vc": ["San Francisco", "New York", "London", "Boston", "Tel Aviv", "Singapore", "Berlin"],
+    "early_adopter": ["San Francisco", "Berlin", "Seoul", "Austin", "Singapore", "Tel Aviv", "Amsterdam"],
+    "skeptic": ["New York", "London", "Chicago", "Toronto", "Sydney", "Frankfurt"],
+    "journalist": ["New York", "London", "Tokyo", "Paris", "Berlin", "São Paulo"],
+    "competitor": ["San Francisco", "New York", "London", "Singapore", "Tokyo", "Berlin"],
+    "regulator": ["Washington DC", "London", "Brussels", "Tokyo", "Singapore", "New York"],
+}
+
+# Map city name -> GeoLocation for fast lookup
+_CITY_MAP: dict[str, GeoLocation] = {g.city: g for g in GEOGRAPHIC_DISTRIBUTION}
+
+
+def _geo_for_archetype(archetype: str, index: int) -> GeoLocation:
+    """Return a GeoLocation for an archetype, cycling through its preferred cities."""
+    preferred = ARCHETYPE_GEO_WEIGHTS.get(archetype.lower(), [])
+    # Filter to cities that exist in our distribution
+    available = [c for c in preferred if c in _CITY_MAP]
+    if available:
+        city_name = available[index % len(available)]
+        return _CITY_MAP[city_name]
+    # Fall back to round-robin across all cities
+    return GEOGRAPHIC_DISTRIBUTION[index % len(GEOGRAPHIC_DISTRIBUTION)]
 
 
 def _assign_geo_locations(personas: list[MarketPersona]) -> list[MarketPersona]:
-    """Assign real geographic locations to personas that lack them (lat=0, lng=0)."""
-    for i, p in enumerate(personas):
+    """Assign real geographic locations to personas that lack them (lat=0, lng=0).
+
+    Uses archetype-weighted assignment so VCs cluster in SF/NY/London,
+    journalists in NY/London/Tokyo, etc., reflecting real-world distributions.
+    """
+    archetype_counters: dict[str, int] = {}
+    for p in personas:
         geo = p.geographic_location
         if geo.lat == 0.0 and geo.lng == 0.0:
-            loc = GEO_LOCATIONS[i % len(GEO_LOCATIONS)]
+            arch = p.archetype.lower()
+            idx = archetype_counters.get(arch, 0)
+            archetype_counters[arch] = idx + 1
+            loc = _geo_for_archetype(arch, idx)
             p.geographic_location = GeoLocation(
                 city=loc.city, country=loc.country, lat=loc.lat, lng=loc.lng,
             )
@@ -143,7 +198,10 @@ async def generate_personas(
                 if diff >= 0:
                     break
 
-    geo_examples = [{"city": g.city, "country": g.country, "lat": g.lat, "lng": g.lng} for g in GEO_LOCATIONS]
+    geo_examples = [
+        {"city": g.city, "country": g.country, "lat": g.lat, "lng": g.lng}
+        for g in GEOGRAPHIC_DISTRIBUTION
+    ]
 
     prompt = f"""Generate {num_personas} synthetic market personas for testing a startup:
 
@@ -154,18 +212,26 @@ Create a JSON array of personas with this archetype distribution:
 {json.dumps(archetype_counts)}
 
 Each persona needs:
-- name: realistic full name
+- name: realistic full name matching their country of origin
 - archetype: one of {list(ARCHETYPE_DISTRIBUTION.keys())}
 - background: 1-2 sentence professional background
 - priorities: list of 2-3 things they care about
 - risk_tolerance: 0.0-1.0 (VCs ~0.7, skeptics ~0.2, regulators ~0.1)
 - initial_stance: positive/neutral/negative/hostile
 - influence_score: 0.0-1.0 (how much they influence others)
-- geographic_location: an object with city, country, lat, lng. Distribute personas globally across cities like: {json.dumps(geo_examples[:6])}
+- geographic_location: an object with city, country, lat, lng chosen from this global list: {json.dumps(geo_examples)}
 
-Make them realistic and diverse. VCs should evaluate ROI, skeptics should poke holes,
-journalists should ask hard questions, competitors should challenge differentiation.
-Distribute them geographically across US, Europe, and Asia.
+Archetype geographic preferences:
+- vc: prefer SF, NY, London, Tel Aviv, Singapore, Berlin
+- early_adopter: prefer SF, Berlin, Seoul, Austin, Singapore
+- journalist: prefer NY, London, Tokyo, Paris, São Paulo
+- skeptic: prefer NY, London, Chicago, Sydney
+- competitor: prefer SF, NY, London, Tokyo, Singapore
+- regulator: prefer NY, London, Singapore, Tokyo
+
+Make them realistic, diverse, and globally distributed across 5+ continents.
+VCs should evaluate ROI, skeptics should poke holes, journalists should ask hard questions,
+competitors should challenge differentiation.
 
 Respond with ONLY a JSON array."""
 

@@ -248,32 +248,62 @@ PostgreSQL on our VPS for database (see VPS.md for connection details)
 [x] PRD-263: ADD EXPORT FUNCTIONALITY. Sprint Report screen has "Export PDF" and "Export JSON" buttons. PDF uses browser print. JSON downloads the full sprint data.
 [x] PRD-264: IMPROVE MOBILE RESPONSIVE. React dashboard should be usable on tablet/mobile. Globe resizes. Cards stack. Timeline scrolls horizontally.
 
-[ ] PRD-265: ADD AGENT REASONING DEPTH. CEO pivot should cite SPECIFIC persona concerns by name (e.g. "VC Sarah Kim flagged liquidity risk"). Legal citations should include real regulation numbers. Update agents/ceo.py and agents/legal.py prompts to require this specificity. Verify in outputs/board_discussion.json after a run.
+[x] PRD-265: ADD AGENT REASONING DEPTH. CEO pivot should cite SPECIFIC persona concerns by name (e.g. "VC Sarah Kim flagged liquidity risk"). Legal citations should include real regulation numbers. Update agents/ceo.py and agents/legal.py prompts to require this specificity. Verify in outputs/board_discussion.json after a run.
 
-[ ] PRD-266: ADD WEBSOCKET RECONNECT LOGIC. In dashboard-app/src/api.js, when WebSocket disconnects unexpectedly, auto-reconnect up to 5 times with exponential backoff (1s, 2s, 4s, 8s, 16s). Show reconnect status in the MarketArena WS status indicator. If all retries fail, fall back to polling /api/runs/{id}.
+[x] PRD-266: ADD WEBSOCKET RECONNECT LOGIC. In dashboard-app/src/api.js, when WebSocket disconnects unexpectedly, auto-reconnect up to 5 times with exponential backoff (1s, 2s, 4s, 8s, 16s). Show reconnect status in the MarketArena WS status indicator. If all retries fail, fall back to polling /api/runs/{id}.
 
-[ ] PRD-267: ADD PERSONA GEOGRAPHIC DIVERSITY. simulation/personas.py currently generates personas. Ensure output includes lat/lng from 20+ countries including Nigeria, India, Brazil, Germany, Japan, South Korea, Australia. Update simulation_geo.json output. Verify globe shows dots across all continents.
+[x] PRD-267: ADD PERSONA GEOGRAPHIC DIVERSITY. simulation/personas.py currently generates personas. Ensure output includes lat/lng from 20+ countries including Nigeria, India, Brazil, Germany, Japan, South Korea, Australia. Update simulation_geo.json output. Verify globe shows dots across all continents.
 
-[ ] PRD-268: ADD SPRINT COST TRACKER. Track and display real OpenAI API costs per sprint. In agents/base.py, after each LLM call, accumulate token usage. In server/app.py, expose GET /api/runs/{id}/cost returning total_tokens, prompt_tokens, completion_tokens, estimated_cost_usd. In SprintReport Cost tab, show real numbers, not hardcoded $0.19.
+[x] PRD-268: ADD SPRINT COST TRACKER. Track and display real OpenAI API costs per sprint. In agents/base.py, after each LLM call, accumulate token usage. In server/app.py, expose GET /api/runs/{id}/cost returning total_tokens, prompt_tokens, completion_tokens, estimated_cost_usd. In SprintReport Cost tab, show real numbers, not hardcoded $0.19.
 
-[ ] PRD-269: ADD BOARDROOM DISCUSSION EXPORT. Boardroom screen should have an "Export Discussion" button that downloads outputs/board_discussion.json as a formatted markdown file. Each agent message rendered as ## [AGENT] heading with timestamp and content.
+[x] PRD-269: ADD BOARDROOM DISCUSSION EXPORT. Boardroom screen should have an "Export Discussion" button that downloads outputs/board_discussion.json as a formatted markdown file. Each agent message rendered as ## [AGENT] heading with timestamp and content.
 
-[ ] PRD-270: ADD SIMULATION ROUND REPLAY. In MarketArena, add a replay slider/scrubber that lets user step through simulation rounds 1-N. Dragging the slider updates the globe (dot colors, positions) and sentiment chart to show state at that round. Read from simulation_results.json rounds array.
+[x] PRD-270: ADD SIMULATION ROUND REPLAY. In MarketArena, add a replay slider/scrubber that lets user step through simulation rounds 1-N. Dragging the slider updates the globe (dot colors, positions) and sentiment chart to show state at that round. Read from simulation_results.json rounds array.
 
-[ ] PRD-271: ADD ARCHITECTURE DIAGRAM TO LANDING PAGE. landing/index.html should have an animated SVG architecture diagram showing: Agent circle -> Event Bus -> Simulation -> Market Signal -> CEO Pivot -> Artifacts. Nodes animate in sequence. Pure CSS/SVG, no external deps.
+[x] PRD-271: ADD ARCHITECTURE DIAGRAM TO LANDING PAGE. landing/index.html should have an animated SVG architecture diagram showing: Agent circle -> Event Bus -> Simulation -> Market Signal -> CEO Pivot -> Artifacts. Nodes animate in sequence. Pure CSS/SVG, no external deps.
 
-[ ] PRD-272: ADD WANDB TRACE LINK TO SPRINT REPORT. If W&B run was created, outputs/sprint_report.md should include the W&B run URL. SprintReport screen Cost tab should show clickable W&B link. In coordination/trace.py, save the W&B run URL to outputs/wandb_url.txt after run completes.
+[x] PRD-272: ADD WANDB TRACE LINK TO SPRINT REPORT. If W&B run was created, outputs/sprint_report.md should include the W&B run URL. SprintReport screen Cost tab should show clickable W&B link. In coordination/trace.py, save the W&B run URL to outputs/wandb_url.txt after run completes.
 
-[ ] PRD-273: ADD NOTIFICATION WHEN SPRINT COMPLETES. When sprint finishes (WebSocket receives sprint_complete event), show a toast notification in the React dashboard: "Sprint complete! View your results." with a button to jump to Sprint Report screen. Use a simple in-app toast (no external library).
+[x] PRD-273: ADD NOTIFICATION WHEN SPRINT COMPLETES. When sprint finishes (WebSocket receives sprint_complete event), show a toast notification in the React dashboard: "Sprint complete! View your results." with a button to jump to Sprint Report screen. Use a simple in-app toast (no external library).
 
-[ ] PRD-274: ADD AGENT MEMORY ACROSS ROUNDS. In agents/base.py, implement file-based agent memory: each agent reads/writes outputs/memory/{agent_name}.json. Memory stores key decisions and facts from previous sprints. CEO reads past pivots to avoid repeating them. Limit memory to last 3 sprint summaries.
+[x] PRD-274: ADD AGENT MEMORY ACROSS ROUNDS. In agents/base.py, implement file-based agent memory: each agent reads/writes outputs/memory/{agent_name}.json. Memory stores key decisions and facts from previous sprints. CEO reads past pivots to avoid repeating them. Limit memory to last 3 sprint summaries.
 
-[ ] PRD-275: ADD POSTGRESQL PERSISTENCE FOR SIMULATION DATA. In simulation/engine.py, after each simulation round, save round data to PostgreSQL (use VPS connection from CLAUDE.md). Table: simulation_rounds(run_id, round_num, round_data jsonb, created_at). Fallback to JSON file if DB unavailable. Query via GET /api/runs/{id}/simulation.
+[x] PRD-275: ADD POSTGRESQL PERSISTENCE FOR SIMULATION DATA. In simulation/engine.py, after each simulation round, save round data to PostgreSQL (use VPS connection from CLAUDE.md). Table: simulation_rounds(run_id, round_num, round_data jsonb, created_at). Fallback to JSON file if DB unavailable. Query via GET /api/runs/{id}/simulation.
 
-[ ] PRD-276: IMPROVE FINANCIAL MODEL GRANULARITY. agents/cfo.py generates a financial model. Improve it: add 36-month projection (not just 12), add sensitivity analysis (bull/base/bear scenarios), add unit economics section (CAC, LTV, payback period). Save as outputs/financial_model/model_v2.json with all three scenarios.
+[x] PRD-276: IMPROVE FINANCIAL MODEL GRANULARITY. agents/cfo.py generates a financial model. Improve it: add 36-month projection (not just 12), add sensitivity analysis (bull/base/bear scenarios), add unit economics section (CAC, LTV, payback period). Save as outputs/financial_model/model_v2.json with all three scenarios.
 
-[ ] PRD-277: ADD COMPETITIVE ANALYSIS AGENT OUTPUT. agents/cmo.py should also generate a competitive landscape section: identify 3 real competitors, compare on 5 dimensions, suggest positioning gap. Save to outputs/gtm/competitive_analysis.md. Show in SprintReport GTM tab under new "Competitive" sub-tab.
+[x] PRD-277: ADD COMPETITIVE ANALYSIS AGENT OUTPUT. agents/cmo.py should also generate a competitive landscape section: identify 3 real competitors, compare on 5 dimensions, suggest positioning gap. Save to outputs/gtm/competitive_analysis.md. Show in SprintReport GTM tab under new "Competitive" sub-tab.
 
-[ ] PRD-278: ADD LIVE PERSONA QUOTE FEED TO BOARDROOM. Boardroom screen should show a live feed of persona quotes that trickle in during simulation phase. Each quote shows persona name, archetype, and text. Feed appears in a dedicated panel below the discussion feed. Pull from simulation WebSocket events of type persona_post.
+[x] PRD-278: ADD LIVE PERSONA QUOTE FEED TO BOARDROOM. Boardroom screen should show a live feed of persona quotes that trickle in during simulation phase. Each quote shows persona name, archetype, and text. Feed appears in a dedicated panel below the discussion feed. Pull from simulation WebSocket events of type persona_post.
 
-[ ] PRD-279: RUN FULL PIPELINE VERIFICATION. Run: python main.py "AI-powered legal contract analyzer" --sim-scale demo --skip-simulation. Verify: outputs/ has real files, board_discussion.json has 10+ messages, trace.json has 20+ events, prototype/ has code files, financial_model/ has model file, gtm/ has copy, compliance/ has citations. Fix any missing outputs.
+[x] PRD-279: RUN FULL PIPELINE VERIFICATION. Run: python main.py "AI-powered legal contract analyzer" --sim-scale demo --skip-simulation. Verify: outputs/ has real files, board_discussion.json has 10+ messages, trace.json has 20+ events, prototype/ has code files, financial_model/ has model file, gtm/ has copy, compliance/ has citations. Fix any missing outputs.
+
+[ ] PRD-280: ADD AGENT COST BREAKDOWN TO SPRINT SUMMARY. After sprint completes, main.py should write outputs/runs/{run_id}/cost.json with per-agent token usage. Each agent reports get_cost_summary() result. CEO/CTO/CFO/CMO/Legal each logged separately with model used and tokens spent. Total aggregated at top level.
+
+[ ] PRD-281: ADD SEARCH/FILTER TO PIVOT TIMELINE. Add a text search box above the timeline in PivotTimeline.jsx. Typing filters nodes where payload text matches search query (case-insensitive). Highlight matched text in node cards. Clear button to reset filter. Show "N of M events match" count.
+
+[ ] PRD-282: ADD KEYBOARD SHORTCUTS TO DASHBOARD. In App.jsx, add keyboard shortcuts: 1-5 to switch screens, Escape to close modals/panels, Space to pause/resume simulation replay, Left/Right arrows to step through timeline nodes, Cmd+E to export current screen. Show shortcut hints in a ? modal (toggled with ?).
+
+[ ] PRD-283: IMPROVE SIMULATION PERSONA ARCHETYPES. In simulation/personas.py, add 3 new archetype types: "regulator" (conservative, citational, compliance-focused), "influencer" (high follower impact, emotional reactions, viral spread), "enterprise_buyer" (ROI-focused, slow to commit, asks about integration). Each archetype should have distinct tone in LLM prompt and distinct behavior in lightweight agents.
+
+[ ] PRD-284: ADD SPRINT RUN METADATA TO POSTGRESQL. In server/app.py, when a sprint starts (POST /api/sprint), create a SprintRun row in PostgreSQL with: run_id, concept, status, started_at, model_config jsonb. After completion, update with: completed_at, total_events, total_pivots, api_cost_usd, artifact_paths jsonb. Use the VPS PostgreSQL (connection in CLAUDE.md).
+
+[ ] PRD-285: ADD RICH TEXT RENDERING TO SPRINT REPORT. In SprintReport.jsx, the Prototype tab renders code with syntax highlighting (use highlight.js via CDN in index.html or simple regex-based highlighter). Legal tab renders citations as clickable links that open the regulation URL in a new tab. Financial tab renders numbers with currency formatting and color-coding (green=positive, red=negative).
+
+[ ] PRD-286: ADD SIMULATION SPEED CONTROL. In MarketArena.jsx, add a speed multiplier button group: 0.5x | 1x | 2x | 5x. This controls how fast the auto-advance timer steps through rounds in replay mode. At 1x: 1 round/2s, at 5x: 1 round/400ms. Show current speed in the replay toolbar. Speed 0 = paused.
+
+[ ] PRD-287: ADD AGENT HEALTH MONITORING. Create a new component dashboard-app/src/components/AgentHealthBar.jsx. Shows a compact bar at bottom of Boardroom screen: each agent as a colored dot (green=active, yellow=waiting, red=error, gray=idle) with current task label. Reads from WebSocket agent_status events or from boardroom discussion timestamps. Show in Boardroom.jsx below the agent circle.
+
+[ ] PRD-288: IMPROVE LANDING PAGE HERO SECTION. In landing/index.html, replace or enhance the hero section: add a subtle animated background (CSS-only, moving gradient or particle-like dots via SVG filter), add a real demo video placeholder (16:9 aspect ratio box with play button overlay, text "Watch 2-min demo"), add social proof row: "Built at Ralphthon 2026 · 1M+ agents · $0.19 per startup". Keep existing content below.
+
+[ ] PRD-289: ADD WEBSOCKET EVENT LOG PANEL. In App.jsx or a new component, add a collapsible debug panel (bottom of screen, toggle with a small button). Shows last 50 WebSocket events as they arrive: timestamp, type, source agent, payload preview (first 80 chars). Color-coded by event type. Only visible in development mode (import.meta.env.DEV) or when ?debug=1 in URL.
+
+[ ] PRD-290: IMPROVE CEO PIVOT EXPLANATION IN BOARDROOM. When CEO publishes a PIVOT event, the Boardroom discussion feed should show it differently from regular messages: larger card, yellow border, shows "PIVOT DECISION" badge, lists "Triggered by: [Legal BLOCKER]", "Affects: CTO, CFO, CMO", and the full pivot rationale text. Parse pivot events specially in Boardroom.jsx.
+
+[ ] PRD-291: ADD SIMULATION HEATMAP VISUALIZATION. In MarketArena.jsx, below the sentiment chart, add a round-by-round heatmap: rows=archetypes (VC, journalist, early_adopter, competitor, user), columns=rounds, cells colored by sentiment (-1=red, 0=gray, +1=green). On hover: show exact sentiment value. This gives a quick overview of which persona types shifted opinion.
+
+[ ] PRD-292: ADD AUTOMATED REGRESSION TEST FOR OUTPUTS. Create tests/test_outputs.py. Tests verify: (1) outputs/trace.json exists and has >= 20 events if a sprint has run, (2) each event has required fields (id, type, source, timestamp, triggered_by), (3) board_discussion.json has valid structure, (4) financial model files are valid JSON with numeric values. Skip gracefully if outputs/ doesn't exist.
+
+[ ] PRD-293: ADD SPRINT CONFIGURATION PANEL. In MissionControl.jsx (or App.jsx), add an expandable "Advanced Config" section below the concept input. Options: personas slider (10-100), rounds slider (1-10), sim scale dropdown (demo/standard/large/million), skip simulation checkbox, model selector (gpt-4o / gpt-4o-mini for all agents). These values passed to POST /api/sprint body. Default values shown.
+
+[ ] PRD-294: VERIFY AND POLISH DEMO MODE. Run python main.py --demo --cached and verify the full dashboard renders correctly with cached Anchrix data. Fix any broken screens, missing data, or console errors. Polish: ensure each screen has compelling content in demo mode, globe shows 30+ dots, timeline shows 5+ events, sprint report shows real numbers. Document in README how to run the demo.

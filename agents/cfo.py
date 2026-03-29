@@ -40,7 +40,7 @@ You are an expert startup CFO preparing a financial model for a seed-stage start
 - Business model: {business_model}
 - Key differentiators: {differentiators}
 
-Produce a COMPLETE financial model as a single JSON object with **exactly** the structure below. Every numeric field must contain a plausible, non-zero number that reflects real seed-stage startup economics. Revenue should start small in month 1 and grow month-over-month. Costs should reflect a lean team that grows over 12 months.
+Produce a COMPLETE financial model as a single JSON object with **exactly** the structure below. Every numeric field must contain a plausible, non-zero number that reflects real seed-stage startup economics. Revenue should start small in month 1 and grow month-over-month. Costs should reflect a lean team that grows over 36 months.
 
 ```json
 {{
@@ -84,14 +84,19 @@ Produce a COMPLETE financial model as a single JSON object with **exactly** the 
       "churned_customers": <number>,
       "mrr": <number>
     }},
-    ... (all 12 months)
+    ... (all 36 months)
   ],
 
   "scenarios": {{
-    "optimistic": {{
-      "label": "Optimistic (2x growth)",
-      "monthly_revenue_growth_pct": <number, e.g. 25>,
+    "bull": {{
+      "label": "Bull Case (1.5x growth)",
+      "growth_multiplier": 1.5,
+      "monthly_revenue": [<36 numbers, monthly revenue values for bull scenario>],
+      "monthly_costs": [<36 numbers, total monthly costs for bull scenario>],
+      "cumulative_profit": [<36 numbers, running cumulative profit/loss for bull scenario>],
+      "monthly_revenue_growth_pct": <number, e.g. 22>,
       "year1_revenue": <number>,
+      "year3_revenue": <number>,
       "year1_customers": <number>,
       "year1_burn": <number>,
       "year1_net_income": <number>,
@@ -99,8 +104,38 @@ Produce a COMPLETE financial model as a single JSON object with **exactly** the 
       "assumptions": ["<list of 3-4 key assumptions>"]
     }},
     "base": {{
-      "label": "Base Case",
+      "label": "Base Case (1x growth)",
+      "growth_multiplier": 1.0,
+      "monthly_revenue": [<36 numbers, monthly revenue values for base scenario>],
+      "monthly_costs": [<36 numbers, total monthly costs for base scenario>],
+      "cumulative_profit": [<36 numbers, running cumulative profit/loss for base scenario>],
       "monthly_revenue_growth_pct": <number, e.g. 15>,
+      "year1_revenue": <number>,
+      "year3_revenue": <number>,
+      "year1_customers": <number>,
+      "year1_burn": <number>,
+      "year1_net_income": <number>,
+      "break_even_month": <number or null>,
+      "assumptions": ["<list of 3-4 key assumptions>"]
+    }},
+    "bear": {{
+      "label": "Bear Case (0.6x growth)",
+      "growth_multiplier": 0.6,
+      "monthly_revenue": [<36 numbers, monthly revenue values for bear scenario>],
+      "monthly_costs": [<36 numbers, total monthly costs for bear scenario>],
+      "cumulative_profit": [<36 numbers, running cumulative profit/loss for bear scenario>],
+      "monthly_revenue_growth_pct": <number, e.g. 7>,
+      "year1_revenue": <number>,
+      "year3_revenue": <number>,
+      "year1_customers": <number>,
+      "year1_burn": <number>,
+      "year1_net_income": <number>,
+      "break_even_month": <number or null>,
+      "assumptions": ["<list of 3-4 key assumptions>"]
+    }},
+    "optimistic": {{
+      "label": "Optimistic (2x growth)",
+      "monthly_revenue_growth_pct": <number, e.g. 25>,
       "year1_revenue": <number>,
       "year1_customers": <number>,
       "year1_burn": <number>,
@@ -161,10 +196,11 @@ Produce a COMPLETE financial model as a single JSON object with **exactly** the 
 ```
 
 IMPORTANT RULES:
+- monthly_pnl MUST contain exactly 36 entries (months 1 through 36).
 - Revenue MUST start small in month 1 (a few hundred to a few thousand dollars) and grow.
-- Engineering costs should reflect 2-4 engineers at $8-15k/mo each.
+- Engineering costs should reflect 2-4 engineers at $8-15k/mo each, scaling to 6-10 by month 36.
 - Sales/marketing should be modest early, growing as revenue grows.
-- G&A should be minimal: $2-5k/mo for a seed company.
+- G&A should be minimal: $2-5k/mo for a seed company, growing to $8-15k/mo by year 3.
 - COGS should be 15-40% of revenue depending on the business model.
 - Gross margin should be 60-85% for a SaaS-type startup.
 - CAC should be realistic: $50-500 depending on market.
@@ -173,6 +209,8 @@ IMPORTANT RULES:
 - Net revenue retention should be 90-130%.
 - Seed funding assumed $500k-$2M.
 - All numbers must be internally consistent (gross_profit = revenue - cogs, ebitda = gross_profit - total_opex, etc.).
+- For bull/base/bear scenario arrays: monthly_revenue[i] is month i+1 revenue, monthly_costs[i] is total costs, cumulative_profit[i] is running sum of (revenue - costs) through that month.
+- bull scenario multiplies base revenue by 1.5 each month; bear multiplies by 0.6.
 
 Respond with ONLY the JSON object, no markdown fences, no explanation."""
 
@@ -186,7 +224,7 @@ def _build_fallback_model() -> dict[str, Any]:
     months = []
     customers = 0
     mrr = 0.0
-    for m in range(1, 13):
+    for m in range(1, 37):
         new = max(2, int(3 * (1.15 ** m)))
         churned = max(0, int(customers * 0.05))
         customers = customers + new - churned
@@ -194,10 +232,12 @@ def _build_fallback_model() -> dict[str, Any]:
         revenue = mrr
         cogs = round(revenue * 0.25, 2)
         gross_profit = round(revenue - cogs, 2)
-        engineering = 30000 + (m - 1) * 2000
-        sales_marketing = 5000 + m * 1500
-        general_admin = 3000
-        total_opex = engineering + sales_marketing + general_admin
+        # Scale team costs over 36 months: starts lean, grows by year 3
+        eng_scale = min(m / 12, 1.0)  # ramp over first year, plateau after
+        engineering = round(30000 + (m - 1) * 1500 + eng_scale * 20000, 2)
+        sales_marketing = round(5000 + m * 1800, 2)
+        general_admin = round(3000 + m * 200, 2)
+        total_opex = round(engineering + sales_marketing + general_admin, 2)
         ebitda = round(gross_profit - total_opex, 2)
         months.append({
             "month": m,
@@ -218,8 +258,33 @@ def _build_fallback_model() -> dict[str, Any]:
         })
 
     total_revenue = sum(m["revenue"] for m in months)
+    year1_revenue = sum(m["revenue"] for m in months[:12])
+    year3_revenue = total_revenue
     total_burn = sum(max(0, -m["net_income"]) for m in months)
+    year1_burn = sum(max(0, -m["net_income"]) for m in months[:12])
     last = months[-1]
+
+    # Build 36-month scenario arrays for bull/base/bear
+    base_revenues = [m["revenue"] for m in months]
+    base_costs = [round(m["cogs"] + m["total_opex"], 2) for m in months]
+
+    def _scenario_arrays(multiplier: float) -> dict[str, Any]:
+        revenues = [round(r * multiplier, 2) for r in base_revenues]
+        costs = [round(c * (0.85 + 0.15 * multiplier), 2) for c in base_costs]
+        cum_profit: list[float] = []
+        running = 0.0
+        for rev, cost in zip(revenues, costs):
+            running += rev - cost
+            cum_profit.append(round(running, 2))
+        return {
+            "monthly_revenue": revenues,
+            "monthly_costs": costs,
+            "cumulative_profit": cum_profit,
+        }
+
+    bull_arrays = _scenario_arrays(1.5)
+    base_arrays = _scenario_arrays(1.0)
+    bear_arrays = _scenario_arrays(0.6)
 
     return {
         "company_name": "Startup",
@@ -243,13 +308,16 @@ def _build_fallback_model() -> dict[str, Any]:
         },
         "monthly_pnl": months,
         "scenarios": {
-            "optimistic": {
-                "label": "Optimistic (2x growth)",
-                "monthly_revenue_growth_pct": 25,
-                "year1_revenue": round(total_revenue * 2, 2),
+            "bull": {
+                "label": "Bull Case (1.5x growth)",
+                "growth_multiplier": 1.5,
+                **bull_arrays,
+                "monthly_revenue_growth_pct": 22,
+                "year1_revenue": round(year1_revenue * 1.5, 2),
+                "year3_revenue": round(year3_revenue * 1.5, 2),
                 "year1_customers": last["customers"] * 2,
-                "year1_burn": round(total_burn * 0.7, 2),
-                "year1_net_income": round(total_revenue * 2 - total_burn * 0.7, 2),
+                "year1_burn": round(year1_burn * 0.7, 2),
+                "year1_net_income": round(year1_revenue * 1.5 - year1_burn * 0.7, 2),
                 "break_even_month": 9,
                 "assumptions": [
                     "Strong product-market fit from launch",
@@ -258,12 +326,15 @@ def _build_fallback_model() -> dict[str, Any]:
                 ],
             },
             "base": {
-                "label": "Base Case",
+                "label": "Base Case (1x growth)",
+                "growth_multiplier": 1.0,
+                **base_arrays,
                 "monthly_revenue_growth_pct": 15,
-                "year1_revenue": round(total_revenue, 2),
+                "year1_revenue": round(year1_revenue, 2),
+                "year3_revenue": round(year3_revenue, 2),
                 "year1_customers": last["customers"],
-                "year1_burn": round(total_burn, 2),
-                "year1_net_income": round(total_revenue - total_burn, 2),
+                "year1_burn": round(year1_burn, 2),
+                "year1_net_income": round(year1_revenue - year1_burn, 2),
                 "break_even_month": 14,
                 "assumptions": [
                     "Steady 15% MoM growth",
@@ -271,13 +342,44 @@ def _build_fallback_model() -> dict[str, Any]:
                     "CAC remains ~$250",
                 ],
             },
+            "bear": {
+                "label": "Bear Case (0.6x growth)",
+                "growth_multiplier": 0.6,
+                **bear_arrays,
+                "monthly_revenue_growth_pct": 7,
+                "year1_revenue": round(year1_revenue * 0.6, 2),
+                "year3_revenue": round(year3_revenue * 0.6, 2),
+                "year1_customers": max(1, last["customers"] // 3),
+                "year1_burn": round(year1_burn * 1.3, 2),
+                "year1_net_income": round(year1_revenue * 0.6 - year1_burn * 1.3, 2),
+                "break_even_month": None,
+                "assumptions": [
+                    "Slow adoption, longer sales cycles",
+                    "Churn rises to 8%",
+                    "Need to cut team to extend runway",
+                ],
+            },
+            "optimistic": {
+                "label": "Optimistic (2x growth)",
+                "monthly_revenue_growth_pct": 25,
+                "year1_revenue": round(year1_revenue * 2, 2),
+                "year1_customers": last["customers"] * 2,
+                "year1_burn": round(year1_burn * 0.7, 2),
+                "year1_net_income": round(year1_revenue * 2 - year1_burn * 0.7, 2),
+                "break_even_month": 9,
+                "assumptions": [
+                    "Strong product-market fit from launch",
+                    "Viral coefficient > 1.2",
+                    "Enterprise upsell adds 40% to ACV",
+                ],
+            },
             "pessimistic": {
                 "label": "Pessimistic (0.5x growth)",
                 "monthly_revenue_growth_pct": 7,
-                "year1_revenue": round(total_revenue * 0.5, 2),
-                "year1_customers": last["customers"] // 2,
-                "year1_burn": round(total_burn * 1.3, 2),
-                "year1_net_income": round(total_revenue * 0.5 - total_burn * 1.3, 2),
+                "year1_revenue": round(year1_revenue * 0.5, 2),
+                "year1_customers": max(1, last["customers"] // 2),
+                "year1_burn": round(year1_burn * 1.3, 2),
+                "year1_net_income": round(year1_revenue * 0.5 - year1_burn * 1.3, 2),
                 "break_even_month": None,
                 "assumptions": [
                     "Slow adoption, longer sales cycles",
@@ -313,9 +415,9 @@ def _build_fallback_model() -> dict[str, Any]:
             },
         },
         "runway": {
-            "monthly_burn_rate": round(total_burn / 12, 2),
+            "monthly_burn_rate": round(total_burn / 36, 2),
             "current_cash": 1000000,
-            "runway_months": max(1, int(1000000 / max(1, total_burn / 12))),
+            "runway_months": max(1, int(1000000 / max(1, total_burn / 36))),
             "break_even_month": 14,
             "funding_required_series_a": 3000000,
         },
@@ -323,9 +425,10 @@ def _build_fallback_model() -> dict[str, Any]:
             "$99/mo average price point",
             "5% monthly churn rate",
             "$250 blended CAC across channels",
-            "2-4 engineers at $10-15k/mo",
+            "2-4 engineers at $10-15k/mo, scaling to 8-10 by year 3",
             "Seed round of $1M closed",
             "15% month-over-month revenue growth",
+            "36-month projection horizon",
         ],
         "risks": [
             "Longer-than-expected sales cycle delays revenue",
@@ -366,8 +469,8 @@ class CFOAgent(BaseAgent):
         """Generate a comprehensive financial model using LLM."""
         self.current_strategy = strategy
         self.log(
-            "Generating comprehensive 12-month financial model with 3 scenarios, "
-            "sensitivity analysis, and unit economics",
+            "Generating comprehensive 36-month financial model with bull/base/bear scenarios, "
+            "sensitivity analysis, and unit economics; saving model_v2.json",
             action="financial_model",
             reasoning=(
                 f"Building detailed projections for '{strategy.startup_idea}' targeting "
@@ -484,10 +587,54 @@ class CFOAgent(BaseAgent):
 
         try:
             data = json.loads(cleaned)
-            # Validate that we got something meaningful
-            if not data.get("monthly_pnl") or len(data.get("monthly_pnl", [])) < 6:
+            # Validate that we got something meaningful (accept 12+ months; backfill to 36 if needed)
+            pnl = data.get("monthly_pnl", [])
+            if not pnl or len(pnl) < 6:
                 self.log("LLM response missing monthly P&L, using fallback", action="warning")
                 return _build_fallback_model()
+            # If LLM only returned 12 months, extend to 36 by extrapolating from last 3 months
+            if len(pnl) < 36:
+                self.log(
+                    f"LLM returned {len(pnl)} months of P&L; extrapolating to 36",
+                    action="warning",
+                )
+                last_m = pnl[-1]
+                prev_rev = pnl[-2]["revenue"] if len(pnl) >= 2 else last_m["revenue"]
+                growth = (last_m["revenue"] / prev_rev) if prev_rev else 1.08
+                growth = max(1.01, min(growth, 1.30))  # cap at 1% to 30% monthly growth
+                m_num = last_m["month"]
+                customers = last_m.get("customers", 0)
+                for i in range(len(pnl), 36):
+                    m_num += 1
+                    rev = round(last_m["revenue"] * (growth ** (i - len(pnl) + 1)), 2)
+                    cogs = round(rev * 0.25, 2)
+                    gp = round(rev - cogs, 2)
+                    eng = round(last_m.get("engineering", 30000) * (1 + 0.02 * (i - len(pnl) + 1)), 2)
+                    sm = round(last_m.get("sales_marketing", 10000) * (1 + 0.015 * (i - len(pnl) + 1)), 2)
+                    ga = round(last_m.get("general_admin", 4000) * (1 + 0.005 * (i - len(pnl) + 1)), 2)
+                    opex = round(eng + sm + ga, 2)
+                    ebitda = round(gp - opex, 2)
+                    new_c = max(1, int(customers * 0.08))
+                    churned = max(0, int(customers * 0.05))
+                    customers = customers + new_c - churned
+                    pnl.append({
+                        "month": m_num,
+                        "revenue": rev,
+                        "cogs": cogs,
+                        "gross_profit": gp,
+                        "gross_margin_pct": round((gp / rev * 100) if rev else 0, 1),
+                        "engineering": eng,
+                        "sales_marketing": sm,
+                        "general_admin": ga,
+                        "total_opex": opex,
+                        "ebitda": ebitda,
+                        "net_income": ebitda,
+                        "customers": customers,
+                        "new_customers": new_c,
+                        "churned_customers": churned,
+                        "mrr": rev,
+                    })
+                data["monthly_pnl"] = pnl
             return data
         except json.JSONDecodeError:
             self.log("Failed to parse LLM financial model response, using fallback", action="warning")
@@ -504,11 +651,14 @@ class CFOAgent(BaseAgent):
         self._write_json(f"{out_dir}/financial_model.json", data)
         self._write_json(f"{out_dir}/model_v{self._current_iteration}.json", data)
 
-        # 2. Scenarios JSON
+        # 2. Scenarios JSON (backwards-compatible)
         scenarios_data = data.get("scenarios", {})
         self._write_json(f"{out_dir}/scenarios.json", scenarios_data)
 
-        # 3. Formatted markdown report
+        # 3. Enhanced model_v2.json with 36-month scenario arrays + unit economics
+        self._write_json(f"{out_dir}/model_v2.json", self._build_model_v2(data))
+
+        # 4. Formatted markdown report
         md = self._render_markdown(data)
         md_path = f"{out_dir}/financial_model.md"
         with open(md_path, "w", encoding="utf-8") as f:
@@ -519,9 +669,94 @@ class CFOAgent(BaseAgent):
 
         self.log(
             f"Financial model saved: {out_dir}/financial_model.json, "
-            f"scenarios.json, financial_model.md (v{self._current_iteration})",
+            f"model_v2.json, scenarios.json, financial_model.md (v{self._current_iteration})",
             action="model_save",
         )
+
+    @staticmethod
+    def _build_model_v2(data: dict[str, Any]) -> dict[str, Any]:
+        """Construct the model_v2.json structure from full model data.
+
+        Ensures the required schema:
+        {
+          "scenarios": {
+            "bull":  {"monthly_revenue": [36], "monthly_costs": [36], "cumulative_profit": [36]},
+            "base":  {...},
+            "bear":  {...},
+          },
+          "unit_economics": {"cac", "ltv", "ltv_cac_ratio", "payback_months"},
+          "summary": {"break_even_month", "year1_revenue", "year3_revenue"},
+        }
+        """
+        pnl: list[dict[str, Any]] = data.get("monthly_pnl", [])
+        scenarios_raw: dict[str, Any] = data.get("scenarios", {})
+        ue_raw: dict[str, Any] = data.get("unit_economics", {})
+        runway: dict[str, Any] = data.get("runway", {})
+
+        def _extract_or_build_arrays(key: str, multiplier: float) -> dict[str, Any]:
+            sc = scenarios_raw.get(key, {})
+            if sc.get("monthly_revenue") and len(sc["monthly_revenue"]) == 36:
+                return {
+                    "monthly_revenue": sc["monthly_revenue"],
+                    "monthly_costs": sc.get("monthly_costs", []),
+                    "cumulative_profit": sc.get("cumulative_profit", []),
+                }
+            # Build from pnl data using multiplier
+            revenues = [round(m.get("revenue", 0) * multiplier, 2) for m in pnl]
+            costs = [
+                round((m.get("cogs", 0) + m.get("total_opex", 0)) * (0.85 + 0.15 * multiplier), 2)
+                for m in pnl
+            ]
+            cum_profit: list[float] = []
+            running = 0.0
+            for rev, cost in zip(revenues, costs):
+                running += rev - cost
+                cum_profit.append(round(running, 2))
+            return {
+                "monthly_revenue": revenues,
+                "monthly_costs": costs,
+                "cumulative_profit": cum_profit,
+            }
+
+        bull_arrays = _extract_or_build_arrays("bull", 1.5)
+        base_arrays = _extract_or_build_arrays("base", 1.0)
+        bear_arrays = _extract_or_build_arrays("bear", 0.6)
+
+        # Unit economics
+        cac = ue_raw.get("cac", 0)
+        ltv = ue_raw.get("ltv", 0)
+        ltv_cac = ue_raw.get("ltv_cac_ratio", round(ltv / cac, 2) if cac else 0)
+        payback = ue_raw.get("payback_period_months", ue_raw.get("payback_months", 0))
+
+        # Summary
+        year1_revenue = (
+            scenarios_raw.get("base", {}).get("year1_revenue")
+            or sum(m.get("revenue", 0) for m in pnl[:12])
+        )
+        year3_revenue = (
+            scenarios_raw.get("base", {}).get("year3_revenue")
+            or sum(m.get("revenue", 0) for m in pnl)
+        )
+        break_even = runway.get("break_even_month") or scenarios_raw.get("base", {}).get("break_even_month")
+
+        return {
+            "scenarios": {
+                "bull": bull_arrays,
+                "base": base_arrays,
+                "bear": bear_arrays,
+            },
+            "unit_economics": {
+                "cac": cac,
+                "ltv": ltv,
+                "ltv_cac_ratio": ltv_cac,
+                "payback_months": payback,
+            },
+            "summary": {
+                "break_even_month": break_even,
+                "year1_revenue": year1_revenue,
+                "year3_revenue": year3_revenue,
+            },
+        }
 
     @staticmethod
     def _write_json(path: str, data: Any) -> None:

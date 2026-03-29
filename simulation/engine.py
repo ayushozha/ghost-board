@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import logging
 import os
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -12,6 +13,16 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
 from simulation.personas import MarketPersona
+
+try:
+    import asyncpg  # type: ignore
+    _ASYNCPG_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    asyncpg = None  # type: ignore
+    _ASYNCPG_AVAILABLE = False
+
+_DB_URL = "postgresql://admin:i87RfJUBx5HZJuykZt4v9u3zaq10wAqV@127.0.0.1:5433/ghost_board"
+_log = logging.getLogger(__name__)
 
 
 class SimulationMessage(BaseModel):
@@ -172,6 +183,48 @@ def _build_reference_context(
     return context, suggest_names
 
 
+async def _open_db_connection() -> "asyncpg.Connection | None":
+    """Open a single asyncpg connection, returning None if unavailable."""
+    if not _ASYNCPG_AVAILABLE:
+        return None
+    try:
+        conn = await asyncpg.connect(_DB_URL, timeout=5)
+        return conn
+    except Exception as exc:  # pragma: no cover
+        _log.warning("PostgreSQL unavailable, skipping DB persistence: %s", exc)
+        return None
+
+
+async def _ensure_db_table(conn: "asyncpg.Connection") -> None:
+    """Create the simulation_rounds table if it does not exist."""
+    await conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS simulation_rounds (
+            id SERIAL PRIMARY KEY,
+            run_id TEXT,
+            round_num INTEGER,
+            round_data JSONB,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+        """
+    )
+
+
+async def _save_round_to_db(
+    conn: "asyncpg.Connection",
+    run_id: str,
+    round_num: int,
+    round_data: dict[str, Any],
+) -> None:
+    """Insert one simulation round into PostgreSQL."""
+    await conn.execute(
+        "INSERT INTO simulation_rounds (run_id, round_num, round_data) VALUES ($1, $2, $3)",
+        run_id,
+        round_num,
+        json.dumps(round_data),
+    )
+
+
 async def run_simulation(
     startup_idea: str,
     strategy_summary: str,
@@ -180,6 +233,7 @@ async def run_simulation(
     client: AsyncOpenAI | None = None,
     prior_messages: list[SimulationMessage] | None = None,
     progress_callback: SimulationProgressCallback | None = None,
+    run_id: str | None = None,
 ) -> SimulationResult:
     """Run a turn-based social simulation.
 
@@ -196,6 +250,23 @@ async def run_simulation(
     """
     if client is None:
         client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+
+    # Resolve run_id for DB persistence (fall back to a generated id)
+    import uuid as _uuid
+    effective_run_id: str = run_id or str(_uuid.uuid4())
+
+    # Open optional PostgreSQL connection (failure is non-fatal)
+    db_conn: "asyncpg.Connection | None" = await _open_db_connection()
+    if db_conn is not None:
+        try:
+            await _ensure_db_table(db_conn)
+        except Exception as exc:  # pragma: no cover
+            _log.warning("Failed to create simulation_rounds table: %s", exc)
+            try:
+                await db_conn.close()
+            except Exception:
+                pass
+            db_conn = None
 
     all_rounds: list[SimulationRound] = []
     message_history: list[SimulationMessage] = list(prior_messages or [])
@@ -255,6 +326,30 @@ async def run_simulation(
             avg_sentiment=avg_sentiment,
         ))
 
+        # Persist round data to PostgreSQL (optional — failures are non-fatal)
+        if db_conn is not None:
+            round_payload: dict[str, Any] = {
+                "round_number": round_num,
+                "avg_sentiment": avg_sentiment,
+                "sentiment_by_archetype": sentiment_by_archetype,
+                "posts": [
+                    {
+                        "persona": m.persona_name,
+                        "archetype": m.archetype,
+                        "content": m.content,
+                        "sentiment": m.sentiment,
+                        "references": list(m.references),
+                        "stance_change": m.stance_change,
+                    }
+                    for m in round_messages
+                ],
+            }
+            try:
+                await _save_round_to_db(db_conn, effective_run_id, round_num, round_payload)
+                _log.debug("Saved round %d to PostgreSQL (run_id=%s)", round_num, effective_run_id)
+            except Exception as exc:  # pragma: no cover
+                _log.warning("Failed to save round %d to PostgreSQL: %s", round_num, exc)
+
         await _emit_progress(
             progress_callback,
             "simulation_round",
@@ -275,6 +370,13 @@ async def run_simulation(
                 ],
             },
         )
+
+    # Close DB connection if it was opened
+    if db_conn is not None:
+        try:
+            await db_conn.close()
+        except Exception:  # pragma: no cover
+            pass
 
     result = SimulationResult(
         rounds=all_rounds,

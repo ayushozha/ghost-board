@@ -352,6 +352,68 @@ function ConnectionIndicator({ status }) {
   );
 }
 
+// ── Archetype badge colors ──
+const ARCHETYPE_COLORS = {
+  vc:              'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  'venture capital': 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  journalist:      'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  press:           'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  'early adopter': 'bg-green-500/20 text-green-300 border-green-500/30',
+  user:            'bg-green-500/20 text-green-300 border-green-500/30',
+  competitor:      'bg-red-500/20 text-red-300 border-red-500/30',
+  regulator:       'bg-orange-500/20 text-orange-300 border-orange-500/30',
+  analyst:         'bg-purple-500/20 text-purple-300 border-purple-500/30',
+};
+
+function archetypeBadgeCls(archetype) {
+  if (!archetype) return 'bg-slate-500/20 text-slate-300 border-slate-500/30';
+  const key = archetype.toLowerCase();
+  for (const [k, v] of Object.entries(ARCHETYPE_COLORS)) {
+    if (key.includes(k)) return v;
+  }
+  return 'bg-slate-500/20 text-slate-300 border-slate-500/30';
+}
+
+// ── Demo persona quotes shown when no live data ──
+const DEMO_PERSONA_QUOTES = [
+  {
+    id: 'demo-1',
+    name: 'Priya Kapoor',
+    archetype: 'Venture Capital',
+    quote: 'The B2B pivot is smart — MSB licensing overhead in all 50 states would have burned the runway before PMF.',
+  },
+  {
+    id: 'demo-2',
+    name: 'Marcus Teller',
+    archetype: 'Journalist',
+    quote: 'Stablecoin payroll is a crowded thesis right now. What\'s the defensible moat once Stripe/Brex enter?',
+  },
+  {
+    id: 'demo-3',
+    name: 'Aiko Tanaka',
+    archetype: 'Early Adopter',
+    quote: 'Finally — my remote contractors in Southeast Asia have been asking for this exact thing for two years.',
+  },
+];
+
+// ── Persona Quote Card ──
+function PersonaQuoteCard({ quote }) {
+  const badgeCls = archetypeBadgeCls(quote.archetype);
+  return (
+    <div className="rounded-lg p-2.5 border border-white/5 hover:border-white/10 transition-colors bg-black/20">
+      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+        <span className="text-xs font-semibold text-slate-200">{quote.name}</span>
+        {quote.archetype && (
+          <span className={`text-[9px] px-1.5 py-0.5 rounded-full border font-mono ${badgeCls}`}>
+            {quote.archetype.toUpperCase()}
+          </span>
+        )}
+      </div>
+      <div className="text-[11px] text-slate-400 leading-relaxed italic">"{quote.quote}"</div>
+    </div>
+  );
+}
+
 // ── Main Boardroom component ──
 export default function Boardroom({ runId, onEvent }) {
   // --- State ---
@@ -365,6 +427,7 @@ export default function Boardroom({ runId, onEvent }) {
   const [loading, setLoading] = useState(true);
   const [wsStatus, setWsStatus] = useState('connecting'); // connected | connecting | disconnected | polling
   const [newEntryIds, setNewEntryIds] = useState(new Set());
+  const [personaQuotes, setPersonaQuotes] = useState(DEMO_PERSONA_QUOTES);
 
   // --- Refs ---
   const feedRef = useRef(null);
@@ -444,9 +507,64 @@ export default function Boardroom({ runId, onEvent }) {
     if (onEvent) onEvent(entry);
   }, [onEvent]);
 
+  // ── Export Discussion as Markdown ──
+  const exportDiscussion = useCallback(() => {
+    const dateStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const concept = discussion.length > 0
+      ? (discussion[0].message || '').substring(0, 60).replace(/\n/g, ' ')
+      : 'Unknown Concept';
+
+    const lines = [`# Board Discussion - ${concept} - ${dateStr}`, ''];
+
+    discussion.forEach(entry => {
+      const agentName = normalizeAgent(entry.agent);
+      const et = (entry.event_type || '').toLowerCase();
+      const isBlocker = et.includes('blocker');
+      const time = entry.timestamp
+        ? new Date(entry.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        : '';
+      const header = isBlocker
+        ? `## [${agentName}] ⚠ BLOCKER: ${time}`
+        : `## [${agentName}] ${time}`;
+      lines.push(header);
+      lines.push(entry.message || '');
+      if (entry.reasoning && entry.reasoning !== entry.message) {
+        lines.push('');
+        lines.push(`> ${entry.reasoning}`);
+      }
+      lines.push('');
+    });
+
+    const content = lines.join('\n');
+    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `board-discussion-${new Date().toISOString().substring(0, 10)}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [discussion]);
+
   // ── Process raw WebSocket event ──
   const processWsEvent = useCallback((wsEvent) => {
     if (!mountedRef.current) return;
+
+    // Handle persona_post events for Market Voices panel
+    if (wsEvent.type === 'persona_post' || (wsEvent.type === 'event' && wsEvent.event?.event_type === 'persona_post')) {
+      const raw = wsEvent.type === 'persona_post' ? wsEvent : wsEvent.event;
+      const newQuote = {
+        id: `pq-${Date.now()}-${Math.random()}`,
+        name: raw.persona_name || raw.name || 'Unknown',
+        archetype: raw.archetype || raw.persona_type || '',
+        quote: raw.content || raw.message || raw.post || '',
+      };
+      if (newQuote.quote) {
+        setPersonaQuotes(prev => [newQuote, ...prev].slice(0, 20));
+      }
+      return;
+    }
 
     // Handle status messages
     if (wsEvent.type === 'status') {
@@ -740,6 +858,18 @@ export default function Boardroom({ runId, onEvent }) {
               );
             })}
           </div>
+          {/* Export Discussion button */}
+          {discussion.length > 0 && (
+            <button
+              onClick={exportDiscussion}
+              className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-mono text-slate-300 bg-white/5 border border-white/10 hover:bg-indigo-500/20 hover:border-indigo-500/40 hover:text-indigo-300 transition-colors"
+              title="Export discussion as Markdown"
+            >
+              <span>&#8595;</span>
+              <span className="hidden sm:inline">Export Discussion</span>
+              <span className="sm:hidden">Export</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -829,6 +959,36 @@ export default function Boardroom({ runId, onEvent }) {
                 />
               );
             })}
+          </div>
+
+          {/* Market Voices panel */}
+          <div className="border-t border-white/10 bg-black/30 flex flex-col shrink-0" style={{ minHeight: '200px', maxHeight: '200px' }}>
+            {/* Panel header */}
+            <div className="px-3 sm:px-4 py-2 border-b border-white/10 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="text-sm font-semibold text-slate-300">Market Voices</div>
+                {wsStatus === 'connected' && (
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                  </span>
+                )}
+                <span className="text-[10px] text-slate-600 font-mono">{personaQuotes.length} voices</span>
+              </div>
+              <span className="text-[9px] text-slate-600 font-mono">Simulated market reactions</span>
+            </div>
+
+            {/* Scrollable quotes */}
+            <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-2 space-y-2 boardroom-scrollbar">
+              {personaQuotes.map(q => (
+                <PersonaQuoteCard key={q.id} quote={q} />
+              ))}
+              {personaQuotes.length === 0 && (
+                <div className="text-xs text-slate-600 font-mono text-center py-4">
+                  No market reactions yet — simulation pending
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

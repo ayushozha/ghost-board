@@ -50,6 +50,8 @@ class TraceLogger:
             )
             self._use_wandb = True
             self.wandb_url = self._wandb_run.get_url() if self._wandb_run else None
+            if self.wandb_url:
+                self._persist_wandb_url(self.wandb_url)
         except Exception:
             self._use_wandb = False
             self.wandb_url = None
@@ -109,8 +111,40 @@ class TraceLogger:
         if self._use_wandb and self._wandb_run:
             try:
                 self._wandb_run.finish()
+                # Persist final URL after run finishes (URL may not change, but
+                # finishing can update the run state on W&B)
+                url = self._wandb_run.get_url() if hasattr(self._wandb_run, "get_url") else None
+                if url:
+                    self.wandb_url = url
+                    self._persist_wandb_url(url)
             except Exception:
                 pass
+
+    def _persist_wandb_url(self, url: str) -> None:
+        """Write the W&B run URL to outputs/wandb_url.txt for later retrieval."""
+        try:
+            out = Path("outputs")
+            out.mkdir(parents=True, exist_ok=True)
+            (out / "wandb_url.txt").write_text(url, encoding="utf-8")
+        except Exception:
+            pass
+
+    def get_wandb_url(self) -> str | None:
+        """Return the W&B run URL.
+
+        Reads from the in-memory attribute first; falls back to
+        outputs/wandb_url.txt so the URL survives process restarts.
+        """
+        if getattr(self, "wandb_url", None):
+            return self.wandb_url
+        url_file = Path("outputs/wandb_url.txt")
+        if url_file.exists():
+            try:
+                url = url_file.read_text(encoding="utf-8").strip()
+                return url or None
+            except Exception:
+                pass
+        return None
 
     def _flush_json(self) -> None:
         """Write the JSON log to disk."""

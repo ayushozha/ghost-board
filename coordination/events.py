@@ -114,6 +114,7 @@ class GTMPayload(BaseModel):
     tagline: str = ""
     target_channels: list[str] = Field(default_factory=list)
     output_path: str = "outputs/gtm"
+    competitive_analysis: str = ""
 
 
 class CompliancePayload(BaseModel):

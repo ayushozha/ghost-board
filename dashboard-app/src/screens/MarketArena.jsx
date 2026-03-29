@@ -453,6 +453,8 @@ export default function MarketArena({ runId }) {
   const [wsStatus, setWsStatus] = useState('disconnected'); // 'connected' | 'connecting' | 'disconnected'
   // Selected persona for detail panel (clicked on globe or feed)
   const [selectedPersonaData, setSelectedPersonaData] = useState(null);
+  // Replay: null = live/latest, number = pinned to that round index (0-based)
+  const [replayRound, setReplayRound] = useState(null);
   const feedRef = useRef(null);
   const feedEndRef = useRef(null);
   const wsRef = useRef(null);
@@ -508,22 +510,28 @@ export default function MarketArena({ runId }) {
           }
           wsConnected = false;
           setWsStatus('disconnected');
-          // Fallback to polling when WS disconnects
-          startPolling();
         },
         onError: () => {
           wsConnected = false;
-          setWsStatus('disconnected');
-          startPolling();
+          // status will be updated by onReconnecting or onMaxRetriesExceeded
+        },
+        onReconnecting: (attempt, delayMs) => {
+          wsConnected = false;
+          setWsStatus(`reconnecting (attempt ${attempt}/5)`);
+          console.info(`[MarketArena] WS reconnecting: attempt ${attempt}/5 in ${delayMs}ms`);
+        },
+        onMaxRetriesExceeded: () => {
+          wsConnected = false;
+          setWsStatus('polling');
+          console.warn('[MarketArena] WS max retries exceeded — switched to polling fallback');
         },
       });
 
       wsRef.current = ws;
       wsConnected = true;
     } catch {
-      // WS not available, start polling immediately
+      // WS not available; connectLive will handle polling fallback internally
       setWsStatus('disconnected');
-      startPolling();
     }
 
     function startPolling() {
@@ -727,12 +735,19 @@ export default function MarketArena({ runId }) {
 
   useEffect(() => {
     if (loading) return;
+    // Pause auto-advance while the user is replaying a specific round
+    if (replayRound !== null) return;
     // Only auto-advance if no WS is providing updates
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return;
     if (currentRound >= totalRounds) return;
     const timer = setTimeout(() => setCurrentRound((r) => r + 1), 1800);
     return () => clearTimeout(timer);
-  }, [currentRound, loading, totalRounds]);
+  }, [currentRound, loading, totalRounds, replayRound]);
+
+  // ── Replay / effective round ──
+  // When replayRound is null we show live data (currentRound).
+  // When set, we show the chosen round (1-based to match round_number).
+  const effectiveRound = replayRound !== null ? replayRound : currentRound;
 
   // ── Derived data ──
   const llmAgents = results.total_llm_agents || personas.length;
@@ -752,24 +767,24 @@ export default function MarketArena({ runId }) {
     return 0;
   }, [results, personas]);
 
-  // Feed items: all messages up to currentRound, newest first
+  // Feed items: all messages up to effectiveRound, newest first
   const feedItems = useMemo(() => {
     const items = [];
     personas.forEach((p) => {
       const msgs = p.messages || [];
       if (msgs.length > 0) {
         msgs.forEach((m) => {
-          if (m.round <= currentRound) {
+          if (m.round <= effectiveRound) {
             items.push({ persona: p, message: m, id: `${p.name}-${m.round}` });
           }
         });
-      } else if (p.content && (p.round || 1) <= currentRound) {
+      } else if (p.content && (p.round || 1) <= effectiveRound) {
         items.push({
           persona: p,
           message: { round: p.round || 1, content: p.content, sentiment: typeof p.stance === 'number' ? p.stance : 0 },
           id: `${p.name}-${p.round || 1}`,
         });
-      } else if ((p.post || p.message) && currentRound > 0) {
+      } else if ((p.post || p.message) && effectiveRound > 0) {
         items.push({
           persona: p,
           message: { round: 1, content: p.post || p.message, sentiment: typeof (p.stance ?? p.sentiment) === 'number' ? (p.stance ?? p.sentiment) : 0 },
@@ -780,7 +795,7 @@ export default function MarketArena({ runId }) {
     // Sort oldest-first so newest posts appear at the bottom (auto-scroll target)
     items.sort((a, b) => (a.message.round || 0) - (b.message.round || 0));
     return items;
-  }, [personas, currentRound]);
+  }, [personas, effectiveRound]);
 
   // Auto-scroll feed to bottom when new items arrive (newest posts at bottom)
   useEffect(() => {
@@ -790,11 +805,11 @@ export default function MarketArena({ runId }) {
     prevFeedCountRef.current = feedItems.length;
   }, [feedItems.length]);
 
-  // Archetype breakdown for current round
+  // Archetype breakdown for effective round
   const archetypeBreakdown = useMemo(() => {
     const rd = results.rounds_data;
     if (rd && rd.length > 0) {
-      const idx = Math.min(currentRound, rd.length) - 1;
+      const idx = Math.min(effectiveRound, rd.length) - 1;
       if (idx >= 0) return rd[idx].sentiment_by_archetype || {};
     }
     const map = {};
@@ -810,7 +825,7 @@ export default function MarketArena({ runId }) {
       out[arch] = d.count > 0 ? d.total / d.count : 0;
     });
     return out;
-  }, [results, personas, currentRound]);
+  }, [results, personas, effectiveRound]);
 
   const archetypeEntries = useMemo(() => {
     return Object.entries(archetypeBreakdown)
@@ -818,11 +833,14 @@ export default function MarketArena({ runId }) {
       .sort((a, b) => b.avg - a.avg);
   }, [archetypeBreakdown]);
 
-  // Visible rounds data (up to currentRound)
+  // Visible rounds data (up to effectiveRound; fade future rounds in replay mode)
   const visibleRoundsData = useMemo(() => {
     if (!results.rounds_data) return [];
-    return results.rounds_data.filter((rd) => rd.round_number <= currentRound);
-  }, [results.rounds_data, currentRound]);
+    return results.rounds_data.map((rd) => ({
+      ...rd,
+      _faded: replayRound !== null && rd.round_number > effectiveRound,
+    })).filter((rd) => replayRound === null || rd.round_number <= effectiveRound);
+  }, [results.rounds_data, effectiveRound, replayRound]);
 
   // Globe arcs for persona references
   const arcs = useMemo(() => {
@@ -833,7 +851,7 @@ export default function MarketArena({ runId }) {
     });
 
     personas.forEach((p) => {
-      const visibleMessages = (p.messages || []).filter((message) => (message.round || 1) <= currentRound);
+      const visibleMessages = (p.messages || []).filter((message) => (message.round || 1) <= effectiveRound);
       visibleMessages.forEach((message) => {
         (message.references || []).forEach((refName) => {
           const fromPos = geoMap[p.name];
@@ -844,7 +862,7 @@ export default function MarketArena({ runId }) {
               from: fromPos,
               to: toPos,
               color: getArchCfg(p.archetype).hex,
-              active: activePersona ? (p.name === activePersona || refName === activePersona) : message.round === currentRound,
+              active: activePersona ? (p.name === activePersona || refName === activePersona) : message.round === effectiveRound,
               round: message.round || 1,
             });
           }
@@ -852,7 +870,7 @@ export default function MarketArena({ runId }) {
       });
     });
     return result;
-  }, [personas, currentRound, activePersona]);
+  }, [personas, effectiveRound, activePersona]);
 
   const handleFeedClick = useCallback((name) => {
     setActivePersona((prev) => (prev === name ? null : name));
@@ -905,8 +923,100 @@ export default function MarketArena({ runId }) {
     );
   }
 
-  const displayRound = Math.min(currentRound, totalRounds);
+  const displayRound = Math.min(effectiveRound, totalRounds);
   const progressPct = totalRounds > 0 ? (displayRound / totalRounds) * 100 : 0;
+
+  // Replay toolbar — only shown when multiple rounds are available
+  const showReplayToolbar = (results.rounds_data?.length ?? 0) > 1;
+  const replaySliderMax = totalRounds > 0 ? totalRounds : (results.rounds_data?.length ?? 1);
+
+  function ReplayToolbar() {
+    if (!showReplayToolbar) return null;
+    const sliderValue = replayRound !== null ? replayRound : currentRound;
+    const isLive = replayRound === null;
+    return (
+      <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 bg-gray-900/60 border border-gray-800/60 rounded-xl backdrop-blur-sm">
+        {/* Reset to live */}
+        <button
+          onClick={() => setReplayRound(null)}
+          title="Reset to live"
+          className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-colors text-xs font-bold ${
+            isLive
+              ? 'bg-indigo-600/30 border-indigo-500/60 text-indigo-300'
+              : 'bg-gray-800/60 border-gray-700 text-gray-400 hover:bg-gray-700 hover:text-white'
+          }`}
+        >
+          &#x23EE;
+        </button>
+
+        {/* Prev round */}
+        <button
+          onClick={() => {
+            const cur = replayRound !== null ? replayRound : currentRound;
+            const next = Math.max(1, cur - 1);
+            setReplayRound(next);
+          }}
+          title="Previous round"
+          disabled={displayRound <= 1}
+          className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-700 bg-gray-800/60 text-gray-400 hover:bg-gray-700 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-xs font-bold"
+        >
+          &#x25C4;
+        </button>
+
+        {/* Range slider */}
+        <div className="flex-1 flex items-center gap-2 min-w-0">
+          <input
+            type="range"
+            min={1}
+            max={replaySliderMax}
+            value={sliderValue > 0 ? sliderValue : 1}
+            onChange={(e) => {
+              const val = Number(e.target.value);
+              const latest = results.rounds_data?.length ?? currentRound;
+              if (val >= latest) {
+                setReplayRound(null);
+              } else {
+                setReplayRound(val);
+              }
+            }}
+            className="flex-1 h-1.5 rounded-full cursor-pointer accent-indigo-500"
+            style={{ minWidth: 0 }}
+          />
+        </div>
+
+        {/* Next round */}
+        <button
+          onClick={() => {
+            const cur = replayRound !== null ? replayRound : currentRound;
+            const latest = results.rounds_data?.length ?? currentRound;
+            const next = Math.min(latest, cur + 1);
+            if (next >= latest) {
+              setReplayRound(null);
+            } else {
+              setReplayRound(next);
+            }
+          }}
+          title="Next round"
+          disabled={isLive}
+          className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-700 bg-gray-800/60 text-gray-400 hover:bg-gray-700 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-xs font-bold"
+        >
+          &#x25BA;
+        </button>
+
+        {/* Round label */}
+        <span className="text-xs font-mono shrink-0 w-20 text-right">
+          {isLive ? (
+            <span className="text-emerald-400 font-bold tracking-wide">LIVE</span>
+          ) : (
+            <span className="text-gray-300">
+              Round <span className="text-white font-bold">{displayRound}</span>
+              <span className="text-gray-600"> / {replaySliderMax}</span>
+            </span>
+          )}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col md:h-[calc(100vh-4rem)] w-full px-2 py-2 gap-2">
@@ -965,17 +1075,33 @@ export default function MarketArena({ runId }) {
                 className={`w-2 h-2 rounded-full shrink-0 ${
                   wsStatus === 'connected'
                     ? 'bg-emerald-500 animate-pulse'
-                    : wsStatus === 'connecting'
+                    : wsStatus === 'connecting' || wsStatus.startsWith('reconnecting')
                     ? 'bg-yellow-500 animate-pulse'
+                    : wsStatus === 'polling'
+                    ? 'bg-yellow-400'
                     : 'bg-gray-600'
                 }`}
               />
               <span className={`hidden sm:inline text-[10px] font-mono ${
                 wsStatus === 'connected' ? 'text-emerald-400' :
-                wsStatus === 'connecting' ? 'text-yellow-400' : 'text-gray-600'
+                wsStatus === 'connecting' || wsStatus.startsWith('reconnecting') ? 'text-yellow-400' :
+                wsStatus === 'polling' ? 'text-yellow-400' : 'text-gray-600'
               }`}>
-                {wsStatus === 'connected' ? 'LIVE' : wsStatus === 'connecting' ? 'CONNECTING' : 'OFFLINE'}
+                {wsStatus === 'connected'
+                  ? 'LIVE'
+                  : wsStatus === 'polling'
+                  ? 'POLLING'
+                  : wsStatus.startsWith('reconnecting')
+                  ? wsStatus.toUpperCase()
+                  : wsStatus === 'connecting'
+                  ? 'CONNECTING'
+                  : 'OFFLINE'}
               </span>
+              {wsStatus === 'polling' && (
+                <span className="hidden sm:inline text-[9px] font-mono text-yellow-600 ml-0.5" title="WebSocket unavailable — polling for updates every 3s">
+                  ⚠
+                </span>
+              )}
             </div>
           )}
           <span className="text-[10px] text-gray-600 font-mono">{Math.round(progressPct)}%</span>
@@ -987,6 +1113,9 @@ export default function MarketArena({ runId }) {
           </div>
         </div>
       </div>
+
+      {/* ── Replay toolbar ── */}
+      <ReplayToolbar />
 
       {/* ── Layout: vertical stack on mobile, three columns on lg+ ── */}
       <div className="flex-1 flex flex-col lg:flex-row gap-2 lg:min-h-0">
