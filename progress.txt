@@ -230,3 +230,20 @@ PostgreSQL on our VPS for database (see VPS.md for connection details)
 
 
 
+
+[x] PRD-REACT-DASH: Build full React+Vite dashboard at dashboard-app/ with 5 screens, 3D Globe, WebSocket real-time, API client. Vite build successful.
+[x] PRD-250: REACT DASHBOARD BUILD FIX. Run cd dashboard-app && npm run build. Fix ANY build errors. Verify dist/ folder has index.html. Update server/app.py to serve dashboard-app/dist/ as static files at root when available, falling back to dashboard/index.html.
+[x] PRD-251: REACT DASHBOARD DEV MODE. Verify cd dashboard-app && npm run dev starts and shows all 5 screens. Fix any runtime errors in browser console. Each screen should render without crashing even when API is not running (show loading/fallback states).
+[x] PRD-252: WIRE REACT DASHBOARD TO SERVER. When server runs (python main.py --serve), the React dashboard at localhost:5173 should connect to API at localhost:8000. Launch Sprint on MissionControl should POST /api/sprint. Boardroom should show WebSocket events. Fix CORS if needed.
+[x] PRD-253: ADD DEMO DATA FALLBACK TO REACT. When API is unavailable, React dashboard should show demo data from embedded constants (like the HTML dashboard does). Copy key demo data into dashboard-app/src/demoData.js.
+[ ] PRD-254: IMPROVE GLOBE INTERACTION. Add hover tooltips on persona dots showing name and latest post. Add click to expand persona detail panel. Add arc animations between referencing personas.
+[ ] PRD-255: ADD REAL-TIME SIMULATION UPDATES TO REACT. During simulation phase, MarketArena should show round-by-round updates via WebSocket. Sentiment chart should animate as new data arrives. Post feed should auto-scroll.
+[ ] PRD-256: IMPROVE PIVOT TIMELINE INTERACTIVITY. Click a pivot node to see full detail. Show causality arrows with animated dashes. Filter by event type. Zoom in/out on timeline. 
+[ ] PRD-257: ADD DARK MODE TOGGLE. Dashboard should support light/dark mode toggle. Default dark. Persist preference in localStorage.
+[ ] PRD-258: ADD SPRINT HISTORY VIEW. New screen or panel showing all past sprint runs from /api/runs. Click any run to load its data in the dashboard. Compare two runs side by side.
+[ ] PRD-259: OPTIMIZE REACT BUNDLE SIZE. Split code with lazy imports for Three.js globe (only loaded on Market Arena screen). Target under 500KB gzipped.
+[ ] PRD-260: ADD E2E TEST FOR REACT DASHBOARD. Use Playwright to test: open dashboard, type concept, verify screens render, verify globe loads. Create tests/test_dashboard_e2e.py.
+[x] PRD-261: ADD LOADING SKELETONS. Each screen shows animated skeleton placeholders while data loads. Not blank screens.
+[x] PRD-262: SERVER PRODUCTION MODE. python main.py --serve --production serves dashboard-app/dist/ (pre-built React) instead of requiring Vite dev server. Single command for demo.
+[ ] PRD-263: ADD EXPORT FUNCTIONALITY. Sprint Report screen has "Export PDF" and "Export JSON" buttons. PDF uses browser print. JSON downloads the full sprint data.
+[ ] PRD-264: IMPROVE MOBILE RESPONSIVE. React dashboard should be usable on tablet/mobile. Globe resizes. Cards stack. Timeline scrolls horizontally.

@@ -31,6 +31,7 @@ from sqlalchemy import func, select
 ROOT_DIR = Path(__file__).resolve().parent.parent
 OUTPUTS_DIR = ROOT_DIR / "outputs"
 DASHBOARD_DIR = ROOT_DIR / "dashboard"
+REACT_DIST_DIR = ROOT_DIR / "dashboard-app" / "dist"
 
 # Ensure project root is on sys.path so we can import main, agents, etc.
 if str(ROOT_DIR) not in sys.path:
@@ -1021,12 +1022,20 @@ async def serve_artifact(file_path: str) -> Any:
 if OUTPUTS_DIR.exists():
     app.mount("/outputs", StaticFiles(directory=str(OUTPUTS_DIR)), name="outputs")
 
-# Serve the dashboard.  Prefer dashboard/dist (Vite build) if it exists,
-# otherwise serve dashboard/ directly (plain HTML files).
-_dashboard_dist = DASHBOARD_DIR / "dist"
-_static_dir = _dashboard_dist if _dashboard_dist.exists() else DASHBOARD_DIR
+# Serve the dashboard.  Priority order:
+# 1. dashboard-app/dist/ (React Vite build) -- highest priority
+# 2. dashboard/dist/ (legacy Vite build)
+# 3. dashboard/ (plain HTML files)
+if REACT_DIST_DIR.exists():
+    _static_dir = REACT_DIST_DIR
+elif (DASHBOARD_DIR / "dist").exists():
+    _static_dir = DASHBOARD_DIR / "dist"
+elif DASHBOARD_DIR.exists():
+    _static_dir = DASHBOARD_DIR
+else:
+    _static_dir = None
 
-if _static_dir.exists():
+if _static_dir is not None:
     # Explicit route for the root so GET / always returns index.html
     # (the StaticFiles mount with html=True would do this too, but an
     # explicit route is more reliable and lets us return a clear 404).

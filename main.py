@@ -656,6 +656,13 @@ def main(startup_idea: str, personas: int, rounds: int, sim_scale: str | None, s
     # --serve: start the FastAPI server and exit
     if serve:
         import uvicorn
+        # Detect which dashboard will be served
+        react_dist = Path(__file__).resolve().parent / "dashboard-app" / "dist"
+        html_dashboard = Path(__file__).resolve().parent / "dashboard"
+        if react_dist.exists() and (react_dist / "index.html").exists():
+            dashboard_source = "Serving React dashboard from dashboard-app/dist/"
+        else:
+            dashboard_source = "Serving HTML dashboard from dashboard/"
         console.print()
         console.print(Panel(
             f"[bold bright_white]Ghost Board Server[/bold bright_white]\n\n"
@@ -663,6 +670,7 @@ def main(startup_idea: str, personas: int, rounds: int, sim_scale: str | None, s
             f"  API docs:   [link=http://localhost:{serve_port}/docs]http://localhost:{serve_port}/docs[/link]\n"
             f"  Health:     [link=http://localhost:{serve_port}/api/health]http://localhost:{serve_port}/api/health[/link]\n"
             f"  WebSocket:  ws://localhost:{serve_port}/ws/live/{{run_id}}\n\n"
+            f"  [dim]{dashboard_source}[/dim]\n"
             f"  [dim]Open the dashboard, type a concept, and click Launch Sprint.[/dim]",
             title="[bold green]SERVING[/bold green]",
             border_style="green",
