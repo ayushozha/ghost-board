@@ -2884,11 +2884,11 @@ function SentimentDashboard({ events }) {
 }
 
 // ── Mission Control (Screen 1) ──
-function MissionControl({ onLaunch, isLive }) {
+function MissionControl({ onLaunch, onNewSprint, isLive, sprintActive, activeConcept }) {
   const [concept, setConcept] = useState('');
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState('');
-  const [sprintStatus, setSprintStatus] = useState(''); // '' | 'starting' | 'running' | 'done'
+  const [sprintPhase, setSprintPhase] = useState(''); // '' | 'starting' | 'running' | 'done'
 
   const handleLaunch = async () => {
     setLaunchError('');
@@ -2897,10 +2897,10 @@ function MissionControl({ onLaunch, isLive }) {
 
     if (isLive && concept.trim()) {
       // Live mode: POST to the API
-      setSprintStatus('starting');
+      setSprintPhase('starting');
       const result = await liveConn.startSprint(concept.trim());
       if (result) {
-        setSprintStatus('running');
+        setSprintPhase('running');
         // Wait a moment for the warp animation then switch to dashboard
         setTimeout(() => {
           audioManager.play('sprint_complete');
@@ -2910,7 +2910,7 @@ function MissionControl({ onLaunch, isLive }) {
       } else {
         setLaunchError('Failed to start sprint. Check that the server is running.');
         setLaunching(false);
-        setSprintStatus('');
+        setSprintPhase('');
         return;
       }
     }
@@ -2922,8 +2922,19 @@ function MissionControl({ onLaunch, isLive }) {
     }, 1200);
   };
 
+  const handleNewSprintClick = () => {
+    setConcept('');
+    setLaunching(false);
+    setLaunchError('');
+    setSprintPhase('');
+    if (onNewSprint) onNewSprint();
+  };
+
+  // Determine displayed concept
+  const displayConcept = activeConcept || concept;
+
   return (
-    <div className={`min-h-screen flex flex-col items-center justify-center relative overflow-hidden ${launching ? 'scale-110 opacity-0' : ''}`}
+    <div className={`min-h-screen flex flex-col items-center justify-center relative overflow-hidden ${launching && !sprintActive ? 'scale-110 opacity-0' : ''}`}
       style={{ transition: 'all 1.2s cubic-bezier(0.4, 0, 0.2, 1)' }}>
       {/* Particle grid background */}
       <div className="absolute inset-0 opacity-10" style={{
@@ -2953,43 +2964,101 @@ function MissionControl({ onLaunch, isLive }) {
         )}
       </div>
 
-      {/* Input */}
-      <div className="relative z-10 w-full max-w-xl px-6 fade-in fade-in-delay-1">
-        <div className="relative">
-          <input
-            type="text"
-            value={concept}
-            onChange={e => setConcept(e.target.value)}
-            placeholder={isLive ? "Enter your startup concept to run a live sprint..." : "Enter your startup concept..."}
-            onKeyDown={e => e.key === 'Enter' && handleLaunch()}
-            className="w-full px-6 py-4 rounded-xl bg-slate-900/80 border border-slate-600/30 text-white text-lg placeholder-slate-500 focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 backdrop-blur-sm mono mission-input"
-            style={{ caretColor: '#6366f1' }}
-          />
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-indigo-500 animate-pulse"></div>
-        </div>
-        {/* Error message */}
-        {launchError && (
-          <div className="mt-3 text-red-400 text-sm mono text-center">{launchError}</div>
-        )}
-        {/* Server hint when not live */}
-        {!isLive && (
-          <div className="mt-3 text-slate-600 text-xs mono text-center">
-            Start the server with <span className="text-slate-400">python main.py --serve</span> for live mode
+      {/* ── ACTIVE SPRINT VIEW (locked state) ── */}
+      {sprintActive ? (
+        <div className="relative z-10 w-full max-w-xl px-6 flex flex-col items-center gap-6 fade-in">
+          {/* Sprint status badge */}
+          <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-yellow-500/10 border border-yellow-500/30">
+            <svg className="w-4 h-4 text-yellow-400 animate-spin" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            <span className="text-sm mono font-semibold text-yellow-300 tracking-wide">SPRINT IN PROGRESS</span>
           </div>
-        )}
-      </div>
 
-      {/* Launch button */}
-      <div className="relative z-10 mt-8 fade-in fade-in-delay-2">
-        <button onClick={handleLaunch}
-          disabled={launching}
-          className="group relative px-10 py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-lg transition-all hover:scale-105 hover:shadow-[0_0_40px_rgba(99,102,241,0.3)] disabled:opacity-50 disabled:hover:scale-100">
-          <span className="relative z-10 flex items-center gap-2">
-            <span className="text-xl">&#9673;</span>
-            {sprintStatus === 'starting' ? 'STARTING...' : isLive ? 'LAUNCH LIVE SPRINT' : 'LAUNCH SPRINT'}
-          </span>
-        </button>
-      </div>
+          {/* Locked concept display */}
+          <div className="w-full">
+            <div className="relative flex items-center px-6 py-4 rounded-xl bg-slate-900/60 border border-slate-600/20">
+              <span className="text-slate-500 mr-3 text-lg mono select-none">&gt;</span>
+              <span className="flex-1 text-slate-400 text-lg mono truncate">{displayConcept || 'Startup concept'}</span>
+              <span className="ml-2 text-slate-600 text-xs mono">LOCKED</span>
+            </div>
+          </div>
+
+          {/* Progress bar */}
+          <div className="w-full">
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"
+                  style={{ width: '60%', animation: 'mc-progress-pulse 2s ease-in-out infinite' }}></div>
+              </div>
+              <span className="text-xs text-slate-500 mono whitespace-nowrap">Agents working...</span>
+            </div>
+          </div>
+
+          {/* New Sprint button */}
+          <button onClick={handleNewSprintClick}
+            className="px-8 py-3 rounded-xl text-sm font-semibold text-slate-300 bg-slate-800 border border-slate-700 hover:bg-slate-700 hover:text-white transition-all hover:scale-105">
+            New Sprint
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* ── IDLE VIEW (normal input + launch) ── */}
+
+          {/* Input */}
+          <div className="relative z-10 w-full max-w-xl px-6 fade-in fade-in-delay-1">
+            <div className="relative">
+              <input
+                type="text"
+                value={concept}
+                onChange={e => setConcept(e.target.value)}
+                placeholder={isLive ? "Enter your startup concept to run a live sprint..." : "Enter your startup concept..."}
+                onKeyDown={e => e.key === 'Enter' && handleLaunch()}
+                className="w-full px-6 py-4 rounded-xl bg-slate-900/80 border border-slate-600/30 text-white text-lg placeholder-slate-500 focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 backdrop-blur-sm mono mission-input"
+                style={{ caretColor: '#6366f1' }}
+              />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-indigo-500 animate-pulse"></div>
+            </div>
+            {/* Error message */}
+            {launchError && (
+              <div className="mt-3 text-red-400 text-sm mono text-center">{launchError}</div>
+            )}
+            {/* Server hint when not live */}
+            {!isLive && (
+              <div className="mt-3 text-slate-600 text-xs mono text-center">
+                Start the server with <span className="text-slate-400">python main.py --serve</span> for live mode
+              </div>
+            )}
+          </div>
+
+          {/* Launch button */}
+          <div className="relative z-10 mt-8 fade-in fade-in-delay-2">
+            <button onClick={handleLaunch}
+              disabled={launching}
+              className="group relative px-10 py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-lg transition-all hover:scale-105 hover:shadow-[0_0_40px_rgba(99,102,241,0.3)] disabled:opacity-50 disabled:hover:scale-100">
+              <span className="relative z-10 flex items-center gap-2">
+                <span className="text-xl">&#9673;</span>
+                {sprintPhase === 'starting' ? 'STARTING...' : isLive ? 'LAUNCH LIVE SPRINT' : 'LAUNCH SPRINT'}
+              </span>
+            </button>
+          </div>
+
+          {/* Warp effect overlay */}
+          {launching && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/90 animate-pulse">
+              <div className="text-center">
+                <div className="mono text-indigo-400 text-sm mb-2">
+                  {isLive ? `$ ghost-board sprint --live --concept "${concept || 'startup'}"` : '$ ghost-board sprint --launch'}
+                </div>
+                <div className="mono text-green-400 text-xs animate-pulse">
+                  {sprintPhase === 'running' ? 'Sprint started! Connecting to live feed...' : 'Initializing agents...'}
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
       {/* Tagline */}
       <div className="relative z-10 mt-10 text-center fade-in fade-in-delay-3">
@@ -3000,19 +3069,12 @@ function MissionControl({ onLaunch, isLive }) {
         </p>
       </div>
 
-      {/* Warp effect overlay */}
-      {launching && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/90 animate-pulse">
-          <div className="text-center">
-            <div className="mono text-indigo-400 text-sm mb-2">
-              {isLive ? `$ ghost-board sprint --live --concept "${concept || 'startup'}"` : '$ ghost-board sprint --launch'}
-            </div>
-            <div className="mono text-green-400 text-xs animate-pulse">
-              {sprintStatus === 'running' ? 'Sprint started! Connecting to live feed...' : 'Initializing agents...'}
-            </div>
-          </div>
-        </div>
-      )}
+      <style>{`
+        @keyframes mc-progress-pulse {
+          0%, 100% { opacity: 1; width: 40%; }
+          50% { opacity: 0.7; width: 70%; }
+        }
+      `}</style>
     </div>
   );
 }

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import os
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
@@ -34,6 +37,69 @@ class SimulationResult(BaseModel):
     rounds: list[SimulationRound] = Field(default_factory=list)
     final_stances: dict[str, str] = Field(default_factory=dict)
     total_messages: int = 0
+
+
+SimulationProgressCallback = Callable[[str, dict[str, Any]], Awaitable[None] | None]
+
+
+async def _emit_progress(
+    progress_callback: SimulationProgressCallback | None,
+    event_type: str,
+    payload: dict[str, Any],
+) -> None:
+    """Emit live simulation progress if a callback is registered."""
+    if progress_callback is None:
+        return
+    maybe_awaitable = progress_callback(event_type, payload)
+    if inspect.isawaitable(maybe_awaitable):
+        await maybe_awaitable
+
+
+def _message_to_stream_payload(
+    persona: MarketPersona,
+    message: SimulationMessage,
+    stance: str,
+) -> dict[str, Any]:
+    """Convert a simulation message into a live-stream payload for the UI."""
+    geo = persona.geographic_location
+    return {
+        "name": persona.name,
+        "archetype": persona.archetype,
+        "lat": geo.lat,
+        "lng": geo.lng,
+        "city": geo.city,
+        "country": geo.country,
+        "company": persona.real_company_reference,
+        "round": message.round_num,
+        "content": message.content,
+        "post": message.content,
+        "sentiment": message.sentiment,
+        "stance": stance,
+        "references": list(message.references),
+        "stance_change": message.stance_change,
+        "messages": [
+            {
+                "round": message.round_num,
+                "content": message.content,
+                "post": message.content,
+                "sentiment": message.sentiment,
+                "references": list(message.references),
+                "stance_change": message.stance_change,
+            }
+        ],
+    }
+
+
+def _round_sentiment_by_archetype(messages: list[SimulationMessage]) -> dict[str, float]:
+    """Aggregate average sentiment by archetype for a round."""
+    sentiment_by_archetype: dict[str, list[float]] = {}
+    for message in messages:
+        sentiment_by_archetype.setdefault(message.archetype, []).append(message.sentiment)
+    return {
+        archetype: sum(values) / len(values)
+        for archetype, values in sentiment_by_archetype.items()
+        if values
+    }
 
 
 def _build_reference_context(
@@ -113,6 +179,7 @@ async def run_simulation(
     num_rounds: int = 3,
     client: AsyncOpenAI | None = None,
     prior_messages: list[SimulationMessage] | None = None,
+    progress_callback: SimulationProgressCallback | None = None,
 ) -> SimulationResult:
     """Run a turn-based social simulation.
 
@@ -133,6 +200,17 @@ async def run_simulation(
     all_rounds: list[SimulationRound] = []
     message_history: list[SimulationMessage] = list(prior_messages or [])
     current_stances: dict[str, str] = {p.name: p.initial_stance for p in personas}
+
+    await _emit_progress(
+        progress_callback,
+        "simulation_start",
+        {
+            "startup_idea": startup_idea,
+            "rounds": num_rounds,
+            "total_llm_agents": len(personas),
+            "total_agents": len(personas),
+        },
+    )
 
     for round_num in range(1, num_rounds + 1):
         round_messages: list[SimulationMessage] = []
@@ -158,18 +236,63 @@ async def run_simulation(
             elif msg.stance_change == "more_negative":
                 current_stances[persona.name] = _shift_stance(current_stances[persona.name], positive=False)
 
+            await _emit_progress(
+                progress_callback,
+                "persona_post",
+                _message_to_stream_payload(
+                    persona=persona,
+                    message=msg,
+                    stance=current_stances.get(persona.name, persona.initial_stance),
+                ),
+            )
+
         avg_sentiment = sum(m.sentiment for m in round_messages) / max(len(round_messages), 1)
+        sentiment_by_archetype = _round_sentiment_by_archetype(round_messages)
+
         all_rounds.append(SimulationRound(
             round_num=round_num,
             messages=round_messages,
             avg_sentiment=avg_sentiment,
         ))
 
-    return SimulationResult(
+        await _emit_progress(
+            progress_callback,
+            "simulation_round",
+            {
+                "round_number": round_num,
+                "avg_sentiment": avg_sentiment,
+                "sentiment_by_archetype": sentiment_by_archetype,
+                "posts": [
+                    {
+                        "persona": message.persona_name,
+                        "archetype": message.archetype,
+                        "content": message.content,
+                        "sentiment": message.sentiment,
+                        "references": list(message.references),
+                        "stance_change": message.stance_change,
+                    }
+                    for message in round_messages
+                ],
+            },
+        )
+
+    result = SimulationResult(
         rounds=all_rounds,
         final_stances=current_stances,
         total_messages=len(message_history),
     )
+
+    await _emit_progress(
+        progress_callback,
+        "simulation_complete",
+        {
+            "rounds": len(result.rounds),
+            "total_messages": result.total_messages,
+            "final_stances": dict(result.final_stances),
+        },
+    )
+
+    return result
 
 
 async def _persona_turn(

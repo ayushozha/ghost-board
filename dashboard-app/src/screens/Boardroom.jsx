@@ -345,6 +345,7 @@ export default function Boardroom({ runId, onEvent }) {
   const reconnectAttemptsRef = useRef(0);
   const discussionRef = useRef([]);
   const mountedRef = useRef(true);
+  const intentionalCloseRef = useRef(null);
 
   // Keep discussion ref in sync
   useEffect(() => { discussionRef.current = discussion; }, [discussion]);
@@ -488,22 +489,24 @@ export default function Boardroom({ runId, onEvent }) {
       }
     } catch { /* fall through */ }
 
-    try {
-      // Try static files
-      const data = await loadStaticDiscussion();
-      const entries = normalizeDiscussion(data);
-      if (mountedRef.current && entries.length > 0) {
-        const currentLen = discussionRef.current.length;
-        if (entries.length > currentLen) {
-          const newEntries = entries.slice(currentLen);
-          newEntries.forEach(e => processEvent(e));
-        } else if (currentLen === 0) {
-          setDiscussion(entries);
+    if (runId === 'demo' || runId === 'latest') {
+      try {
+        // Static outputs are only valid for the demo/latest views.
+        const data = await loadStaticDiscussion();
+        const entries = normalizeDiscussion(data);
+        if (mountedRef.current && entries.length > 0) {
+          const currentLen = discussionRef.current.length;
+          if (entries.length > currentLen) {
+            const newEntries = entries.slice(currentLen);
+            newEntries.forEach(e => processEvent(e));
+          } else if (currentLen === 0) {
+            setDiscussion(entries);
+          }
+          setLoading(false);
+          return;
         }
-        setLoading(false);
-        return;
-      }
-    } catch { /* nothing worked */ }
+      } catch { /* nothing worked */ }
+    }
 
     if (mountedRef.current) setLoading(false);
   }, [runId, processEvent]);
@@ -529,6 +532,7 @@ export default function Boardroom({ runId, onEvent }) {
 
     // Close existing connection
     if (wsRef.current) {
+      intentionalCloseRef.current = wsRef.current;
       wsRef.current.close();
       wsRef.current = null;
     }
@@ -544,6 +548,10 @@ export default function Boardroom({ runId, onEvent }) {
           processWsEvent(event);
         },
         onClose: () => {
+          if (intentionalCloseRef.current === ws) {
+            intentionalCloseRef.current = null;
+            return;
+          }
           if (!mountedRef.current) return;
           setWsStatus('disconnected');
           wsRef.current = null;
@@ -595,6 +603,7 @@ export default function Boardroom({ runId, onEvent }) {
     return () => {
       // Cleanup
       if (wsRef.current) {
+        intentionalCloseRef.current = wsRef.current;
         wsRef.current.close();
         wsRef.current = null;
       }

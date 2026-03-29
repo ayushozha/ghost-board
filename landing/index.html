@@ -1,1379 +1,400 @@
 <!DOCTYPE html>
-<html lang="en" class="scroll-smooth">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ghost Board - Autonomous AI Executive Team</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-  tailwind.config = {
-    theme: {
-      extend: {
-        fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
-        colors: {
-          ghost: { 50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe', 300: '#a5b4fc', 400: '#818cf8', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca', 800: '#3730a3', 900: '#312e81', 950: '#1e1b4b' },
-          surface: { 0: '#06060a', 1: '#0a0a12', 2: '#0f0f1a', 3: '#141422', 4: '#1a1a2e' }
-        }
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>GHOST BOARD | Autonomous Executive Systems</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800;900&amp;family=Space+Grotesk:wght@300;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-container-high": "#2a2a2a",
+              "surface-container-low": "#1c1b1b",
+              "outline": "#919191",
+              "on-surface-variant": "#c6c6c6",
+              "on-primary-fixed": "#ffffff",
+              "primary-fixed-dim": "#004f54",
+              "on-surface": "#e5e2e1",
+              "on-secondary": "#1b1b1f",
+              "surface-tint": "#00dbe9",
+              "error": "#ffb4ab",
+              "background": "#131313",
+              "inverse-on-surface": "#313030",
+              "surface-dim": "#131313",
+              "on-background": "#e5e2e1",
+              "primary": "#ffffff",
+              "tertiary-container": "#00a65e",
+              "on-secondary-container": "#e4e1e7",
+              "error-container": "#93000a",
+              "on-error-container": "#ffdad6",
+              "secondary-fixed-dim": "#acaab0",
+              "outline-variant": "#474747",
+              "on-primary": "#002022",
+              "on-tertiary-fixed-variant": "#5bffa1",
+              "tertiary-fixed-dim": "#00522c",
+              "secondary-fixed": "#c8c5cb",
+              "on-secondary-fixed-variant": "#3b3b3f",
+              "on-tertiary": "#00210e",
+              "tertiary-fixed": "#006d3c",
+              "surface-container-lowest": "#0e0e0e",
+              "surface-container": "#201f1f",
+              "surface-bright": "#3a3939",
+              "inverse-surface": "#e5e2e1",
+              "surface": "#131313",
+              "on-primary-container": "#000000",
+              "on-error": "#690005",
+              "surface-variant": "#353534",
+              "on-tertiary-container": "#000000",
+              "on-secondary-fixed": "#1b1b1f",
+              "inverse-primary": "#006970",
+              "surface-container-highest": "#353534",
+              "primary-fixed": "#006970",
+              "tertiary": "#5bffa1",
+              "on-primary-fixed-variant": "#7df4ff",
+              "primary-container": "#00ebf9",
+              "on-tertiary-fixed": "#ffffff",
+              "secondary-container": "#47464b",
+              "secondary": "#c8c5cb"
+            },
+            fontFamily: {
+              "headline": ["Inter"],
+              "body": ["Inter"],
+              "label": ["Space Grotesk"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
       }
-    }
-  }
-</script>
+    </script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
-
-  /* === Base === */
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Inter', system-ui, sans-serif; }
-  code, .mono { font-family: 'JetBrains Mono', monospace; }
-
-  /* === Scrollbar === */
-  ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-track { background: #06060a; }
-  ::-webkit-scrollbar-thumb { background: #312e81; border-radius: 3px; }
-
-  /* === Hero gradient === */
-  @keyframes hero-gradient {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
-  }
-  .hero-bg {
-    background: linear-gradient(-45deg, #06060a, #1e1b4b, #0c1445, #1a0533, #06060a);
-    background-size: 400% 400%;
-    animation: hero-gradient 25s ease infinite;
-  }
-
-  /* === Grid background === */
-  .grid-bg {
-    background-image:
-      linear-gradient(rgba(99,102,241,0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(99,102,241,0.03) 1px, transparent 1px);
-    background-size: 60px 60px;
-  }
-
-  /* === Floating animation === */
-  @keyframes float {
-    0%, 100% { transform: translateY(0px); }
-    50% { transform: translateY(-12px); }
-  }
-  .float { animation: float 4s ease-in-out infinite; }
-  .float-d1 { animation: float 4s ease-in-out infinite 0.5s; }
-  .float-d2 { animation: float 4s ease-in-out infinite 1.0s; }
-  .float-d3 { animation: float 4s ease-in-out infinite 1.5s; }
-  .float-d4 { animation: float 4s ease-in-out infinite 2.0s; }
-
-  /* === Pulse glow === */
-  @keyframes pulse-glow {
-    0%, 100% { box-shadow: 0 0 20px rgba(99,102,241,0.3), 0 0 60px rgba(99,102,241,0.1); }
-    50% { box-shadow: 0 0 40px rgba(99,102,241,0.5), 0 0 80px rgba(99,102,241,0.2); }
-  }
-  .pulse-glow { animation: pulse-glow 3s ease infinite; }
-
-  /* === Title shimmer === */
-  @keyframes shimmer {
-    0% { background-position: -200% center; }
-    100% { background-position: 200% center; }
-  }
-  .text-shimmer {
-    background: linear-gradient(90deg, #22d3ee, #818cf8, #a855f7, #818cf8, #22d3ee);
-    background-size: 200% auto;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    animation: shimmer 4s linear infinite;
-  }
-  .text-gradient-hero {
-    background: linear-gradient(135deg, #22d3ee, #818cf8, #a855f7);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  /* === Reveal on scroll === */
-  .reveal {
-    opacity: 0;
-    transform: translateY(40px);
-    transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  .reveal.visible {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  .reveal-delay-1 { transition-delay: 0.1s; }
-  .reveal-delay-2 { transition-delay: 0.2s; }
-  .reveal-delay-3 { transition-delay: 0.3s; }
-  .reveal-delay-4 { transition-delay: 0.4s; }
-
-  /* === Particles === */
-  .particle {
-    position: absolute;
-    border-radius: 50%;
-    pointer-events: none;
-    background: radial-gradient(circle, rgba(99,102,241,0.6), transparent);
-  }
-  @keyframes particle-drift {
-    0% { transform: translateY(0) translateX(0); opacity: 0; }
-    10% { opacity: 1; }
-    90% { opacity: 1; }
-    100% { transform: translateY(-100vh) translateX(50px); opacity: 0; }
-  }
-
-  /* === Connection line pulse === */
-  @keyframes line-pulse {
-    0%, 100% { stroke-opacity: 0.15; }
-    50% { stroke-opacity: 0.5; }
-  }
-  .line-pulse { animation: line-pulse 3s ease infinite; }
-
-  /* === Typing cursor === */
-  @keyframes blink-cursor {
-    0%, 100% { border-color: #818cf8; }
-    50% { border-color: transparent; }
-  }
-  .typing-cursor {
-    border-right: 2px solid #818cf8;
-    animation: blink-cursor 1s step-end infinite;
-    padding-right: 2px;
-  }
-
-  /* === Glass morphism card === */
-  .glass {
-    background: rgba(15, 15, 26, 0.6);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(99, 102, 241, 0.1);
-  }
-  .glass:hover {
-    border-color: rgba(99, 102, 241, 0.25);
-    background: rgba(15, 15, 26, 0.75);
-  }
-
-  /* === Flow connector arrow === */
-  .flow-arrow {
-    position: relative;
-  }
-  .flow-arrow::after {
-    content: '';
-    position: absolute;
-    right: -28px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 24px;
-    height: 2px;
-    background: linear-gradient(90deg, rgba(99,102,241,0.6), rgba(99,102,241,0.1));
-  }
-  .flow-arrow::before {
-    content: '';
-    position: absolute;
-    right: -28px;
-    top: 50%;
-    transform: translateY(-50%) rotate(45deg);
-    width: 8px;
-    height: 8px;
-    border-top: 2px solid rgba(99,102,241,0.4);
-    border-right: 2px solid rgba(99,102,241,0.4);
-  }
-
-  /* === Stat counter === */
-  @keyframes count-up {
-    from { opacity: 0; transform: scale(0.5); }
-    to { opacity: 1; transform: scale(1); }
-  }
-  .stat-reveal {
-    animation: count-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  }
-
-  /* === Glow ring on architecture === */
-  @keyframes glow-ring {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.4); }
-    50% { box-shadow: 0 0 0 8px rgba(99,102,241,0); }
-  }
-  .glow-ring { animation: glow-ring 2.5s ease infinite; }
-
-  /* === Blocker flash === */
-  @keyframes blocker-flash {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
-    50% { box-shadow: 0 0 20px 4px rgba(239,68,68,0.3); }
-  }
-  .blocker-flash { animation: blocker-flash 2s ease infinite; }
-
-  /* === Smooth nav === */
-  .nav-blur {
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-  }
-
-  /* === Live badge === */
-  .live-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 12px;
-    border-radius: 9999px;
-    background: rgba(34, 197, 94, 0.1);
-    border: 1px solid rgba(34, 197, 94, 0.25);
-    font-size: 11px;
-    font-weight: 600;
-    color: #22c55e;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    opacity: 0;
-    transform: translateY(-4px);
-    transition: opacity 0.5s ease, transform 0.5s ease;
-  }
-  .live-badge.connected {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  .live-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #22c55e;
-    animation: live-pulse 1.5s ease-in-out infinite;
-  }
-  @keyframes live-pulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.5); }
-    50% { box-shadow: 0 0 0 5px rgba(34,197,94,0); }
-  }
-
-  /* === Stat update flash === */
-  @keyframes stat-flash {
-    0% { color: #22c55e; text-shadow: 0 0 20px rgba(34,197,94,0.5); }
-    100% { text-shadow: none; }
-  }
-  .stat-updated {
-    animation: stat-flash 1.2s ease-out forwards;
-  }
-
-  /* === Gradient CTA button === */
-  .cta-gradient {
-    background: linear-gradient(135deg, #06b6d4, #818cf8, #a855f7);
-    background-size: 200% 200%;
-    animation: cta-gradient-shift 4s ease infinite, cta-glow-pulse 2.5s ease-in-out infinite;
-    transition: all 0.3s ease;
-    box-shadow: 0 0 20px rgba(99,102,241,0.3), 0 0 40px rgba(168,85,247,0.15), 0 0 60px rgba(6,182,212,0.1);
-  }
-  .cta-gradient:hover {
-    box-shadow: 0 0 40px rgba(99,102,241,0.6), 0 0 80px rgba(168,85,247,0.4), 0 0 120px rgba(6,182,212,0.25);
-    transform: translateY(-3px) scale(1.04);
-  }
-  @keyframes cta-gradient-shift {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
-  }
-  @keyframes cta-glow-pulse {
-    0%, 100% { box-shadow: 0 0 20px rgba(99,102,241,0.3), 0 0 40px rgba(168,85,247,0.15); }
-    50% { box-shadow: 0 0 35px rgba(99,102,241,0.5), 0 0 70px rgba(168,85,247,0.3), 0 0 100px rgba(6,182,212,0.15); }
-  }
-
-  /* === Dramatic number styling === */
-  .number-glow-green {
-    text-shadow: 0 0 30px rgba(34,197,94,0.4), 0 0 60px rgba(34,197,94,0.2);
-  }
-  .number-glow-red {
-    text-shadow: 0 0 20px rgba(239,68,68,0.2);
-  }
-  .number-dramatic {
-    letter-spacing: -0.03em;
-  }
-
-  /* === Mobile menu === */
-  .mobile-menu {
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.3s ease-out, opacity 0.2s ease-out;
-    opacity: 0;
-  }
-  .mobile-menu.open {
-    max-height: 400px;
-    opacity: 1;
-  }
-</style>
+      body { background-color: #0e0e0e; color: #e5e2e1; scroll-behavior: smooth; }
+      .glass-panel { background: rgba(53, 53, 52, 0.6); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.05); }
+      .depth-gradient-text { background: linear-gradient(135deg, #ffffff 0%, #00ebf9 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+      .ghost-border { border: 1px solid rgba(71, 71, 71, 0.15); }
+      .ambient-glow { box-shadow: 0 0 40px -10px rgba(91, 255, 161, 0.1); }
+      .cyan-glow { box-shadow: 0 0 50px -15px rgba(0, 235, 249, 0.2); }
+    </style>
 </head>
-<body class="bg-surface-0 text-slate-200 overflow-x-hidden">
-
-<!-- ============================== -->
-<!--          NAVIGATION            -->
-<!-- ============================== -->
-<nav class="fixed top-0 left-0 right-0 z-50 nav-blur bg-surface-0/80 border-b border-slate-800/50">
-  <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-    <a href="#" class="flex items-center gap-2 text-white font-bold text-lg">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="text-ghost-400">
-        <rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="2"/>
-        <circle cx="9" cy="10" r="1.5" fill="currentColor"/>
-        <circle cx="15" cy="10" r="1.5" fill="currentColor"/>
-        <path d="M8 15c0 0 2 2 4 2s4-2 4-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-      </svg>
-      Ghost Board
-    </a>
-    <div class="hidden md:flex items-center gap-8 text-sm text-slate-400">
-      <a href="#how-it-works" class="hover:text-white transition-colors">How It Works</a>
-      <a href="#problem-fit" class="hover:text-white transition-colors">Problem Fit</a>
-      <a href="#architecture" class="hover:text-white transition-colors">Architecture</a>
-      <a href="#numbers" class="hover:text-white transition-colors">Numbers</a>
-      <a href="#demo" class="hover:text-white transition-colors">Demo</a>
-      <a href="http://localhost:8000" id="nav-dashboard-link" target="_blank"
-         class="px-4 py-2 rounded-lg bg-surface-3 hover:bg-surface-4 text-slate-300 hover:text-white font-medium transition-colors flex items-center gap-2">
-        <span class="w-1.5 h-1.5 rounded-full bg-ghost-400 animate-pulse"></span>
-        Dashboard
-      </a>
-      <a href="https://github.com/ayushozha/ghost-board" target="_blank" class="px-4 py-2 rounded-lg bg-ghost-600 hover:bg-ghost-500 text-white font-medium transition-colors">
-        GitHub
-      </a>
-    </div>
-    <!-- Mobile hamburger -->
-    <button id="mobile-menu-btn" class="md:hidden text-slate-400 hover:text-white transition-colors p-2" aria-label="Toggle menu">
-      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
-    </button>
-  </div>
-  <!-- Mobile menu dropdown -->
-  <div id="mobile-menu" class="mobile-menu md:hidden bg-surface-1/95 border-t border-slate-800/50 nav-blur">
-    <div class="px-6 py-4 flex flex-col gap-3 text-sm">
-      <a href="#how-it-works" class="text-slate-400 hover:text-white transition-colors py-2">How It Works</a>
-      <a href="#problem-fit" class="text-slate-400 hover:text-white transition-colors py-2">Problem Fit</a>
-      <a href="#architecture" class="text-slate-400 hover:text-white transition-colors py-2">Architecture</a>
-      <a href="#numbers" class="text-slate-400 hover:text-white transition-colors py-2">Numbers</a>
-      <a href="#demo" class="text-slate-400 hover:text-white transition-colors py-2">Demo</a>
-      <div class="flex gap-3 pt-2 border-t border-slate-800/30">
-        <a href="http://localhost:8000" target="_blank" class="px-4 py-2 rounded-lg bg-surface-3 text-slate-300 font-medium text-sm flex items-center gap-2">
-          <span class="w-1.5 h-1.5 rounded-full bg-ghost-400 animate-pulse"></span>Dashboard
-        </a>
-        <a href="https://github.com/ayushozha/ghost-board" target="_blank" class="px-4 py-2 rounded-lg bg-ghost-600 text-white font-medium text-sm">GitHub</a>
-      </div>
-    </div>
-  </div>
+<body class="font-body selection:bg-primary-container selection:text-on-primary-container overflow-x-hidden">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-[#131313]/80 backdrop-blur-xl border-b border-white/10 shadow-[0_4px_30px_rgba(0,0,0,0.1)]">
+<nav class="flex justify-between items-center w-full px-6 py-4 max-w-7xl mx-auto">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-xl text-white dark:text-[#00ebf9]" data-icon="blur_on">blur_on</span>
+<span class="text-xl font-black tracking-tighter text-white dark:text-white uppercase font-headline">GHOST BOARD</span>
+</div>
+<div class="hidden md:flex gap-8">
+<a class="font-['Inter'] tracking-tight font-bold text-sm uppercase text-[#00ebf9]" href="#">HOME</a>
+<a class="font-['Inter'] tracking-tight font-bold text-sm uppercase text-white/60 hover:text-white transition-colors" href="#">INTEL</a>
+<a class="font-['Inter'] tracking-tight font-bold text-sm uppercase text-white/60 hover:text-white transition-colors" href="#">SWARM</a>
+<a class="font-['Inter'] tracking-tight font-bold text-sm uppercase text-white/60 hover:text-white transition-colors" href="#">SECURITY</a>
+</div>
+<button class="font-['Inter'] tracking-tight font-bold text-sm uppercase text-white dark:text-[#00ebf9] hover:bg-white/5 px-4 py-2 rounded transition-all duration-300 active:scale-95">
+                ENTER DASHBOARD
+            </button>
 </nav>
-
-
-<!-- ============================== -->
-<!--            HERO                -->
-<!-- ============================== -->
-<section class="hero-bg min-h-screen flex items-center relative overflow-hidden pt-16">
-  <!-- Animated grid background -->
-  <div class="absolute inset-0 grid-bg"></div>
-
-  <!-- Floating particles -->
-  <div class="absolute inset-0" id="particles"></div>
-
-  <!-- Radial glow -->
-  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[900px] rounded-full bg-ghost-600/8 blur-3xl pointer-events-none"></div>
-  <div class="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full bg-cyan-500/5 blur-3xl pointer-events-none"></div>
-
-  <div class="max-w-6xl mx-auto px-6 relative z-10 text-center py-24">
-    <!-- Badge -->
-    <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-ghost-500/10 border border-ghost-500/20 text-ghost-400 text-xs font-medium mb-10 reveal">
-      <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-      Ralphthon SF 2026
-    </div>
-
-    <!-- Main title -->
-    <h1 class="text-7xl md:text-8xl lg:text-9xl font-black tracking-tight mb-8 leading-[0.85] reveal reveal-delay-1">
-      <span class="text-shimmer block">Ghost Board</span>
-    </h1>
-
-    <!-- Subtitle -->
-    <p class="text-xl md:text-2xl lg:text-3xl text-slate-300 font-light max-w-3xl mx-auto mb-4 reveal reveal-delay-2">
-      One command. Five executives. A full company sprint.
-    </p>
-    <p class="text-base md:text-lg text-slate-500 max-w-2xl mx-auto mb-12 reveal reveal-delay-3">
-      An autonomous AI executive team that builds, validates, and pivots a startup
-      in under 5 minutes for $0.19. Real strategy. Real code. Real compliance.
-    </p>
-
-    <!-- CTA buttons -->
-    <div class="flex flex-col items-center gap-4 mb-16 reveal reveal-delay-4">
-      <!-- Primary: Launch Live Dashboard -->
-      <a href="http://localhost:8000" id="hero-dashboard-link" target="_blank"
-         class="cta-gradient px-10 py-5 rounded-2xl text-white font-black text-xl tracking-wide flex items-center gap-3 shadow-lg">
-        <span class="w-2.5 h-2.5 rounded-full bg-white animate-pulse"></span>
-        Launch Live Dashboard
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
-      </a>
-
-      <!-- Secondary row: offline dashboard + GitHub -->
-      <div class="flex gap-4 justify-center flex-wrap">
-        <a href="../dashboard/index.html" id="hero-dashboard-offline"
-           class="px-6 py-3 rounded-xl glass text-slate-400 hover:text-white font-medium text-sm transition-all duration-300 flex items-center gap-2">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg>
-          Open Dashboard (offline)
-        </a>
-        <a href="https://github.com/ayushozha/ghost-board" target="_blank"
-           class="px-6 py-3 rounded-xl glass text-slate-400 hover:text-white font-medium text-sm transition-all duration-300 flex items-center gap-2">
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
-          View on GitHub
-        </a>
-      </div>
-    </div>
-
-    <!-- Terminal preview -->
-    <div class="max-w-2xl mx-auto text-left reveal">
-      <div class="rounded-2xl glass p-1">
-        <div class="rounded-xl bg-surface-1 p-6">
-          <div class="flex items-center gap-2 mb-5">
-            <div class="w-3 h-3 rounded-full bg-red-500/80"></div>
-            <div class="w-3 h-3 rounded-full bg-yellow-500/80"></div>
-            <div class="w-3 h-3 rounded-full bg-green-500/80"></div>
-            <span class="ml-3 text-xs text-slate-600 mono">ghost-board</span>
-          </div>
-          <pre class="text-sm mono text-slate-300 leading-relaxed whitespace-pre-wrap"><span class="text-green-400">$</span> python main.py --demo
-
-<span class="text-ghost-400 font-semibold">Phase 1: Strategy + Build</span>
-  <span class="text-yellow-400">CEO</span>  Setting strategy: API-first B2B stablecoin payouts
-  <span class="text-blue-400">CTO</span>  <span class="text-green-400">Done</span>  <span class="text-emerald-400">CFO</span>  <span class="text-green-400">Done</span>  <span class="text-purple-400">CMO</span>  <span class="text-green-400">Done</span>  <span class="text-red-400">Legal</span>  <span class="text-green-400">Done</span>
-
-  <span class="text-red-500 font-bold">! Legal BLOCKER: MSB licensing in 50 states ($2M+)</span>
-  <span class="text-yellow-400">CEO</span>  <span class="text-yellow-300">PIVOT</span>: B2B only, 5 states, reduce to $50K
-
-<span class="text-ghost-400 font-semibold">Phase 2: Market Simulation</span>
-  50 LLM personas + 1,000,000 lightweight agents
-  Rounds: 5  |  Sentiment: <span class="text-green-400">+0.42</span>  |  Post-sim pivot: <span class="text-yellow-300">Yes</span>
-
-<span class="text-green-400 font-bold">Sprint Complete!</span>
-  Events: 35  |  Pivots: 3  |  Cost: <span class="text-green-400">$0.19</span>
-  Human equivalent: <span class="text-slate-500">$15,000</span>  |  <span class="text-green-400 font-bold">77,359x cheaper<span class="typing-cursor"> </span></span></pre>
-        </div>
-      </div>
-    </div>
-
-  </div>
-
-  <!-- Scroll indicator -->
-  <div class="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-slate-600 text-xs">
-    <span>Scroll to explore</span>
-    <svg class="w-4 h-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
-  </div>
+</header>
+<main>
+<!-- Section 1: Hero -->
+<section class="relative min-h-screen flex flex-col items-center justify-center pt-24 px-6 overflow-hidden">
+<div class="absolute inset-0 z-0">
+<img alt="background" class="w-full h-full object-cover opacity-20" data-alt="deep space atmospheric visualization with subtle cyan digital data points and ethereal shifting smoke textures on black background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBaN9lm_2MlYAyJd3VT1RSjSYLH5bpxAO7yGCDTF9dtO2Dic7gsSnPy_pX-vxQIacXE13pRCH4LZSfDZotqiAp_jYd1RbUgh4zaCASg47sP5z4xHKGzBa3TFvxoTltqyodGbTeNyq_IZiIoqYr3pRL3iRlyXp8uoBVQ6OIHvYaAoxc1B9EZHRwz0Gnc1itNkbJdALAfJizJU2jxm5fSIbHn_wwhG2QyhYM74Q6cXRzuAayj5dae73kCAEUc3ihQiUot-9Mq7hgN_X8"/>
+<div class="absolute inset-0 bg-gradient-to-b from-transparent via-[#0e0e0e]/80 to-[#0e0e0e]"></div>
+</div>
+<div class="relative z-10 text-center max-w-5xl mx-auto">
+<label class="font-label text-sm tracking-[0.3em] text-tertiary mb-6 block uppercase">Autonomous Executive Systems</label>
+<h1 class="font-headline text-6xl md:text-8xl font-black tracking-tighter mb-8 leading-[0.9] depth-gradient-text uppercase">
+                    Autonomous<br/>Boardroom.
+                </h1>
+<p class="font-body text-xl text-on-surface-variant max-w-2xl mx-auto mb-12 leading-relaxed">
+                    A high-frequency cognitive stack powered by 5 specialized agents orchestrating over 1M market nodes with zero-latency execution.
+                </p>
+<div class="flex flex-col md:flex-row gap-6 justify-center items-center">
+<button class="px-10 py-5 bg-primary text-on-primary font-bold rounded-md hover:bg-primary-container transition-all duration-500 cyan-glow uppercase text-sm tracking-widest">
+                        INITIATE SIMULATION
+                    </button>
+<button class="px-10 py-5 glass-panel text-white font-bold rounded-md hover:bg-white/10 transition-all duration-300 ghost-border uppercase text-sm tracking-widest">
+                        VIEW WHITEPAPER
+                    </button>
+</div>
+</div>
 </section>
-
-
-<!-- ============================== -->
-<!--        HOW IT WORKS            -->
-<!-- ============================== -->
-<section id="how-it-works" class="py-32 px-6 relative">
-  <div class="absolute inset-0 grid-bg"></div>
-  <div class="max-w-7xl mx-auto relative z-10">
-    <div class="text-center mb-20">
-      <h2 class="text-4xl md:text-5xl font-black mb-4 reveal">How Ghost Board Works</h2>
-      <p class="text-slate-400 text-lg max-w-2xl mx-auto reveal reveal-delay-1">Five steps. Two feedback loops. Full autonomy. No human in the loop.</p>
-    </div>
-
-    <!-- 5-step flow -->
-    <div class="flex flex-col lg:flex-row items-center justify-center gap-4 lg:gap-0 mb-16">
-
-      <!-- Step 1: Input -->
-      <div class="flex flex-col items-center text-center w-full lg:w-48 reveal">
-        <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-ghost-500/20 to-ghost-700/20 border border-ghost-500/30 flex items-center justify-center text-3xl mb-4 float glow-ring">
-          <svg class="w-9 h-9 text-ghost-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg>
-        </div>
-        <h3 class="font-bold text-white text-sm mb-1">Input Concept</h3>
-        <p class="text-xs text-slate-500">"Stablecoin payout API for gig workers"</p>
-      </div>
-
-      <!-- Arrow -->
-      <div class="hidden lg:flex items-center px-2 reveal reveal-delay-1">
-        <svg class="w-10 h-6 text-ghost-500/40" viewBox="0 0 40 24"><line x1="0" y1="12" x2="34" y2="12" stroke="currentColor" stroke-width="2"/><polygon points="34,6 40,12 34,18" fill="currentColor"/></svg>
-      </div>
-      <div class="lg:hidden reveal reveal-delay-1">
-        <svg class="w-6 h-10 text-ghost-500/40" viewBox="0 0 24 40"><line x1="12" y1="0" x2="12" y2="34" stroke="currentColor" stroke-width="2"/><polygon points="6,34 12,40 18,34" fill="currentColor"/></svg>
-      </div>
-
-      <!-- Step 2: Boardroom -->
-      <div class="flex flex-col items-center text-center w-full lg:w-48 reveal reveal-delay-1">
-        <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-yellow-500/20 to-amber-700/20 border border-yellow-500/30 flex items-center justify-center text-3xl mb-4 float-d1">
-          <svg class="w-9 h-9 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"/></svg>
-        </div>
-        <h3 class="font-bold text-white text-sm mb-1">AI Boardroom</h3>
-        <p class="text-xs text-slate-500">5 executives build concurrently via event bus</p>
-      </div>
-
-      <!-- Arrow -->
-      <div class="hidden lg:flex items-center px-2 reveal reveal-delay-2">
-        <svg class="w-10 h-6 text-ghost-500/40" viewBox="0 0 40 24"><line x1="0" y1="12" x2="34" y2="12" stroke="currentColor" stroke-width="2"/><polygon points="34,6 40,12 34,18" fill="currentColor"/></svg>
-      </div>
-      <div class="lg:hidden reveal reveal-delay-2">
-        <svg class="w-6 h-10 text-ghost-500/40" viewBox="0 0 24 40"><line x1="12" y1="0" x2="12" y2="34" stroke="currentColor" stroke-width="2"/><polygon points="6,34 12,40 18,34" fill="currentColor"/></svg>
-      </div>
-
-      <!-- Step 3: Simulation -->
-      <div class="flex flex-col items-center text-center w-full lg:w-48 reveal reveal-delay-2">
-        <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-700/20 border border-cyan-500/30 flex items-center justify-center text-3xl mb-4 float-d2">
-          <svg class="w-9 h-9 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418"/></svg>
-        </div>
-        <h3 class="font-bold text-white text-sm mb-1">Market Simulation</h3>
-        <p class="text-xs text-slate-500">1M+ agents stress-test the product</p>
-      </div>
-
-      <!-- Arrow -->
-      <div class="hidden lg:flex items-center px-2 reveal reveal-delay-3">
-        <svg class="w-10 h-6 text-red-500/40" viewBox="0 0 40 24"><line x1="0" y1="12" x2="34" y2="12" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3"/><polygon points="34,6 40,12 34,18" fill="currentColor"/></svg>
-      </div>
-      <div class="lg:hidden reveal reveal-delay-3">
-        <svg class="w-6 h-10 text-red-500/40" viewBox="0 0 24 40"><line x1="12" y1="0" x2="12" y2="34" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3"/><polygon points="6,34 12,40 18,34" fill="currentColor"/></svg>
-      </div>
-
-      <!-- Step 4: Pivot -->
-      <div class="flex flex-col items-center text-center w-full lg:w-48 reveal reveal-delay-3">
-        <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-red-500/20 to-orange-700/20 border border-red-500/30 flex items-center justify-center text-3xl mb-4 float-d3 blocker-flash">
-          <svg class="w-9 h-9 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
-        </div>
-        <h3 class="font-bold text-white text-sm mb-1">Pivot</h3>
-        <p class="text-xs text-slate-500">CEO pivots strategy, cascades to all agents</p>
-      </div>
-
-      <!-- Arrow -->
-      <div class="hidden lg:flex items-center px-2 reveal reveal-delay-4">
-        <svg class="w-10 h-6 text-green-500/40" viewBox="0 0 40 24"><line x1="0" y1="12" x2="34" y2="12" stroke="currentColor" stroke-width="2"/><polygon points="34,6 40,12 34,18" fill="currentColor"/></svg>
-      </div>
-      <div class="lg:hidden reveal reveal-delay-4">
-        <svg class="w-6 h-10 text-green-500/40" viewBox="0 0 24 40"><line x1="12" y1="0" x2="12" y2="34" stroke="currentColor" stroke-width="2"/><polygon points="6,34 12,40 18,34" fill="currentColor"/></svg>
-      </div>
-
-      <!-- Step 5: Artifacts -->
-      <div class="flex flex-col items-center text-center w-full lg:w-48 reveal reveal-delay-4">
-        <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-green-500/20 to-emerald-700/20 border border-green-500/30 flex items-center justify-center text-3xl mb-4 float-d4">
-          <svg class="w-9 h-9 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z"/></svg>
-        </div>
-        <h3 class="font-bold text-white text-sm mb-1">Final Artifacts</h3>
-        <p class="text-xs text-slate-500">Code, financials, GTM, compliance -- all real</p>
-      </div>
-    </div>
-
-    <!-- Detail cards -->
-    <div class="grid md:grid-cols-3 gap-6 mt-12">
-      <div class="rounded-2xl glass p-8 reveal transition-all duration-300 hover:scale-[1.02]">
-        <div class="text-ghost-400 font-bold text-xs uppercase tracking-wider mb-4">Inner Loop</div>
-        <h3 class="text-lg font-bold mb-3 text-white">Async Event Bus</h3>
-        <p class="text-slate-400 text-sm leading-relaxed">
-          Five agents communicate via typed pub/sub events. When Legal publishes a BLOCKER,
-          CEO's callback fires instantly. The pivot cascades to CTO, CFO, and CMO
-          who rebuild their artifacts in parallel.
-        </p>
-      </div>
-      <div class="rounded-2xl glass p-8 reveal reveal-delay-1 transition-all duration-300 hover:scale-[1.02]">
-        <div class="text-red-400 font-bold text-xs uppercase tracking-wider mb-4">Pivot Engine</div>
-        <h3 class="text-lg font-bold mb-3 text-white">Real Compliance Blockers</h3>
-        <p class="text-slate-400 text-sm leading-relaxed">
-          Legal agent uses OpenAI web search to cite real CFPB, FinCEN, and SEC regulations.
-          Every blocker includes URLs to actual legal text. CEO reasons through trade-offs
-          and pivots strategy accordingly.
-        </p>
-      </div>
-      <div class="rounded-2xl glass p-8 reveal reveal-delay-2 transition-all duration-300 hover:scale-[1.02]">
-        <div class="text-cyan-400 font-bold text-xs uppercase tracking-wider mb-4">Outer Loop</div>
-        <h3 class="text-lg font-bold mb-3 text-white">MiroFish Simulation</h3>
-        <p class="text-slate-400 text-sm leading-relaxed">
-          50 LLM-powered personas (VCs, journalists, competitors) and 1,000,000 lightweight
-          NumPy-vectorized agents stress-test the product. Sentiment signals flow back to
-          CEO for a second round of pivots.
-        </p>
-      </div>
-    </div>
-  </div>
+<!-- Section 2: The Numbers -->
+<section class="py-32 px-6 max-w-7xl mx-auto">
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
+<!-- Metric Card 1 -->
+<div class="glass-panel p-10 rounded-xl relative overflow-hidden group">
+<div class="relative z-10">
+<label class="font-label text-xs tracking-widest text-on-surface-variant opacity-50 uppercase mb-4 block">Cost Delta Optimization</label>
+<h3 class="text-4xl font-headline font-bold mb-8 text-primary">$0.19 API Cost vs $15k Human Eqv</h3>
+<div class="h-48 flex items-end gap-3 px-4">
+<div class="flex-1 bg-surface-container-highest rounded-t h-[5%]"></div>
+<div class="flex-1 bg-surface-container-highest rounded-t h-[10%]"></div>
+<div class="flex-1 bg-primary-container rounded-t h-[95%] cyan-glow"></div>
+<div class="flex-1 bg-surface-container-highest rounded-t h-[15%]"></div>
+<div class="flex-1 bg-surface-container-highest rounded-t h-[20%]"></div>
+<div class="flex-1 bg-primary-container rounded-t h-[80%] opacity-50"></div>
+</div>
+</div>
+</div>
+<!-- Metric Card 2 -->
+<div class="glass-panel p-10 rounded-xl relative overflow-hidden group">
+<div class="relative z-10">
+<label class="font-label text-xs tracking-widest text-on-surface-variant opacity-50 uppercase mb-4 block">Swarm Intelligence Scale</label>
+<h3 class="text-4xl font-headline font-bold mb-8 text-primary">1M+ Market Agents</h3>
+<div class="relative h-48 w-full flex items-center justify-center">
+<img alt="swarm" class="w-full h-full object-cover opacity-30 rounded-lg grayscale" data-alt="microscopic view of glowing data swarm particles connecting in complex hexagonal patterns on deep blue black background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDNRljmSL7DurVMWtifGfzPx-VAenrWdIRo25ibnZOpj8oV_jwqsQFNcvxsncCw_r04GZKa9FZcuw48YkOLM7RiZfCpjW4xwPLsP4LOJee45-TG7SkD6ihshBo7jj4HJi2wumjm1fqzH3N3BuiB8F2Z_r2tSOpzbxxxIQ2tX2c9E_zKt65N5zqr64UodMh-NAdIzral0S-16raH24Gv7tkb-CHKnIclehlpbvTA1flMVG1bRml1ygR1URjxrIdZk2zEnUWXdlVF6Hg"/>
+<div class="absolute text-primary-container animate-pulse">
+<span class="material-symbols-outlined text-6xl" data-icon="hub">hub</span>
+</div>
+</div>
+</div>
+</div>
+</div>
 </section>
-
-
-<!-- ============================== -->
-<!--      PROBLEM STATEMENT FIT     -->
-<!-- ============================== -->
-<section id="problem-fit" class="py-32 px-6 relative overflow-hidden">
-  <!-- Subtle background glow -->
-  <div class="absolute top-0 left-1/4 w-96 h-96 rounded-full bg-ghost-600/5 blur-3xl pointer-events-none"></div>
-  <div class="absolute bottom-0 right-1/4 w-96 h-96 rounded-full bg-purple-600/5 blur-3xl pointer-events-none"></div>
-
-  <div class="max-w-6xl mx-auto relative z-10">
-    <div class="text-center mb-20">
-      <h2 class="text-4xl md:text-5xl font-black mb-4 reveal">Ralphthon Problem Statement Fit</h2>
-      <p class="text-slate-400 text-lg reveal reveal-delay-1">Ghost Board addresses all three hackathon problem statements.</p>
-    </div>
-
-    <div class="grid md:grid-cols-3 gap-8">
-      <!-- Statement 1 -->
-      <div class="group rounded-2xl glass p-8 reveal transition-all duration-500 hover:scale-[1.03] hover:border-ghost-500/40 relative overflow-hidden">
-        <div class="absolute top-0 right-0 w-32 h-32 bg-ghost-500/5 rounded-bl-full pointer-events-none"></div>
-        <div class="w-12 h-12 rounded-xl bg-ghost-500/20 flex items-center justify-center mb-6">
-          <svg class="w-6 h-6 text-ghost-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5"/></svg>
-        </div>
-        <div class="inline-block px-3 py-1 rounded-full bg-ghost-500/10 text-ghost-400 text-xs font-bold mb-4">Statement 1</div>
-        <h3 class="text-xl font-bold text-white mb-3">Codex-Powered Services</h3>
-        <p class="text-slate-400 text-sm leading-relaxed mb-4">
-          CTO agent uses the OpenAI API for real code generation -- producing working FastAPI prototypes,
-          Pydantic models, and test suites. The Ralph Loop itself uses Claude for autonomous orchestration.
-        </p>
-        <div class="flex flex-wrap gap-2">
-          <span class="px-2 py-1 rounded-md bg-surface-3 text-xs text-slate-500">OpenAI Codex</span>
-          <span class="px-2 py-1 rounded-md bg-surface-3 text-xs text-slate-500">Claude Orchestration</span>
-          <span class="px-2 py-1 rounded-md bg-surface-3 text-xs text-slate-500">Real Code Output</span>
-        </div>
-      </div>
-
-      <!-- Statement 2 -->
-      <div class="group rounded-2xl glass p-8 reveal reveal-delay-1 transition-all duration-500 hover:scale-[1.03] hover:border-purple-500/40 relative overflow-hidden">
-        <div class="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 rounded-bl-full pointer-events-none"></div>
-        <div class="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center mb-6">
-          <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
-        </div>
-        <div class="inline-block px-3 py-1 rounded-full bg-purple-500/10 text-purple-400 text-xs font-bold mb-4">Statement 2</div>
-        <h3 class="text-xl font-bold text-white mb-3">Agents as Customers</h3>
-        <p class="text-slate-400 text-sm leading-relaxed mb-4">
-          5 AI executives are each other's customers. CEO's strategy feeds CTO/CFO/CMO/Legal.
-          Legal's blockers feed CEO. 1,000,000+ market simulation agents react to all outputs.
-          Zero human touch throughout the entire sprint.
-        </p>
-        <div class="flex flex-wrap gap-2">
-          <span class="px-2 py-1 rounded-md bg-surface-3 text-xs text-slate-500">5 AI Executives</span>
-          <span class="px-2 py-1 rounded-md bg-surface-3 text-xs text-slate-500">1M+ Sim Agents</span>
-          <span class="px-2 py-1 rounded-md bg-surface-3 text-xs text-slate-500">Zero Human Touch</span>
-        </div>
-      </div>
-
-      <!-- Statement 3 -->
-      <div class="group rounded-2xl glass p-8 reveal reveal-delay-2 transition-all duration-500 hover:scale-[1.03] hover:border-pink-500/40 relative overflow-hidden">
-        <div class="absolute top-0 right-0 w-32 h-32 bg-pink-500/5 rounded-bl-full pointer-events-none"></div>
-        <div class="w-12 h-12 rounded-xl bg-pink-500/20 flex items-center justify-center mb-6">
-          <svg class="w-6 h-6 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0M12 12.75h.008v.008H12v-.008z"/></svg>
-        </div>
-        <div class="inline-block px-3 py-1 rounded-full bg-pink-500/10 text-pink-400 text-xs font-bold mb-4">Statement 3</div>
-        <h3 class="text-xl font-bold text-white mb-3">Real Products</h3>
-        <p class="text-slate-400 text-sm leading-relaxed mb-4">
-          Generates real working prototypes with FastAPI routes and tests.
-          Real financial models with 3-year projections.
-          GTM strategies with competitive analysis. Legal compliance memos with actual regulation citations and URLs.
-        </p>
-        <div class="flex flex-wrap gap-2">
-          <span class="px-2 py-1 rounded-md bg-surface-3 text-xs text-slate-500">Working Prototype</span>
-          <span class="px-2 py-1 rounded-md bg-surface-3 text-xs text-slate-500">Financial Model</span>
-          <span class="px-2 py-1 rounded-md bg-surface-3 text-xs text-slate-500">Legal Citations</span>
-        </div>
-      </div>
-    </div>
-  </div>
+<!-- Section 3: The Event Pipeline -->
+<section class="py-32 px-6 bg-surface-container-lowest">
+<div class="max-w-7xl mx-auto">
+<div class="flex justify-between items-end mb-20">
+<div>
+<label class="font-label text-tertiary tracking-[0.2em] uppercase text-xs">Processing Architecture</label>
+<h2 class="text-5xl font-headline font-black mt-4 uppercase">Event Pipeline</h2>
+</div>
+<div class="text-right text-on-surface-variant font-label text-sm">LATENCY: 4.2ms PER CYCLE</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-5 gap-4 relative">
+<!-- Steps -->
+<div class="relative group">
+<div class="glass-panel p-6 rounded-lg ghost-border hover:border-primary-container transition-colors">
+<span class="text-xs font-label text-on-surface-variant/50 mb-4 block">01</span>
+<h4 class="font-headline font-bold text-lg mb-2 text-white">Ingestion</h4>
+<p class="text-sm text-on-surface-variant leading-relaxed">Multi-source raw telemetry capture.</p>
+</div>
+</div>
+<div class="relative group">
+<div class="glass-panel p-6 rounded-lg ghost-border hover:border-primary-container transition-colors">
+<span class="text-xs font-label text-on-surface-variant/50 mb-4 block">02</span>
+<h4 class="font-headline font-bold text-lg mb-2 text-white">Filtering</h4>
+<p class="text-sm text-on-surface-variant leading-relaxed">Noise reduction via cognitive gates.</p>
+</div>
+</div>
+<div class="relative group">
+<div class="glass-panel p-6 rounded-lg ghost-border hover:border-primary-container transition-colors">
+<span class="text-xs font-label text-on-surface-variant/50 mb-4 block">03</span>
+<h4 class="font-headline font-bold text-lg mb-2 text-white">Analysis</h4>
+<p class="text-sm text-on-surface-variant leading-relaxed">Agentic pattern recognition.</p>
+</div>
+</div>
+<div class="relative group">
+<div class="glass-panel p-6 rounded-lg ghost-border hover:border-primary-container transition-colors">
+<span class="text-xs font-label text-on-surface-variant/50 mb-4 block">04</span>
+<h4 class="font-headline font-bold text-lg mb-2 text-white">Synthesis</h4>
+<p class="text-sm text-on-surface-variant leading-relaxed">Unified cross-agent consensus.</p>
+</div>
+</div>
+<div class="relative group">
+<div class="glass-panel p-6 rounded-lg bg-primary-container/10 border-primary-container transition-colors">
+<span class="text-xs font-label text-primary-container mb-4 block">05</span>
+<h4 class="font-headline font-bold text-lg mb-2 text-white">Execution</h4>
+<p class="text-sm text-on-surface-variant leading-relaxed">Autonomous terminal command dispatch.</p>
+</div>
+</div>
+</div>
+</div>
 </section>
-
-
-<!-- ============================== -->
-<!--        THE ARCHITECTURE        -->
-<!-- ============================== -->
-<section id="architecture" class="py-32 px-6 relative overflow-hidden">
-  <div class="absolute inset-0 grid-bg"></div>
-  <div class="max-w-6xl mx-auto relative z-10">
-    <div class="text-center mb-20">
-      <h2 class="text-4xl md:text-5xl font-black mb-4 reveal">The Architecture</h2>
-      <p class="text-slate-400 text-lg reveal reveal-delay-1">Async event bus connecting five specialized AI agents with market simulation feedback.</p>
-    </div>
-
-    <!-- Architecture diagram -->
-    <div class="reveal">
-      <div class="rounded-3xl glass p-8 md:p-12 relative overflow-hidden">
-        <!-- Background decoration -->
-        <div class="absolute top-4 right-4 text-xs mono text-slate-700">ghost-board/coordination/state.py</div>
-
-        <svg viewBox="0 0 800 500" class="w-full h-auto" xmlns="http://www.w3.org/2000/svg">
-          <!-- Event Bus central bar -->
-          <rect x="200" y="220" width="400" height="60" rx="12" fill="rgba(99,102,241,0.08)" stroke="rgba(99,102,241,0.3)" stroke-width="1.5"/>
-          <text x="400" y="255" text-anchor="middle" fill="#818cf8" font-family="JetBrains Mono, monospace" font-size="14" font-weight="600">ASYNC EVENT BUS</text>
-
-          <!-- CEO -->
-          <rect x="340" y="60" width="120" height="60" rx="12" fill="rgba(250,204,21,0.08)" stroke="rgba(250,204,21,0.3)" stroke-width="1.5"/>
-          <text x="400" y="88" text-anchor="middle" fill="#facc15" font-family="Inter, sans-serif" font-size="13" font-weight="700">CEO</text>
-          <text x="400" y="106" text-anchor="middle" fill="rgba(250,204,21,0.5)" font-family="Inter, sans-serif" font-size="10">Strategy + Pivot</text>
-          <line x1="400" y1="120" x2="400" y2="220" stroke="rgba(250,204,21,0.3)" stroke-width="1.5" class="line-pulse"/>
-
-          <!-- CTO -->
-          <rect x="50" y="155" width="120" height="60" rx="12" fill="rgba(96,165,250,0.08)" stroke="rgba(96,165,250,0.3)" stroke-width="1.5"/>
-          <text x="110" y="183" text-anchor="middle" fill="#60a5fa" font-family="Inter, sans-serif" font-size="13" font-weight="700">CTO</text>
-          <text x="110" y="201" text-anchor="middle" fill="rgba(96,165,250,0.5)" font-family="Inter, sans-serif" font-size="10">Codex Builder</text>
-          <line x1="170" y1="215" x2="200" y2="240" stroke="rgba(96,165,250,0.3)" stroke-width="1.5" class="line-pulse"/>
-
-          <!-- Legal -->
-          <rect x="630" y="155" width="120" height="60" rx="12" fill="rgba(248,113,113,0.08)" stroke="rgba(248,113,113,0.3)" stroke-width="1.5" class="blocker-flash"/>
-          <text x="690" y="183" text-anchor="middle" fill="#f87171" font-family="Inter, sans-serif" font-size="13" font-weight="700">LEGAL</text>
-          <text x="690" y="201" text-anchor="middle" fill="rgba(248,113,113,0.5)" font-family="Inter, sans-serif" font-size="10">Compliance</text>
-          <line x1="630" y1="215" x2="600" y2="240" stroke="rgba(248,113,113,0.3)" stroke-width="1.5" class="line-pulse"/>
-
-          <!-- CFO -->
-          <rect x="50" y="285" width="120" height="60" rx="12" fill="rgba(52,211,153,0.08)" stroke="rgba(52,211,153,0.3)" stroke-width="1.5"/>
-          <text x="110" y="313" text-anchor="middle" fill="#34d399" font-family="Inter, sans-serif" font-size="13" font-weight="700">CFO</text>
-          <text x="110" y="331" text-anchor="middle" fill="rgba(52,211,153,0.5)" font-family="Inter, sans-serif" font-size="10">Financial Model</text>
-          <line x1="170" y1="285" x2="200" y2="265" stroke="rgba(52,211,153,0.3)" stroke-width="1.5" class="line-pulse"/>
-
-          <!-- CMO -->
-          <rect x="630" y="285" width="120" height="60" rx="12" fill="rgba(192,132,252,0.08)" stroke="rgba(192,132,252,0.3)" stroke-width="1.5"/>
-          <text x="690" y="313" text-anchor="middle" fill="#c084fc" font-family="Inter, sans-serif" font-size="13" font-weight="700">CMO</text>
-          <text x="690" y="331" text-anchor="middle" fill="rgba(192,132,252,0.5)" font-family="Inter, sans-serif" font-size="10">GTM Strategy</text>
-          <line x1="630" y1="285" x2="600" y2="265" stroke="rgba(192,132,252,0.3)" stroke-width="1.5" class="line-pulse"/>
-
-          <!-- Blocker arrow from Legal to CEO -->
-          <path d="M 690 155 Q 690 90 460 90" fill="none" stroke="rgba(248,113,113,0.5)" stroke-width="2" stroke-dasharray="6 4">
-            <animate attributeName="stroke-dashoffset" from="0" to="-20" dur="1.5s" repeatCount="indefinite"/>
-          </path>
-          <text x="590" y="78" fill="#f87171" font-family="JetBrains Mono, monospace" font-size="9" opacity="0.7">BLOCKER</text>
-
-          <!-- Pivot arrows from CEO to all -->
-          <path d="M 340 90 Q 240 90 110 155" fill="none" stroke="rgba(250,204,21,0.3)" stroke-width="1.5" stroke-dasharray="4 3">
-            <animate attributeName="stroke-dashoffset" from="0" to="-14" dur="2s" repeatCount="indefinite"/>
-          </path>
-          <text x="210" y="78" fill="#facc15" font-family="JetBrains Mono, monospace" font-size="9" opacity="0.7">PIVOT</text>
-
-          <!-- Simulation box -->
-          <rect x="250" y="380" width="300" height="80" rx="16" fill="rgba(6,182,212,0.06)" stroke="rgba(6,182,212,0.25)" stroke-width="1.5" stroke-dasharray="6 3"/>
-          <text x="400" y="410" text-anchor="middle" fill="#06b6d4" font-family="Inter, sans-serif" font-size="13" font-weight="700">MARKET SIMULATION</text>
-          <text x="400" y="430" text-anchor="middle" fill="rgba(6,182,212,0.5)" font-family="JetBrains Mono, monospace" font-size="10">50 LLM + 1,000,000 lightweight agents</text>
-          <text x="400" y="448" text-anchor="middle" fill="rgba(6,182,212,0.4)" font-family="Inter, sans-serif" font-size="9">VCs | Users | Journalists | Competitors | Regulators</text>
-
-          <!-- Feedback loop arrow from Simulation back to Event Bus -->
-          <path d="M 400 380 L 400 280" fill="none" stroke="rgba(6,182,212,0.4)" stroke-width="1.5">
-            <animate attributeName="stroke-dashoffset" from="0" to="-10" dur="1s" repeatCount="indefinite"/>
-          </path>
-          <polygon points="394,284 400,276 406,284" fill="rgba(6,182,212,0.4)"/>
-          <text x="430" y="340" fill="rgba(6,182,212,0.6)" font-family="JetBrains Mono, monospace" font-size="9">MarketSignal</text>
-        </svg>
-
-        <!-- Legend -->
-        <div class="flex flex-wrap gap-6 mt-6 justify-center text-xs">
-          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-yellow-400/50"></span><span class="text-slate-500">Strategy / Pivot</span></div>
-          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-blue-400/50"></span><span class="text-slate-500">Build / Code</span></div>
-          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-400/50"></span><span class="text-slate-500">Blocker / Compliance</span></div>
-          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-green-400/50"></span><span class="text-slate-500">Financial</span></div>
-          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-purple-400/50"></span><span class="text-slate-500">GTM / Marketing</span></div>
-          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-cyan-400/50"></span><span class="text-slate-500">Simulation</span></div>
-        </div>
-      </div>
-    </div>
-  </div>
+<!-- Section 4: Executive Nodes -->
+<section class="py-32 px-6 overflow-hidden">
+<div class="max-w-7xl mx-auto">
+<h2 class="text-4xl font-headline font-black mb-16 text-center tracking-tight uppercase">The Agentic Board</h2>
+<div class="grid grid-cols-1 md:grid-cols-5 gap-6">
+<!-- CEO -->
+<div class="glass-panel p-8 rounded-xl flex flex-col items-center text-center transition-transform hover:-translate-y-2 group">
+<div class="w-16 h-16 rounded-full bg-surface-container-high flex items-center justify-center mb-6 border border-white/5 group-hover:border-primary-container transition-colors">
+<span class="material-symbols-outlined text-3xl text-primary-container" data-icon="stars">stars</span>
+</div>
+<h4 class="font-headline font-bold text-white mb-2 uppercase">CEO</h4>
+<p class="text-xs font-label text-on-surface-variant opacity-70 mb-4">Strategic Alignment</p>
+<p class="text-sm text-on-surface-variant">Global mission coherence &amp; objective weighting.</p>
+</div>
+<!-- CTO -->
+<div class="glass-panel p-8 rounded-xl flex flex-col items-center text-center transition-transform hover:-translate-y-2 group">
+<div class="w-16 h-16 rounded-full bg-surface-container-high flex items-center justify-center mb-6 border border-white/5 group-hover:border-primary-container transition-colors">
+<span class="material-symbols-outlined text-3xl text-primary-container" data-icon="memory">memory</span>
+</div>
+<h4 class="font-headline font-bold text-white mb-2 uppercase">CTO</h4>
+<p class="text-xs font-label text-on-surface-variant opacity-70 mb-4">Tech Architecture</p>
+<p class="text-sm text-on-surface-variant">Infrastructure integrity &amp; compute orchestration.</p>
+</div>
+<!-- CFO -->
+<div class="glass-panel p-8 rounded-xl flex flex-col items-center text-center transition-transform hover:-translate-y-2 group">
+<div class="w-16 h-16 rounded-full bg-surface-container-high flex items-center justify-center mb-6 border border-white/5 group-hover:border-primary-container transition-colors">
+<span class="material-symbols-outlined text-3xl text-primary-container" data-icon="account_balance">account_balance</span>
+</div>
+<h4 class="font-headline font-bold text-white mb-2 uppercase">CFO</h4>
+<p class="text-xs font-label text-on-surface-variant opacity-70 mb-4">Capital Allocation</p>
+<p class="text-sm text-on-surface-variant">Liquidity risk management &amp; yield optimization.</p>
+</div>
+<!-- CMO -->
+<div class="glass-panel p-8 rounded-xl flex flex-col items-center text-center transition-transform hover:-translate-y-2 group">
+<div class="w-16 h-16 rounded-full bg-surface-container-high flex items-center justify-center mb-6 border border-white/5 group-hover:border-primary-container transition-colors">
+<span class="material-symbols-outlined text-3xl text-primary-container" data-icon="radar">radar</span>
+</div>
+<h4 class="font-headline font-bold text-white mb-2 uppercase">CMO</h4>
+<p class="text-xs font-label text-on-surface-variant opacity-70 mb-4">Market Sentiment</p>
+<p class="text-sm text-on-surface-variant">Social velocity &amp; behavioral signal capture.</p>
+</div>
+<!-- Legal -->
+<div class="glass-panel p-8 rounded-xl flex flex-col items-center text-center transition-transform hover:-translate-y-2 group">
+<div class="w-16 h-16 rounded-full bg-surface-container-high flex items-center justify-center mb-6 border border-white/5 group-hover:border-primary-container transition-colors">
+<span class="material-symbols-outlined text-3xl text-primary-container" data-icon="gavel">gavel</span>
+</div>
+<h4 class="font-headline font-bold text-white mb-2 uppercase">Legal</h4>
+<p class="text-xs font-label text-on-surface-variant opacity-70 mb-4">Compliance</p>
+<p class="text-sm text-on-surface-variant">Regulatory fencing &amp; smart contract auditing.</p>
+</div>
+</div>
+</div>
 </section>
-
-
-<!-- ============================== -->
-<!--          THE NUMBERS           -->
-<!-- ============================== -->
-<section id="numbers" class="py-32 px-6 relative overflow-hidden">
-  <div class="absolute inset-0 hero-bg opacity-30"></div>
-  <div class="max-w-6xl mx-auto relative z-10">
-    <div class="text-center mb-20">
-      <h2 class="text-4xl md:text-5xl font-black mb-4 reveal">
-        The Numbers
-        <span id="live-badge" class="live-badge ml-3 align-middle"><span class="live-dot"></span>Live</span>
-      </h2>
-      <p class="text-slate-400 text-lg reveal reveal-delay-1">What an autonomous AI executive team delivers for less than a cup of coffee.</p>
-    </div>
-
-    <!-- Main cost comparison -->
-    <div class="reveal mb-16">
-      <div class="rounded-3xl glass p-10 md:p-14 text-center">
-        <div class="flex flex-col md:flex-row items-center justify-center gap-8 md:gap-20">
-          <!-- Ghost Board cost -->
-          <div class="text-center">
-            <div class="text-7xl md:text-8xl lg:text-9xl font-black text-green-400 mb-3 number-dramatic number-glow-green">$0.19</div>
-            <div class="text-slate-300 text-base font-semibold">Ghost Board API Cost</div>
-            <div class="text-slate-500 text-sm mt-1">35 events, 5 agents, 1M+ simulations</div>
-          </div>
-
-          <!-- VS divider -->
-          <div class="flex flex-col items-center gap-3">
-            <div class="w-16 h-16 rounded-full border-2 border-slate-700 flex items-center justify-center">
-              <span class="text-2xl font-black text-slate-500">vs</span>
-            </div>
-            <div class="w-px h-8 bg-gradient-to-b from-transparent via-slate-700 to-transparent hidden md:block"></div>
-          </div>
-
-          <!-- Human cost -->
-          <div class="text-center">
-            <div class="text-7xl md:text-8xl lg:text-9xl font-black text-slate-600 number-dramatic number-glow-red relative">
-              <span class="line-through decoration-red-500/50 decoration-4">$15,000</span>
-            </div>
-            <div class="text-slate-400 text-base font-semibold">Human Consulting Equivalent</div>
-            <div class="text-slate-500 text-sm mt-1">Strategy, legal, financial, tech, marketing</div>
-          </div>
-        </div>
-
-        <div class="mt-12 inline-block px-8 py-4 rounded-full bg-green-500/10 border border-green-500/25">
-          <span class="text-green-400 font-black text-3xl md:text-4xl number-glow-green">77,359x cheaper</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Stat grid -->
-    <div class="grid grid-cols-2 md:grid-cols-5 gap-6">
-      <div class="rounded-2xl glass p-8 text-center reveal transition-all duration-300 hover:scale-105">
-        <div id="stat-agents" class="text-4xl md:text-5xl font-black text-ghost-400 mb-2" data-count="1000050" data-default="1,000,050">1,000,050</div>
-        <div class="text-slate-500 text-sm">Agents Simulated</div>
-        <div id="stat-agents-sub" class="text-slate-600 text-xs mt-1">50 LLM + 1M lightweight</div>
-      </div>
-      <div class="rounded-2xl glass p-8 text-center reveal reveal-delay-1 transition-all duration-300 hover:scale-105">
-        <div id="stat-runs" class="text-4xl md:text-5xl font-black text-yellow-400 mb-2" data-default="35+">35+</div>
-        <div class="text-slate-500 text-sm">Events Traced</div>
-        <div id="stat-runs-sub" class="text-slate-600 text-xs mt-1">Full causal chain in W&B</div>
-      </div>
-      <div class="rounded-2xl glass p-8 text-center reveal reveal-delay-2 transition-all duration-300 hover:scale-105">
-        <div id="stat-pivots" class="text-4xl md:text-5xl font-black text-red-400 mb-2" data-default="3">3</div>
-        <div class="text-slate-500 text-sm">Strategic Pivots</div>
-        <div class="text-slate-600 text-xs mt-1">Legal blockers + market signals</div>
-      </div>
-      <div class="rounded-2xl glass p-8 text-center reveal reveal-delay-3 transition-all duration-300 hover:scale-105">
-        <div id="stat-time" class="text-4xl md:text-5xl font-black text-emerald-400 mb-2" data-default="< 5 min">&lt; 5 min</div>
-        <div class="text-slate-500 text-sm">Sprint Duration</div>
-        <div class="text-slate-600 text-xs mt-1">Concept to full deliverables</div>
-      </div>
-      <div class="rounded-2xl glass p-8 text-center reveal reveal-delay-4 transition-all duration-300 hover:scale-105 col-span-2 md:col-span-1">
-        <div id="stat-cost" class="text-4xl md:text-5xl font-black text-cyan-400 mb-2" data-default="$0.19">$0.19</div>
-        <div class="text-slate-500 text-sm">Total API Cost</div>
-        <div class="text-slate-600 text-xs mt-1">77,359x cheaper than consulting</div>
-      </div>
-    </div>
-  </div>
+<!-- Section 5: Market Arena Simulation -->
+<section class="py-32 px-6 bg-[#0a0a0b] relative overflow-hidden">
+<div class="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-20">
+<div class="flex-1">
+<label class="font-label text-primary-container tracking-[0.2em] uppercase text-xs">Environment: MiroFish</label>
+<h2 class="text-5xl font-headline font-black mt-4 mb-8 uppercase leading-tight">MiroFish<br/>Stress-Testing Arena</h2>
+<p class="text-lg text-on-surface-variant mb-10 leading-relaxed max-w-xl">
+                        A proprietary outer-loop simulation environment where Ghost Board strategies are stress-tested against 1,000,000 synthetic market minds before a single instruction is committed to the mainnet.
+                    </p>
+<div class="space-y-6">
+<div class="flex items-center gap-4">
+<div class="w-2 h-2 rounded-full bg-tertiary"></div>
+<span class="text-sm font-label uppercase">99.99% Consensus Required</span>
+</div>
+<div class="flex items-center gap-4">
+<div class="w-2 h-2 rounded-full bg-tertiary"></div>
+<span class="text-sm font-label uppercase">Adversarial Swarm Resistance</span>
+</div>
+</div>
+</div>
+<div class="flex-1 relative">
+<div class="aspect-square glass-panel rounded-full border border-primary-container/20 flex items-center justify-center p-8 relative">
+<div class="absolute inset-0 rounded-full border-t border-primary-container/40 animate-spin transition-all duration-[10s]"></div>
+<div class="w-full h-full rounded-full border border-white/5 overflow-hidden flex items-center justify-center">
+<img alt="simulation" class="w-full h-full object-cover opacity-50 grayscale hover:grayscale-0 transition-all duration-700" data-alt="abstract circular radar interface with complex digital scanning lines and glowing cyan data nodes resembling global network connections" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDc9HeKWHlPkp4G3GUbO_2y2i4XDFy5qNeflg59bvKdl0-8bMjU4UbEuV2L9nLg7-AYowMBfAl3KdP_Qf72MT-OW5JwRRMdXXVcCgaLIqDIOpXeLXKUj3Zg9Ut9I2XfBS_q4rY6etJbfsviiO2vUGt52RKJLH8p4XCXBgC5hOUqgcg2SviXmRVQhVh8NwdGizeRIvebr6TJuPX4JZY7i7mdWB9VKv9wEKLiITF1tLlo6d7bzoGVQ4rXtykOVOWyC2jnrztO9d6-xZI"/>
+<div class="absolute inset-0 bg-radial-gradient from-transparent to-[#0a0a0b]"></div>
+</div>
+</div>
+</div>
+</div>
 </section>
-
-
-<!-- ============================== -->
-<!--             DEMO               -->
-<!-- ============================== -->
-<section id="demo" class="py-32 px-6 relative">
-  <div class="absolute inset-0 grid-bg"></div>
-  <div class="max-w-6xl mx-auto relative z-10">
-    <div class="text-center mb-16">
-      <h2 class="text-4xl md:text-5xl font-black mb-4 reveal">See It Live</h2>
-      <p class="text-slate-400 text-lg reveal reveal-delay-1">The full interactive dashboard with boardroom, simulation globe, pivot timeline, and sprint report.</p>
-    </div>
-
-    <!-- Dashboard embed -->
-    <div class="reveal">
-      <div class="rounded-3xl glass p-2 overflow-hidden">
-        <div class="rounded-2xl bg-surface-1 overflow-hidden relative" style="aspect-ratio: 16/9;">
-          <iframe src="../dashboard/index.html" class="w-full h-full border-0" loading="lazy"
-                  title="Ghost Board Dashboard" sandbox="allow-scripts allow-same-origin"></iframe>
-          <!-- Overlay for clicking through -->
-          <a href="../dashboard/index.html" target="_blank"
-             class="absolute inset-0 flex items-center justify-center bg-surface-0/60 opacity-0 hover:opacity-100 transition-opacity duration-300 group">
-            <div class="px-8 py-4 rounded-2xl bg-ghost-600 text-white font-bold text-lg group-hover:scale-105 transition-transform flex items-center gap-3">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg>
-              Open Full Dashboard
-            </div>
-          </a>
-        </div>
-      </div>
-    </div>
-
-    <!-- Dashboard Screenshots -->
-    <div class="mt-16 reveal">
-      <h3 class="text-2xl font-bold text-white text-center mb-8">Dashboard Screens</h3>
-      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div class="rounded-2xl glass overflow-hidden group">
-          <div class="relative overflow-hidden">
-            <img src="../demo/screenshots/01_mission_control.png" alt="Mission Control - Dark terminal launch screen"
-                 class="w-full aspect-video object-cover bg-surface-2 group-hover:scale-105 transition-transform duration-500"
-                 loading="lazy" onerror="this.parentElement.innerHTML='<div class=\'w-full aspect-video bg-surface-2 flex items-center justify-center text-slate-500 text-sm\'>Mission Control screenshot pending</div>'">
-          </div>
-          <div class="p-4">
-            <div class="text-sm font-semibold text-white">Mission Control</div>
-            <div class="text-xs text-slate-500 mt-1">Dark terminal aesthetic with warp launch animation</div>
-          </div>
-        </div>
-        <div class="rounded-2xl glass overflow-hidden group">
-          <div class="relative overflow-hidden">
-            <img src="../demo/screenshots/02_boardroom.png" alt="The Boardroom - 5 AI agents coordinating"
-                 class="w-full aspect-video object-cover bg-surface-2 group-hover:scale-105 transition-transform duration-500"
-                 loading="lazy" onerror="this.parentElement.innerHTML='<div class=\'w-full aspect-video bg-surface-2 flex items-center justify-center text-slate-500 text-sm\'>Boardroom screenshot pending</div>'">
-          </div>
-          <div class="p-4">
-            <div class="text-sm font-semibold text-white">The Boardroom</div>
-            <div class="text-xs text-slate-500 mt-1">5 AI agents with animated connections and discussion feed</div>
-          </div>
-        </div>
-        <div class="rounded-2xl glass overflow-hidden group">
-          <div class="relative overflow-hidden">
-            <img src="../demo/screenshots/03_market_arena.png" alt="Market Arena - 3D globe simulation"
-                 class="w-full aspect-video object-cover bg-surface-2 group-hover:scale-105 transition-transform duration-500"
-                 loading="lazy" onerror="this.parentElement.innerHTML='<div class=\'w-full aspect-video bg-surface-2 flex items-center justify-center text-slate-500 text-sm\'>Market Arena screenshot pending</div>'">
-          </div>
-          <div class="p-4">
-            <div class="text-sm font-semibold text-white">Market Arena</div>
-            <div class="text-xs text-slate-500 mt-1">3D globe with 1M+ agent simulation and live sentiment</div>
-          </div>
-        </div>
-        <div class="rounded-2xl glass overflow-hidden group">
-          <div class="relative overflow-hidden">
-            <img src="../demo/screenshots/04_pivot_timeline.png" alt="Pivot Timeline - Causal decision trail"
-                 class="w-full aspect-video object-cover bg-surface-2 group-hover:scale-105 transition-transform duration-500"
-                 loading="lazy" onerror="this.parentElement.innerHTML='<div class=\'w-full aspect-video bg-surface-2 flex items-center justify-center text-slate-500 text-sm\'>Pivot Timeline screenshot pending</div>'">
-          </div>
-          <div class="p-4">
-            <div class="text-sm font-semibold text-white">Pivot Timeline</div>
-            <div class="text-xs text-slate-500 mt-1">Causal chain from blocker to pivot with animated flow</div>
-          </div>
-        </div>
-        <div class="rounded-2xl glass overflow-hidden group">
-          <div class="relative overflow-hidden">
-            <img src="../demo/screenshots/05_sprint_report.png" alt="Sprint Report - Final artifacts and cost analysis"
-                 class="w-full aspect-video object-cover bg-surface-2 group-hover:scale-105 transition-transform duration-500"
-                 loading="lazy" onerror="this.parentElement.innerHTML='<div class=\'w-full aspect-video bg-surface-2 flex items-center justify-center text-slate-500 text-sm\'>Sprint Report screenshot pending</div>'">
-          </div>
-          <div class="p-4">
-            <div class="text-sm font-semibold text-white">Sprint Report</div>
-            <div class="text-xs text-slate-500 mt-1">Prototype, financials, GTM, compliance, and cost comparison</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Two Ways to Run -->
-    <div class="mt-16 reveal">
-      <h3 class="text-2xl font-bold text-white text-center mb-8">Two Ways to Run</h3>
-      <div class="grid md:grid-cols-2 gap-8">
-        <!-- Quick Demo (no setup) -->
-        <div class="rounded-2xl glass p-8 relative overflow-hidden">
-          <div class="absolute top-0 right-0 w-24 h-24 bg-green-500/5 rounded-bl-full pointer-events-none"></div>
-          <div class="inline-block px-3 py-1 rounded-full bg-green-500/10 text-green-400 text-xs font-bold mb-4">No setup required</div>
-          <h4 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
-            Quick Demo (offline)
-          </h4>
-          <div class="space-y-3 mb-6">
-            <div class="flex items-start gap-3">
-              <span class="w-6 h-6 rounded-full bg-green-500/20 text-green-400 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
-              <span class="text-slate-300 text-sm">Open <code class="mono text-ghost-300 bg-surface-3 px-1.5 py-0.5 rounded">dashboard/index.html</code> in your browser</span>
-            </div>
-            <div class="flex items-start gap-3">
-              <span class="w-6 h-6 rounded-full bg-green-500/20 text-green-400 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
-              <span class="text-slate-300 text-sm">Browse all 5 screens with cached demo data</span>
-            </div>
-          </div>
-          <a href="../dashboard/index.html"
-             class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 text-sm font-semibold hover:bg-green-500/20 transition-all">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg>
-            Open Offline Dashboard
-          </a>
-        </div>
-
-        <!-- Live Demo (with server) -->
-        <div class="rounded-2xl glass p-8 relative overflow-hidden">
-          <div class="absolute top-0 right-0 w-24 h-24 bg-ghost-500/5 rounded-bl-full pointer-events-none"></div>
-          <div class="inline-block px-3 py-1 rounded-full bg-ghost-500/10 text-ghost-400 text-xs font-bold mb-4">Full experience</div>
-          <h4 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            <svg class="w-5 h-5 text-ghost-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3m-19.5 0a4.5 4.5 0 01.9-2.7L5.737 5.1a3.375 3.375 0 012.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 01.9 2.7m0 0a3 3 0 01-3 3m0 3h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008zm-3 6h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008z"/></svg>
-            Live Demo (with server)
-          </h4>
-          <div class="space-y-3 mb-6">
-            <div class="flex items-start gap-3">
-              <span class="w-6 h-6 rounded-full bg-ghost-500/20 text-ghost-400 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
-              <span class="text-slate-300 text-sm">Run <code class="mono text-ghost-300 bg-surface-3 px-1.5 py-0.5 rounded">python main.py --serve</code></span>
-            </div>
-            <div class="flex items-start gap-3">
-              <span class="w-6 h-6 rounded-full bg-ghost-500/20 text-ghost-400 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
-              <span class="text-slate-300 text-sm">Open <code class="mono text-ghost-300 bg-surface-3 px-1.5 py-0.5 rounded">http://localhost:8000</code></span>
-            </div>
-            <div class="flex items-start gap-3">
-              <span class="w-6 h-6 rounded-full bg-ghost-500/20 text-ghost-400 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
-              <span class="text-slate-300 text-sm">Click "Launch Sprint" and watch agents work in real-time</span>
-            </div>
-          </div>
-          <a href="http://localhost:8000" target="_blank" id="demo-live-link"
-             class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl cta-gradient text-white text-sm font-semibold">
-            <span class="w-2 h-2 rounded-full bg-white animate-pulse"></span>
-            Launch Live Dashboard
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
-          </a>
-        </div>
-      </div>
-    </div>
-
-    <!-- Quick start -->
-    <div class="mt-16 grid md:grid-cols-2 gap-8">
-      <div class="rounded-2xl glass p-8 reveal">
-        <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
-          <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z"/></svg>
-          Quick Start
-        </h3>
-        <div class="rounded-xl bg-surface-1 p-5">
-          <pre class="text-sm mono text-slate-300 leading-loose whitespace-pre-wrap"><span class="text-slate-500"># Clone and install</span>
-<span class="text-green-400">$</span> git clone https://github.com/ayushozha/ghost-board
-<span class="text-green-400">$</span> cd ghost-board && pip install -r requirements.txt
-
-<span class="text-slate-500"># Run the demo</span>
-<span class="text-green-400">$</span> export OPENAI_API_KEY="sk-..."
-<span class="text-green-400">$</span> python main.py --demo
-
-<span class="text-slate-500"># Or run cached (no API key needed)</span>
-<span class="text-green-400">$</span> python main.py --cached
-
-<span class="text-slate-500"># Your own concept</span>
-<span class="text-green-400">$</span> python main.py "AI tutor for K-12 math"</pre>
-        </div>
-      </div>
-      <div class="rounded-2xl glass p-8 reveal reveal-delay-1">
-        <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
-          <svg class="w-5 h-5 text-ghost-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.42 15.17l-5.1-5.1m0 0L11.42 4.97m-5.1 5.1H21M3 21h18"/></svg>
-          What Gets Generated
-        </h3>
-        <div class="space-y-3">
-          <div class="flex items-start gap-3 p-3 rounded-lg bg-surface-2/50">
-            <div class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center shrink-0 mt-0.5">
-              <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5"/></svg>
-            </div>
-            <div><div class="text-sm font-semibold text-white">Working Prototype</div><div class="text-xs text-slate-500">FastAPI app, Pydantic models, API routes, tests</div></div>
-          </div>
-          <div class="flex items-start gap-3 p-3 rounded-lg bg-surface-2/50">
-            <div class="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center shrink-0 mt-0.5">
-              <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z"/></svg>
-            </div>
-            <div><div class="text-sm font-semibold text-white">Financial Model</div><div class="text-xs text-slate-500">3-year projections, LTV/CAC, monthly breakdown</div></div>
-          </div>
-          <div class="flex items-start gap-3 p-3 rounded-lg bg-surface-2/50">
-            <div class="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center shrink-0 mt-0.5">
-              <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5m.75-9l3-3 2.148 2.148A12.061 12.061 0 0116.5 7.605"/></svg>
-            </div>
-            <div><div class="text-sm font-semibold text-white">GTM Strategy</div><div class="text-xs text-slate-500">Landing page, launch plan, competitive matrix</div></div>
-          </div>
-          <div class="flex items-start gap-3 p-3 rounded-lg bg-surface-2/50">
-            <div class="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center shrink-0 mt-0.5">
-              <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m0-10.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.75c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.75h-.152c-3.196 0-6.1-1.249-8.25-3.286zm0 13.036h.008v.008H12v-.008z"/></svg>
-            </div>
-            <div><div class="text-sm font-semibold text-white">Compliance Memo</div><div class="text-xs text-slate-500">CFPB, FinCEN, SEC citations with real URLs</div></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+<!-- Section 6: Architecture Trace -->
+<section class="py-32 px-6">
+<div class="max-w-7xl mx-auto">
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-16">
+<div class="space-y-8">
+<div class="h-[2px] w-20 bg-primary-container"></div>
+<h3 class="text-4xl font-headline font-bold uppercase">Async Event Bus</h3>
+<p class="text-on-surface-variant leading-relaxed">
+                            A zero-block message broker that decouples agent decision-making from execution latency. Ghost Board maintains a persistent state-log accessible to all 5 nodes concurrently.
+                        </p>
+<div class="bg-surface-container-high/30 p-6 rounded-lg font-label text-xs text-primary-container/80 tracking-widest border-l-2 border-primary-container">
+                            // TRACE_ID: GH-BOARD-8892<br/>
+                            // BUS_STATE: STREAMING...<br/>
+                            // LATENCY_NOMINAL: 0.002MS
+                        </div>
+</div>
+<div class="space-y-8">
+<div class="h-[2px] w-20 bg-tertiary"></div>
+<h3 class="text-4xl font-headline font-bold uppercase">Swarm Topology</h3>
+<p class="text-on-surface-variant leading-relaxed">
+                            A distributed mesh network of 1M+ specialized sub-agents providing real-time telemetry from every liquidity pool and social vector globally.
+                        </p>
+<div class="bg-surface-container-high/30 p-6 rounded-lg font-label text-xs text-tertiary/80 tracking-widest border-l-2 border-tertiary">
+                            // NODE_COUNT: 1,048,576<br/>
+                            // TOPOLOGY: MESH_HEX<br/>
+                            // UPTIME: 99.999%
+                        </div>
+</div>
+</div>
+</div>
 </section>
-
-
-<!-- ============================== -->
-<!--           CREDITS              -->
-<!-- ============================== -->
-<section class="py-24 px-6 relative">
-  <div class="max-w-5xl mx-auto">
-    <div class="text-center mb-16">
-      <h2 class="text-4xl md:text-5xl font-black mb-4 reveal">Built With</h2>
-      <p class="text-slate-400 text-lg reveal reveal-delay-1">Standing on the shoulders of extraordinary open-source work.</p>
-    </div>
-
-    <!-- Primary credits: AI platforms -->
-    <div class="grid grid-cols-2 md:grid-cols-3 gap-5 mb-6 reveal">
-      <div class="rounded-xl glass p-6 text-center transition-all duration-300 hover:scale-105 hover:border-green-500/30">
-        <div class="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center mx-auto mb-3">
-          <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg>
-        </div>
-        <div class="text-lg font-bold text-white mb-1">OpenAI</div>
-        <div class="text-xs text-slate-500">GPT-4o, GPT-4o-mini, Codex</div>
-        <div class="text-xs text-green-400 mt-2">Agent intelligence + code generation</div>
-      </div>
-      <div class="rounded-xl glass p-6 text-center transition-all duration-300 hover:scale-105 hover:border-amber-500/30">
-        <div class="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center mx-auto mb-3">
-          <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"/></svg>
-        </div>
-        <div class="text-lg font-bold text-white mb-1">Anthropic</div>
-        <div class="text-xs text-slate-500">Claude Code + Claude Opus</div>
-        <div class="text-xs text-amber-400 mt-2">Autonomous orchestration (Ralph Loop)</div>
-      </div>
-      <div class="rounded-xl glass p-6 text-center transition-all duration-300 hover:scale-105 hover:border-yellow-500/30">
-        <div class="w-10 h-10 rounded-lg bg-yellow-500/10 flex items-center justify-center mx-auto mb-3">
-          <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6"/></svg>
-        </div>
-        <div class="text-lg font-bold text-white mb-1">W&B</div>
-        <div class="text-xs text-slate-500">Weights & Biases</div>
-        <div class="text-xs text-yellow-400 mt-2">Execution tracing + observability</div>
-      </div>
-    </div>
-
-    <!-- Secondary credits: open source tools -->
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 reveal reveal-delay-1">
-      <div class="rounded-xl glass p-5 text-center transition-all duration-300 hover:scale-105 hover:border-ghost-500/30">
-        <div class="text-sm font-bold text-white mb-1">Ralph Loop</div>
-        <div class="text-xs text-slate-500">Geoffrey Huntley</div>
-        <div class="text-xs text-ghost-400 mt-1">Agent orchestration</div>
-      </div>
-      <div class="rounded-xl glass p-5 text-center transition-all duration-300 hover:scale-105 hover:border-cyan-500/30">
-        <div class="text-sm font-bold text-white mb-1">MiroFish</div>
-        <div class="text-xs text-slate-500">Guo Hangjiang</div>
-        <div class="text-xs text-cyan-400 mt-1">Million-agent sim</div>
-      </div>
-      <div class="rounded-xl glass p-5 text-center transition-all duration-300 hover:scale-105 hover:border-teal-500/30">
-        <div class="text-sm font-bold text-white mb-1">BettaFish</div>
-        <div class="text-xs text-slate-500">Guo Hangjiang</div>
-        <div class="text-xs text-teal-400 mt-1">Sentiment analysis</div>
-      </div>
-      <div class="rounded-xl glass p-5 text-center transition-all duration-300 hover:scale-105 hover:border-green-500/30">
-        <div class="text-sm font-bold text-white mb-1">oh-my-opencode</div>
-        <div class="text-xs text-slate-500">Q</div>
-        <div class="text-xs text-green-400 mt-1">Open code tooling</div>
-      </div>
-      <div class="rounded-xl glass p-5 text-center transition-all duration-300 hover:scale-105 hover:border-purple-500/30">
-        <div class="text-sm font-bold text-white mb-1">oh-my-claude-code</div>
-        <div class="text-xs text-slate-500">Yeachan Heo</div>
-        <div class="text-xs text-purple-400 mt-1">Claude extensions</div>
-      </div>
-      <div class="rounded-xl glass p-5 text-center transition-all duration-300 hover:scale-105 hover:border-orange-500/30">
-        <div class="text-sm font-bold text-white mb-1">OpenClaw</div>
-        <div class="text-xs text-slate-500">George Zhang</div>
-        <div class="text-xs text-orange-400 mt-1">Agent framework</div>
-      </div>
-    </div>
-  </div>
+<!-- Section 7: Ralphthon Constraints -->
+<section class="py-32 px-6 bg-surface-container-low border-y border-white/5">
+<div class="max-w-4xl mx-auto">
+<div class="text-center mb-16">
+<label class="font-label text-error tracking-[0.4em] uppercase text-xs mb-4 block">Safety Protocols</label>
+<h2 class="text-5xl font-headline font-black uppercase">Ralphthon Constraints</h2>
+</div>
+<div class="space-y-4">
+<div class="flex items-center justify-between p-8 glass-panel ghost-border rounded-lg group hover:bg-white/5 transition-colors">
+<div class="flex items-center gap-6">
+<span class="text-3xl font-headline font-black text-on-surface-variant/20">01</span>
+<span class="text-xl font-headline font-bold text-white tracking-tight uppercase">Immutable Sovereignty</span>
+</div>
+<span class="material-symbols-outlined text-tertiary" data-icon="verified_user">verified_user</span>
+</div>
+<div class="flex items-center justify-between p-8 glass-panel ghost-border rounded-lg group hover:bg-white/5 transition-colors">
+<div class="flex items-center gap-6">
+<span class="text-3xl font-headline font-black text-on-surface-variant/20">02</span>
+<span class="text-xl font-headline font-bold text-white tracking-tight uppercase">Absolute Verifiability</span>
+</div>
+<span class="material-symbols-outlined text-tertiary" data-icon="rule">rule</span>
+</div>
+<div class="flex items-center justify-between p-8 glass-panel ghost-border rounded-lg group hover:bg-white/5 transition-colors">
+<div class="flex items-center gap-6">
+<span class="text-3xl font-headline font-black text-on-surface-variant/20">03</span>
+<span class="text-xl font-headline font-bold text-white tracking-tight uppercase">Kill-Switch Finality</span>
+</div>
+<span class="material-symbols-outlined text-error" data-icon="dangerous">dangerous</span>
+</div>
+</div>
+</div>
 </section>
-
-
-<!-- ============================== -->
-<!--           FOOTER               -->
-<!-- ============================== -->
-<footer class="py-16 px-6 border-t border-slate-800/50 relative">
-  <div class="max-w-5xl mx-auto">
-    <div class="flex flex-col md:flex-row items-center justify-between gap-8">
-      <!-- Logo and tagline -->
-      <div class="flex items-center gap-3">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" class="text-ghost-400">
-          <rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="2"/>
-          <circle cx="9" cy="10" r="1.5" fill="currentColor"/>
-          <circle cx="15" cy="10" r="1.5" fill="currentColor"/>
-          <path d="M8 15c0 0 2 2 4 2s4-2 4-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
-        <div>
-          <div class="text-white font-bold text-lg">Ghost Board</div>
-          <div class="text-slate-600 text-xs">Autonomous AI Executive Team</div>
-        </div>
-      </div>
-
-      <!-- Links -->
-      <div class="flex items-center gap-6 text-sm text-slate-500">
-        <a href="https://github.com/ayushozha/ghost-board" target="_blank" class="hover:text-white transition-colors flex items-center gap-2">
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
-          GitHub
-        </a>
-        <span class="text-slate-700">|</span>
-        <span>MIT License</span>
-        <span class="text-slate-700">|</span>
-        <a href="../dashboard/index.html" id="footer-dashboard-link" class="hover:text-white transition-colors">Dashboard</a>
-      </div>
-    </div>
-
-    <!-- Bottom line -->
-    <div class="mt-10 pt-8 border-t border-slate-800/30 text-center">
-      <p class="text-xs text-slate-600">
-        Built at <span class="text-ghost-400 font-medium">Ralphthon SF 2026</span> -- where autonomous agents build real companies.
-      </p>
-    </div>
-  </div>
+<!-- Section 8: Final CTA -->
+<section class="py-40 px-6 relative overflow-hidden flex flex-col items-center">
+<div class="absolute inset-0 bg-gradient-to-t from-[#00ebf9]/10 via-transparent to-transparent opacity-30"></div>
+<div class="max-w-5xl text-center relative z-10">
+<h2 class="text-6xl md:text-8xl font-headline font-black uppercase tracking-tighter mb-12 depth-gradient-text">Ready for Autonomy?</h2>
+<div class="flex flex-col md:flex-row justify-center items-center gap-8">
+<button class="px-12 py-6 bg-primary text-on-primary font-black rounded-md hover:bg-primary-container transition-all duration-500 cyan-glow uppercase text-sm tracking-[0.2em]">
+                        ENTER DASHBOARD
+                    </button>
+<div class="flex items-center gap-4 text-on-surface-variant/60 font-label text-xs uppercase tracking-widest">
+<span class="w-3 h-3 rounded-full bg-tertiary animate-pulse"></span>
+                        SYSTEMS NOMINAL
+                    </div>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-[#0e0e0e] w-full py-16 px-8 border-t border-white/5">
+<div class="flex flex-col md:flex-row justify-between items-center gap-8 max-w-7xl mx-auto">
+<div class="flex flex-col items-center md:items-start gap-2">
+<span class="text-lg font-bold text-white font-headline">GHOST BOARD</span>
+<p class="font-['Space_Grotesk'] text-[10px] tracking-[0.2em] uppercase text-white/40">
+                    © 2024 GHOST BOARD. AUTONOMOUS EXECUTIVE SYSTEMS.
+                </p>
+</div>
+<div class="flex flex-wrap justify-center gap-8">
+<a class="font-['Space_Grotesk'] text-[10px] tracking-[0.2em] uppercase text-white/40 hover:text-[#5bffa1] transition-colors" href="#">INTELLIGENCE</a>
+<a class="font-['Space_Grotesk'] text-[10px] tracking-[0.2em] uppercase text-white/40 hover:text-[#5bffa1] transition-colors" href="#">OPERATIONS</a>
+<a class="font-['Space_Grotesk'] text-[10px] tracking-[0.2em] uppercase text-white/40 hover:text-[#5bffa1] transition-colors" href="#">SECURITY</a>
+<a class="font-['Space_Grotesk'] text-[10px] tracking-[0.2em] uppercase text-white/40 hover:text-[#5bffa1] transition-colors" href="#">TERMINAL</a>
+</div>
+<div class="flex gap-4">
+<div class="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center hover:bg-white/5 cursor-pointer">
+<span class="material-symbols-outlined text-sm" data-icon="share">share</span>
+</div>
+<div class="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center hover:bg-white/5 cursor-pointer">
+<span class="material-symbols-outlined text-sm" data-icon="terminal">terminal</span>
+</div>
+</div>
+</div>
 </footer>
-
-
-<!-- ============================== -->
-<!--           SCRIPTS              -->
-<!-- ============================== -->
-<script>
-// === Intersection Observer for reveal animations ===
-const observerOptions = { threshold: 0.08, rootMargin: '0px 0px -40px 0px' };
-const observer = new IntersectionObserver((entries) => {
-  entries.forEach(entry => {
-    if (entry.isIntersecting) {
-      entry.target.classList.add('visible');
-    }
-  });
-}, observerOptions);
-
-document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
-
-// === Particle system ===
-const particleContainer = document.getElementById('particles');
-const particleCount = 60;
-
-for (let i = 0; i < particleCount; i++) {
-  const particle = document.createElement('div');
-  particle.className = 'particle';
-  const size = 2 + Math.random() * 4;
-  particle.style.width = size + 'px';
-  particle.style.height = size + 'px';
-  particle.style.left = Math.random() * 100 + '%';
-  particle.style.top = Math.random() * 100 + '%';
-  const duration = 8 + Math.random() * 12;
-  const delay = Math.random() * 8;
-  particle.style.animation = `particle-drift ${duration}s linear ${delay}s infinite`;
-  particle.style.opacity = 0.1 + Math.random() * 0.3;
-  particleContainer.appendChild(particle);
-}
-
-// === Mobile menu toggle ===
-const mobileMenuBtn = document.getElementById('mobile-menu-btn');
-const mobileMenu = document.getElementById('mobile-menu');
-if (mobileMenuBtn && mobileMenu) {
-  mobileMenuBtn.addEventListener('click', () => {
-    mobileMenu.classList.toggle('open');
-    // Toggle icon between hamburger and X
-    const isOpen = mobileMenu.classList.contains('open');
-    mobileMenuBtn.innerHTML = isOpen
-      ? '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>'
-      : '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>';
-  });
-  // Close mobile menu when clicking a link
-  mobileMenu.querySelectorAll('a[href^="#"]').forEach(link => {
-    link.addEventListener('click', () => {
-      mobileMenu.classList.remove('open');
-      mobileMenuBtn.innerHTML = '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>';
-    });
-  });
-}
-
-// === Smooth scroll for nav links ===
-document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-  anchor.addEventListener('click', function(e) {
-    e.preventDefault();
-    const target = document.querySelector(this.getAttribute('href'));
-    if (target) {
-      const navHeight = document.querySelector('nav').offsetHeight;
-      const targetPosition = target.getBoundingClientRect().top + window.scrollY - navHeight - 20;
-      window.scrollTo({ top: targetPosition, behavior: 'smooth' });
-    }
-  });
-});
-
-// === Navbar background on scroll ===
-const nav = document.querySelector('nav');
-let lastScroll = 0;
-window.addEventListener('scroll', () => {
-  const currentScroll = window.scrollY;
-  if (currentScroll > 100) {
-    nav.style.borderBottomColor = 'rgba(51, 65, 85, 0.3)';
-    nav.style.background = 'rgba(6, 6, 10, 0.95)';
-  } else {
-    nav.style.borderBottomColor = 'rgba(51, 65, 85, 0.1)';
-    nav.style.background = 'rgba(6, 6, 10, 0.8)';
-  }
-  lastScroll = currentScroll;
-}, { passive: true });
-
-// === Animated number counter on scroll ===
-const counterObserver = new IntersectionObserver((entries) => {
-  entries.forEach(entry => {
-    if (entry.isIntersecting) {
-      const el = entry.target;
-      const text = el.textContent.trim();
-      // Only animate numeric-looking values
-      if (text.match(/^[\$<]?[\d,\.]+/)) {
-        el.classList.add('stat-reveal');
-      }
-      counterObserver.unobserve(el);
-    }
-  });
-}, { threshold: 0.5 });
-
-document.querySelectorAll('[data-count], [data-default]').forEach(el => {
-  counterObserver.observe(el);
-});
-
-// === Parallax for hero elements ===
-window.addEventListener('scroll', () => {
-  const scrolled = window.scrollY;
-  const heroContent = document.querySelector('.hero-bg .relative.z-10');
-  if (heroContent && scrolled < window.innerHeight) {
-    heroContent.style.transform = `translateY(${scrolled * 0.15}px)`;
-    heroContent.style.opacity = 1 - (scrolled / (window.innerHeight * 0.8));
-  }
-}, { passive: true });
-
-// === Live API Stats Fetching ===
-(function() {
-  const API_BASE = 'http://localhost:8000';
-  const STATS_URL = API_BASE + '/api/stats';
-
-  // Format large numbers with commas
-  function formatNumber(n) {
-    return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  }
-
-  // Animate a stat element update with a flash effect
-  function updateStat(id, value) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.textContent = value;
-    el.classList.add('stat-updated');
-    el.addEventListener('animationend', function handler() {
-      el.classList.remove('stat-updated');
-      el.removeEventListener('animationend', handler);
-    });
-  }
-
-  // Show the live badge
-  function showLiveBadge() {
-    const badge = document.getElementById('live-badge');
-    if (badge) badge.classList.add('connected');
-  }
-
-  // Update all dashboard links to point to the running server
-  function activateDashboardLink() {
-    ['nav-dashboard-link', 'hero-dashboard-link', 'footer-dashboard-link', 'demo-live-link'].forEach(function(id) {
-      var el = document.getElementById(id);
-      if (el) el.href = API_BASE;
-    });
-    var navLink = document.getElementById('nav-dashboard-link');
-    if (navLink) navLink.style.borderColor = 'rgba(99,102,241,0.3)';
-  }
-
-  // Fetch stats from the API
-  async function fetchLiveStats() {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(function() { controller.abort(); }, 3000);
-
-      const response = await fetch(STATS_URL, {
-        signal: controller.signal,
-        headers: { 'Accept': 'application/json' }
-      });
-      clearTimeout(timeoutId);
-
-      if (!response.ok) throw new Error('API returned ' + response.status);
-
-      const data = await response.json();
-
-      // Update stats with live data
-      if (data.total_agents_simulated || data.total_agents) {
-        var agents = data.total_agents_simulated || data.total_agents;
-        updateStat('stat-agents', formatNumber(agents));
-        var sub = document.getElementById('stat-agents-sub');
-        if (sub) sub.textContent = 'across ' + formatNumber(data.total_runs || 1) + ' sprint' + ((data.total_runs || 1) > 1 ? 's' : '');
-      }
-
-      if (data.total_runs !== undefined) {
-        updateStat('stat-runs', formatNumber(data.total_runs));
-        var runsSub = document.getElementById('stat-runs-sub');
-        if (runsSub) runsSub.textContent = 'total simulations completed';
-      }
-
-      if (data.total_pivots !== undefined) {
-        updateStat('stat-pivots', formatNumber(data.total_pivots));
-      }
-
-      if (data.avg_cost !== undefined) {
-        updateStat('stat-cost', '$' + data.avg_cost.toFixed(2));
-      }
-
-      // Show live indicator
-      showLiveBadge();
-      activateDashboardLink();
-
-      console.log('[Ghost Board] Live stats loaded from API:', data);
-    } catch (err) {
-      // Server not running or fetch failed -- keep static defaults
-      console.log('[Ghost Board] API not available, using static defaults.', err.message || '');
-
-      // Fallback: point live dashboard links to local file
-      ['nav-dashboard-link', 'hero-dashboard-link', 'footer-dashboard-link', 'demo-live-link'].forEach(function(id) {
-        var el = document.getElementById(id);
-        if (el) el.href = '../dashboard/index.html';
-      });
-    }
-  }
-
-  // Fetch on page load
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', fetchLiveStats);
-  } else {
-    fetchLiveStats();
-  }
-
-  // Optionally refresh stats every 30 seconds if the page stays open
-  setInterval(function() {
-    fetchLiveStats();
-  }, 30000);
-})();
-</script>
-
-</body>
-</html>
+</body></html>

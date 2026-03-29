@@ -23,7 +23,61 @@ import {
 
 // ── Configuration ────────────────────────────────────────────────────
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
+const DEV_API_PORT = '8000';
+
+function resolveApiBase() {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+
+  // In local Vite dev, connect directly to the backend so live demo
+  // traffic does not depend on the ws/http proxy layer.
+  if (
+    typeof window !== 'undefined' &&
+    import.meta.env.DEV &&
+    window.location.port &&
+    window.location.port !== DEV_API_PORT
+  ) {
+    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+    return `${protocol}//${window.location.hostname}:${DEV_API_PORT}/api`;
+  }
+
+  return '/api';
+}
+
+function resolveWsUrl(baseUrl, runId) {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  if (baseUrl.startsWith('http')) {
+    return baseUrl.replace(/^http/, 'ws').replace(/\/api\/?$/, '') + `/ws/live/${runId}`;
+  }
+  if (
+    typeof window !== 'undefined' &&
+    import.meta.env.DEV &&
+    window.location.port &&
+    window.location.port !== DEV_API_PORT
+  ) {
+    return `${protocol}//${window.location.hostname}:${DEV_API_PORT}/ws/live/${runId}`;
+  }
+  return `${protocol}//${window.location.host}/ws/live/${runId}`;
+}
+
+function normalizeLiveEvent(rawEvent) {
+  if (rawEvent?.type === 'event' && rawEvent.event) {
+    return {
+      ...rawEvent,
+      event_type: rawEvent.event.event_type,
+      payload: rawEvent.event.payload,
+      source_agent: rawEvent.event.source_agent || rawEvent.event.source,
+      triggered_by: rawEvent.event.triggered_by,
+      iteration: rawEvent.event.iteration,
+    };
+  }
+  return rawEvent;
+}
+
+const sharedLiveSockets = new Map();
+
+const API_BASE = resolveApiBase();
 const WS_RECONNECT_BASE_MS = 1000;
 const WS_RECONNECT_MAX_MS = 30000;
 const WS_HEARTBEAT_INTERVAL_MS = 25000;
@@ -201,10 +255,6 @@ class GhostBoardAPI extends EventEmitter {
       method: 'POST',
       body: JSON.stringify({ concept, sim_scale: simScale, ...extraOptions }),
     });
-    // Auto-connect WebSocket for the new run
-    if (data?.run_id) {
-      this.connectWebSocket(data.run_id);
-    }
     return data;
   }
 
@@ -388,17 +438,7 @@ class GhostBoardAPI extends EventEmitter {
     };
 
     const connect = () => {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      // If baseUrl is a full URL (starts with http), derive WS URL from it.
-      // Otherwise, use the current host.
-      let wsUrl;
-      if (this.baseUrl.startsWith('http')) {
-        wsUrl = this.baseUrl.replace(/^http/, 'ws').replace(/\/api\/?$/, '') + `/ws/live/${runId}`;
-      } else {
-        wsUrl = `${protocol}//${window.location.host}/ws/live/${runId}`;
-      }
-
-      ws = new WebSocket(wsUrl);
+      ws = new WebSocket(resolveWsUrl(this.baseUrl, runId));
 
       ws.onopen = () => {
         reconnectAttempt = 0;
@@ -408,7 +448,7 @@ class GhostBoardAPI extends EventEmitter {
         heartbeatTimer = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
             try {
-              ws.send(JSON.stringify({ type: 'ping', ts: Date.now() }));
+              ws.send('ping');
             } catch {
               // Ignore send errors during heartbeat
             }
@@ -683,8 +723,8 @@ export async function getRunReport(runId) {
 }
 
 /**
- * Create a live WebSocket connection for a sprint run.
- * Returns the raw WebSocket instance for backward compatibility.
+ * Create or subscribe to a shared live WebSocket for a sprint run.
+ * Returns a small handle with `close()` and `readyState`.
  *
  * Usage:
  *   const ws = connectLive('run-123', {
@@ -694,30 +734,101 @@ export async function getRunReport(runId) {
  *   });
  *   // later: ws.close();
  */
-export function connectLive(runId, { onEvent, onClose, onError } = {}) {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  let wsUrl;
-  if (api.baseUrl.startsWith('http')) {
-    wsUrl = api.baseUrl.replace(/^http/, 'ws').replace(/\/api\/?$/, '') + `/ws/live/${runId}`;
-  } else {
-    wsUrl = `${protocol}//${window.location.host}/ws/live/${runId}`;
+export function connectLive(runId, { onEvent, onClose, onError, onOpen } = {}) {
+  if (!runId) {
+    throw new Error('connectLive requires a runId');
   }
 
-  const ws = new WebSocket(wsUrl);
+  let entry = sharedLiveSockets.get(runId);
+  if (!entry || entry.ws.readyState >= WebSocket.CLOSING) {
+    const ws = new WebSocket(resolveWsUrl(api.baseUrl, runId));
+    entry = { ws, subscribers: new Set(), heartbeatTimer: null };
+    sharedLiveSockets.set(runId, entry);
 
-  ws.onmessage = (msg) => {
-    try {
-      const event = JSON.parse(msg.data);
-      onEvent?.(event);
-    } catch (e) {
-      console.error('Failed to parse WebSocket message:', e);
-    }
+    ws.onopen = () => {
+      if (entry.heartbeatTimer) {
+        clearInterval(entry.heartbeatTimer);
+      }
+      entry.heartbeatTimer = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          try {
+            ws.send('ping');
+          } catch {
+            // Ignore keepalive send errors; close handlers take over.
+          }
+        }
+      }, WS_HEARTBEAT_INTERVAL_MS);
+      for (const subscriber of entry.subscribers) {
+        subscriber.onOpen?.();
+      }
+    };
+
+    ws.onmessage = (msg) => {
+      try {
+        const rawEvent = JSON.parse(msg.data);
+        if (rawEvent?.type === 'pong') {
+          return;
+        }
+        const event = normalizeLiveEvent(rawEvent);
+        for (const subscriber of entry.subscribers) {
+          subscriber.onEvent?.(event);
+        }
+      } catch (e) {
+        console.error('Failed to parse WebSocket message:', e);
+      }
+    };
+
+    ws.onerror = (err) => {
+      for (const subscriber of entry.subscribers) {
+        subscriber.onError?.(err);
+      }
+    };
+
+    ws.onclose = (evt) => {
+      if (entry.heartbeatTimer) {
+        clearInterval(entry.heartbeatTimer);
+        entry.heartbeatTimer = null;
+      }
+      sharedLiveSockets.delete(runId);
+      const subscribers = [...entry.subscribers];
+      entry.subscribers.clear();
+      for (const subscriber of subscribers) {
+        subscriber.onClose?.(evt);
+      }
+    };
+  }
+
+  const subscriber = { onEvent, onClose, onError, onOpen };
+  entry.subscribers.add(subscriber);
+
+  if (entry.ws.readyState === WebSocket.OPEN) {
+    queueMicrotask(() => {
+      if (entry.subscribers.has(subscriber)) {
+        subscriber.onOpen?.();
+      }
+    });
+  }
+
+  return {
+    close() {
+      if (!entry.subscribers.delete(subscriber)) {
+        return;
+      }
+      if (!entry.subscribers.size) {
+        sharedLiveSockets.delete(runId);
+        if (entry.heartbeatTimer) {
+          clearInterval(entry.heartbeatTimer);
+          entry.heartbeatTimer = null;
+        }
+        if (entry.ws.readyState < WebSocket.CLOSING) {
+          entry.ws.close(1000, 'No listeners remain');
+        }
+      }
+    },
+    get readyState() {
+      return entry.ws.readyState;
+    },
   };
-
-  ws.onclose = () => onClose?.();
-  ws.onerror = (err) => onError?.(err);
-
-  return ws;
 }
 
 /**

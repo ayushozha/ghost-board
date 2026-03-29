@@ -28,7 +28,7 @@ from openai import AsyncOpenAI
 logger = logging.getLogger(__name__)
 
 from simulation.personas import MarketPersona, generate_personas
-from simulation.engine import run_simulation, SimulationResult
+from simulation.engine import SimulationProgressCallback, run_simulation, SimulationResult
 from simulation.analyzer import analyze_simulation, MarketSignal, categorize_sentiment
 
 
@@ -292,6 +292,7 @@ class MiroFishBridge:
         strategy_summary: str,
         num_personas: int = 10,
         num_rounds: int = 3,
+        progress_callback: SimulationProgressCallback | None = None,
     ) -> tuple[SimulationResult, MarketSignal]:
         """Run simulation using MiroFish patterns with our async engine."""
         if self._mirofish._available:
@@ -327,6 +328,7 @@ class MiroFishBridge:
             personas=personas,
             num_rounds=num_rounds,
             client=self.client,
+            progress_callback=progress_callback,
         )
 
         # Record actions in MiroFish format for trace compatibility
@@ -381,7 +383,21 @@ class MiroFishBridge:
             # Add final stance and messages
             entry["final_stance"] = sim_result.final_stances.get(p.name, "neutral")
             msgs = [m for r in sim_result.rounds for m in r.messages if m.persona_name == p.name]
-            entry["messages"] = [{"round": m.round_num, "content": m.content, "sentiment": m.sentiment} for m in msgs]
+            entry["messages"] = [
+                {
+                    "round": m.round_num,
+                    "content": m.content,
+                    "post": m.content,
+                    "sentiment": m.sentiment,
+                    "references": list(m.references),
+                    "stance_change": m.stance_change,
+                }
+                for m in msgs
+            ]
+            if msgs:
+                entry["post"] = msgs[-1].content
+                entry["sentiment"] = msgs[-1].sentiment
+                entry["references"] = list(msgs[-1].references)
             geo_data.append(entry)
 
         with open("outputs/simulation_geo.json", "w", encoding="utf-8") as f:

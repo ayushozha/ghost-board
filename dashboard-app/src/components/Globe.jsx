@@ -264,7 +264,14 @@ function PersonaDot({ position, color, active }) {
 // Connection arcs between referencing personas
 // ---------------------------------------------------------------------------
 
-function ArcLine({ from, to, color = '#6366f1' }) {
+function ArcLine({ from, to, color = '#6366f1', active = false }) {
+  const pulseARef = useRef()
+  const pulseBRef = useRef()
+  const [phaseOffset] = useState(() => {
+    _dotSeed += 1
+    return createRng(_dotSeed * 1543)()
+  })
+
   const curve = useMemo(() => {
     const start = latLngToVec3(from[0], from[1], 2.06)
     const end = latLngToVec3(to[0], to[1], 2.06)
@@ -275,10 +282,37 @@ function ArcLine({ from, to, color = '#6366f1' }) {
   const points = useMemo(() => curve.getPoints(32), [curve])
   const geometry = useMemo(() => new THREE.BufferGeometry().setFromPoints(points), [points])
 
+  useFrame(({ clock }) => {
+    const speed = active ? 0.18 : 0.1
+    const baseT = (clock.getElapsedTime() * speed + phaseOffset) % 1
+    const secondaryT = (baseT + 0.45) % 1
+
+    if (pulseARef.current) {
+      pulseARef.current.position.copy(curve.getPointAt(baseT))
+      pulseARef.current.scale.setScalar(active ? 1.1 : 0.8)
+    }
+    if (pulseBRef.current) {
+      pulseBRef.current.position.copy(curve.getPointAt(secondaryT))
+      pulseBRef.current.scale.setScalar(active ? 0.95 : 0.65)
+    }
+  })
+
   return (
-    <line geometry={geometry}>
-      <lineBasicMaterial color={color} transparent opacity={0.35} />
-    </line>
+    <group>
+      <line geometry={geometry}>
+        <lineBasicMaterial color={color} transparent opacity={active ? 0.85 : 0.3} />
+      </line>
+
+      <mesh ref={pulseARef}>
+        <sphereGeometry args={[0.03, 8, 8]} />
+        <meshBasicMaterial color={color} transparent opacity={active ? 0.95 : 0.65} />
+      </mesh>
+
+      <mesh ref={pulseBRef}>
+        <sphereGeometry args={[0.022, 8, 8]} />
+        <meshBasicMaterial color={color} transparent opacity={active ? 0.85 : 0.45} />
+      </mesh>
+    </group>
   )
 }
 
@@ -313,7 +347,13 @@ function GlobeScene({ personas = [], activePersona = null, arcs = [] }) {
 
       {/* Arcs */}
       {arcs.map((arc, i) => (
-        <ArcLine key={i} from={arc.from} to={arc.to} color={arc.color} />
+        <ArcLine
+          key={arc.id || i}
+          from={arc.from}
+          to={arc.to}
+          color={arc.color}
+          active={Boolean(arc.active)}
+        />
       ))}
 
       {/* Camera controls -- drag to rotate, damping enabled */}

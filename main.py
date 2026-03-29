@@ -47,6 +47,7 @@ async def run_sprint(
     num_rounds: int = 3,
     skip_simulation: bool = False,
     sim_scale: str | None = None,
+    simulation_progress_callback=None,
 ) -> dict:
     """Run the full 3-phase autonomous sprint.
 
@@ -170,6 +171,7 @@ async def run_sprint(
                     strategy_summary=strategy_summary,
                     scale=sim_scale,
                     client=ceo.client,
+                    progress_callback=simulation_progress_callback,
                 )
 
             console.print(f"  Total agents: [bold]{hybrid_stats['total_agents']:,}[/bold]")
@@ -186,6 +188,7 @@ async def run_sprint(
                     strategy_summary=strategy_summary,
                     num_personas=num_personas,
                     num_rounds=num_rounds,
+                    progress_callback=simulation_progress_callback,
                 )
 
         sentiment_color = "green" if market_signal.overall_sentiment > 0.3 else ("yellow" if market_signal.overall_sentiment > -0.3 else "red")

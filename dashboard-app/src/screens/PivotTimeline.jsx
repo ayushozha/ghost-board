@@ -860,13 +860,12 @@ export default function PivotTimeline({ runId }) {
           }, 600);
         }
       },
+      onOpen: () => setWsConnected(true),
       onClose: () => setWsConnected(false),
       onError: () => setWsConnected(false),
     });
 
     wsRef.current = ws;
-    // Mark connected once open
-    ws.addEventListener("open", () => setWsConnected(true));
 
     return () => {
       ws.close();

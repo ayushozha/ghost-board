@@ -315,6 +315,55 @@ class TestHybridSimulationPerformance:
         # archetype_breakdown should have entries (from analyze + crowd blending)
         assert len(signal.archetype_breakdown) > 0, "archetype_breakdown is empty"
 
+    @pytest.mark.asyncio
+    @patch("simulation.hybrid_engine._save_hybrid_outputs")
+    @patch("simulation.hybrid_engine.analyze_simulation")
+    @patch("simulation.hybrid_engine._persona_turn")
+    @patch("simulation.hybrid_engine.generate_personas")
+    async def test_hybrid_simulation_emits_live_progress(
+        self,
+        mock_generate_personas,
+        mock_persona_turn,
+        mock_analyze_simulation,
+        mock_save_outputs,
+    ):
+        fake_personas = _make_fake_personas(4)
+        mock_generate_personas.return_value = fake_personas
+
+        async def fake_persona_turn(client, persona, startup_idea, strategy_summary,
+                                    round_num, message_history, current_stance,
+                                    other_personas):
+            msg = _make_fake_message(persona, round_num, 0)
+            msg.references = [other_personas[0]] if other_personas else []
+            return msg
+
+        mock_persona_turn.side_effect = fake_persona_turn
+        mock_analyze_simulation.return_value = _make_fake_signal()
+        mock_save_outputs.return_value = None
+
+        seen_events = []
+
+        async def record_progress(event_type, payload):
+            seen_events.append((event_type, payload))
+
+        await run_hybrid_simulation(
+            startup_idea="Realtime simulation test",
+            strategy_summary="B2B compliance API",
+            scale="demo",
+            client=MagicMock(),
+            progress_callback=record_progress,
+        )
+
+        event_types = [event_type for event_type, _payload in seen_events]
+        assert event_types[0] == "simulation_start"
+        assert event_types[-1] == "simulation_complete"
+        assert "simulation_round" in event_types
+        assert event_types.count("persona_post") == 4 * 5  # demo scale = 5 rounds
+
+        round_payload = next(payload for event_type, payload in seen_events if event_type == "simulation_round")
+        assert "sentiment_by_archetype" in round_payload
+        assert "crowd_sentiment" in round_payload
+
     def test_lightweight_agents_stance_convergence(self):
         """1000 agents should converge toward strong positive signal over 15 rounds."""
         swarm = spawn_swarm(1000, seed=777)

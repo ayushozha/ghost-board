@@ -300,6 +300,7 @@ export default function MarketArena({ runId }) {
   const wsRef = useRef(null);
   const pollRef = useRef(null);
   const prevFeedCountRef = useRef(0);
+  const intentionalCloseRef = useRef(null);
 
   // ── WebSocket real-time connection ──
   useEffect(() => {
@@ -311,17 +312,34 @@ export default function MarketArena({ runId }) {
     try {
       const ws = connectLive(runId, {
         onEvent: (event) => {
-          if (event.type === 'simulation_round' || event.event_type === 'simulation_round') {
-            const payload = event.payload || event.data || event;
+          const eventType = String(event.event_type || event.type || '').toLowerCase();
+          const payload = event.payload || event.data || event;
+
+          if (eventType === 'simulation_start') {
+            setLoading(false);
+          }
+
+          if (eventType === 'simulation_round') {
             handleSimulationUpdate(payload);
           }
+
           // Also handle individual persona posts streamed via WS
-          if (event.type === 'persona_post' || event.event_type === 'persona_post') {
-            const payload = event.payload || event.data || event;
+          if (eventType === 'persona_post') {
             handleNewPost(payload);
+          }
+
+          if (eventType === 'simulation_complete' && payload?.final_signal) {
+            setResultsData((prev) => ({
+              ...(prev || {}),
+              final_signal: payload.final_signal,
+            }));
           }
         },
         onClose: () => {
+          if (intentionalCloseRef.current === ws) {
+            intentionalCloseRef.current = null;
+            return;
+          }
           wsConnected = false;
           // Fallback to polling when WS disconnects
           startPolling();
@@ -358,6 +376,7 @@ export default function MarketArena({ runId }) {
 
     return () => {
       if (wsRef.current) {
+        intentionalCloseRef.current = wsRef.current;
         wsRef.current.close();
         wsRef.current = null;
       }
@@ -370,6 +389,7 @@ export default function MarketArena({ runId }) {
 
   // Handle a simulation round update from WS or polling
   const handleSimulationUpdate = useCallback((payload) => {
+    setLoading(false);
     if (payload.round_number || payload.round) {
       setCurrentRound(payload.round_number || payload.round);
     }
@@ -426,17 +446,41 @@ export default function MarketArena({ runId }) {
   // Handle individual new post from WS
   const handleNewPost = useCallback((payload) => {
     if (!payload.name) return;
+    setLoading(false);
+    setCurrentRound((prev) => Math.max(prev, payload.round || 1));
     setGeoData((prev) => {
       const updated = [...prev];
       const idx = updated.findIndex((p) => p.name === payload.name);
+      const newMsg = {
+        round: payload.round || 1,
+        content: payload.content || payload.post,
+        post: payload.content || payload.post,
+        sentiment: payload.sentiment || 0,
+        references: payload.references || [],
+        stance_change: payload.stance_change || 'none',
+      };
       if (idx >= 0) {
         const existing = updated[idx];
-        const newMsg = { round: payload.round || 1, content: payload.content || payload.post, sentiment: payload.sentiment || 0 };
-        updated[idx] = { ...existing, messages: [...(existing.messages || []), newMsg] };
+        const existingMessages = existing.messages || [];
+        const dedupedMessages = existingMessages.some((msg) =>
+          msg.round === newMsg.round && msg.content === newMsg.content,
+        )
+          ? existingMessages
+          : [...existingMessages, newMsg];
+        updated[idx] = {
+          ...existing,
+          ...payload,
+          stance: payload.stance ?? existing.stance,
+          sentiment: payload.sentiment ?? existing.sentiment,
+          references: payload.references || existing.references || [],
+          post: payload.content || payload.post || existing.post,
+          messages: dedupedMessages,
+        };
       } else {
         updated.push({
           ...payload,
-          messages: [{ round: payload.round || 1, content: payload.content || payload.post, sentiment: payload.sentiment || 0 }],
+          post: payload.content || payload.post,
+          messages: [newMsg],
         });
       }
       return updated;
@@ -479,9 +523,9 @@ export default function MarketArena({ runId }) {
         setLoading(false);
       } catch (err) {
         if (!cancelled) {
-          console.warn('MarketArena: using demo data:', err.message);
-          setResultsData(DEMO_RESULTS);
-          setGeoData(DEMO_GEO);
+          console.warn('MarketArena: waiting for simulation data:', err.message);
+          setResultsData({});
+          setGeoData([]);
           setLoading(false);
         }
       }
@@ -491,12 +535,26 @@ export default function MarketArena({ runId }) {
     return () => { cancelled = true; };
   }, [runId]);
 
-  // Use demo data as fallback
-  const results = resultsData || DEMO_RESULTS;
-  const personas = geoData.length > 0 ? geoData : DEMO_GEO;
+  const hasRealResults = Boolean(
+    resultsData && (
+      (Array.isArray(resultsData.rounds_data) && resultsData.rounds_data.length > 0)
+      || resultsData.final_signal
+      || resultsData.total_agents
+      || resultsData.total_llm_agents
+      || resultsData.rounds
+    ),
+  );
+  const shouldUseDemoFallback = !runId && !hasRealResults && geoData.length === 0;
+
+  const results = hasRealResults
+    ? resultsData
+    : (shouldUseDemoFallback ? DEMO_RESULTS : (resultsData || {}));
+  const personas = geoData.length > 0
+    ? geoData
+    : (shouldUseDemoFallback ? DEMO_GEO : []);
 
   // ── Animated round progression (only in demo/static mode) ──
-  const totalRounds = results.rounds || results.rounds_data?.length || 5;
+  const totalRounds = results.rounds || results.rounds_data?.length || (shouldUseDemoFallback ? 5 : 0);
 
   useEffect(() => {
     if (loading) return;
@@ -603,17 +661,28 @@ export default function MarketArena({ runId }) {
     personas.forEach((p) => {
       if (p.name && p.lat != null && p.lng != null) geoMap[p.name] = [p.lat, p.lng];
     });
+
     personas.forEach((p) => {
-      (p.references || []).forEach((refName) => {
-        const fromPos = geoMap[p.name];
-        const toPos = geoMap[refName];
-        if (fromPos && toPos) {
-          result.push({ from: fromPos, to: toPos, color: getArchCfg(p.archetype).hex });
-        }
+      const visibleMessages = (p.messages || []).filter((message) => (message.round || 1) <= currentRound);
+      visibleMessages.forEach((message) => {
+        (message.references || []).forEach((refName) => {
+          const fromPos = geoMap[p.name];
+          const toPos = geoMap[refName];
+          if (fromPos && toPos) {
+            result.push({
+              id: `${p.name}-${refName}-${message.round}`,
+              from: fromPos,
+              to: toPos,
+              color: getArchCfg(p.archetype).hex,
+              active: activePersona ? (p.name === activePersona || refName === activePersona) : message.round === currentRound,
+              round: message.round || 1,
+            });
+          }
+        });
       });
     });
     return result;
-  }, [personas]);
+  }, [personas, currentRound, activePersona]);
 
   const handleFeedClick = useCallback((name) => {
     setActivePersona((prev) => (prev === name ? null : name));

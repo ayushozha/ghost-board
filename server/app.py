@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shutil
 import sys
 import uuid
 from contextlib import asynccontextmanager
@@ -135,9 +136,52 @@ def _run_to_summary(run: SprintRun) -> dict[str, Any]:
 def _run_outputs_dir(run_id: str) -> Path:
     """Return the outputs directory for a given run.
 
-    For now everything goes to the shared outputs/ folder.
+    Completed runs are snapshotted to outputs/runs/<run_id>/ so the API can
+    return stable artifacts even after newer runs overwrite outputs/.
     """
+    run_dir = OUTPUTS_DIR / "runs" / run_id
+    if run_dir.exists():
+        return run_dir
     return OUTPUTS_DIR
+
+
+def _has_run_snapshot(run_id: str) -> bool:
+    """Return True when a completed run has an archived outputs snapshot."""
+    return (OUTPUTS_DIR / "runs" / run_id).exists()
+
+
+def _archive_run_outputs(run_id: str) -> Path:
+    """Copy the current outputs/ tree into a stable per-run snapshot."""
+    archive_dir = OUTPUTS_DIR / "runs" / run_id
+    archive_dir.mkdir(parents=True, exist_ok=True)
+
+    files_to_copy = (
+        "trace.json",
+        "sprint_summary.json",
+        "sprint_report.md",
+        "board_discussion.json",
+        "simulation_results.json",
+        "simulation_geo.json",
+    )
+    dirs_to_copy = (
+        "prototype",
+        "financial_model",
+        "gtm",
+        "compliance",
+    )
+
+    for file_name in files_to_copy:
+        src = OUTPUTS_DIR / file_name
+        if src.exists() and src.is_file():
+            shutil.copy2(src, archive_dir / file_name)
+
+    for dir_name in dirs_to_copy:
+        src_dir = OUTPUTS_DIR / dir_name
+        dst_dir = archive_dir / dir_name
+        if src_dir.exists() and src_dir.is_dir():
+            shutil.copytree(src_dir, dst_dir, dirs_exist_ok=True)
+
+    return archive_dir
 
 
 def _read_json_file(path: Path) -> Any:
@@ -189,6 +233,10 @@ async def _run_sprint_background(run_id: str, concept: str, sim_scale: str) -> N
     clients in real-time as it happens (not just after the sprint finishes).
     """
     try:
+        # Give the client a brief window to attach its WebSocket right after
+        # the POST /api/sprint response returns.
+        await asyncio.sleep(0.25)
+
         # Update status to running
         async with get_session() as session:
             result = await session.execute(
@@ -216,6 +264,7 @@ async def _run_sprint_background(run_id: str, concept: str, sim_scale: str) -> N
         try:
             from main import run_sprint
             from coordination.state import StateBus
+            server_loop = asyncio.get_running_loop()
 
             # ----------------------------------------------------------
             # Monkey-patch StateBus so ANY instance created by run_sprint
@@ -223,65 +272,85 @@ async def _run_sprint_background(run_id: str, concept: str, sim_scale: str) -> N
             # ----------------------------------------------------------
             _original_init = StateBus.__init__
 
+            async def _forward_bus_event(event: Any) -> None:
+                """Forward every StateBus event to WebSocket clients."""
+                try:
+                    if hasattr(event, "to_trace_dict"):
+                        event_data = event.to_trace_dict()
+                    else:
+                        event_data = str(event)
+
+                    # Broadcast the event itself
+                    await ws_manager.broadcast(run_id, {
+                        "type": "event",
+                        "data": event_data,
+                        "event": {
+                            "id": getattr(event, "id", ""),
+                            "source_agent": getattr(event, "source", "unknown"),
+                            "event_type": event_data.get("event_type", "UPDATE") if isinstance(event_data, dict) else "UPDATE",
+                            "payload": event_data.get("payload", {}) if isinstance(event_data, dict) else {},
+                            "triggered_by": getattr(event, "triggered_by", None),
+                            "iteration": getattr(event, "iteration", 1),
+                        },
+                    })
+
+                    # Broadcast agent status change based on event type
+                    source = getattr(event, "source", None)
+                    etype = ""
+                    if hasattr(event, "type"):
+                        etype = event.type.value if hasattr(event.type, "value") else str(event.type)
+
+                    if source:
+                        if etype in ("STRATEGY_SET", "PIVOT"):
+                            status = "thinking"
+                        elif etype == "BLOCKER":
+                            status = "blocked"
+                        elif etype in (
+                            "UPDATE", "PROTOTYPE_READY",
+                            "FINANCIAL_MODEL_READY", "GTM_READY",
+                            "COMPLIANCE_REPORT_READY",
+                        ):
+                            status = "building"
+                        elif etype in ("SIMULATION_RESULT", "SIMULATION_ROUND", "SIMULATION_START"):
+                            status = "analyzing"
+                        else:
+                            status = "active"
+                        await ws_manager.broadcast(run_id, {
+                            "type": "agent_status",
+                            "agent": source,
+                            "status": status,
+                        })
+                except Exception:
+                    pass  # Never let broadcast errors kill the sprint
+
             def _patched_init(self_bus: Any, *args: Any, **kwargs: Any) -> None:
                 _original_init(self_bus, *args, **kwargs)
 
                 async def _ws_broadcast_hook(event: Any) -> None:
-                    """Forward every StateBus event to WebSocket clients."""
-                    try:
-                        if hasattr(event, "to_trace_dict"):
-                            event_data = event.to_trace_dict()
-                        else:
-                            event_data = str(event)
-
-                        # Broadcast the event itself
-                        await ws_manager.broadcast(run_id, {
-                            "type": "event",
-                            "data": event_data,
-                            "event": {
-                                "id": getattr(event, "id", ""),
-                                "source_agent": getattr(event, "source", "unknown"),
-                                "event_type": event_data.get("event_type", "UPDATE") if isinstance(event_data, dict) else "UPDATE",
-                                "payload": event_data.get("payload", {}) if isinstance(event_data, dict) else {},
-                                "triggered_by": getattr(event, "triggered_by", None),
-                                "iteration": getattr(event, "iteration", 1),
-                            },
-                        })
-
-                        # Broadcast agent status change based on event type
-                        source = getattr(event, "source", None)
-                        etype = ""
-                        if hasattr(event, "type"):
-                            etype = event.type.value if hasattr(event.type, "value") else str(event.type)
-
-                        if source:
-                            if etype in ("STRATEGY_SET", "PIVOT"):
-                                status = "thinking"
-                            elif etype == "BLOCKER":
-                                status = "blocked"
-                            elif etype in (
-                                "UPDATE", "PROTOTYPE_READY",
-                                "FINANCIAL_MODEL_READY", "GTM_READY",
-                                "COMPLIANCE_REPORT_READY",
-                            ):
-                                status = "building"
-                            elif etype in ("SIMULATION_RESULT", "SIMULATION_ROUND", "SIMULATION_START"):
-                                status = "analyzing"
-                            else:
-                                status = "active"
-                            await ws_manager.broadcast(run_id, {
-                                "type": "agent_status",
-                                "agent": source,
-                                "status": status,
-                            })
-                    except Exception:
-                        pass  # Never let broadcast errors kill the sprint
+                    future = asyncio.run_coroutine_threadsafe(
+                        _forward_bus_event(event),
+                        server_loop,
+                    )
+                    await asyncio.wrap_future(future)
 
                 self_bus.subscribe_all(_ws_broadcast_hook)
 
             StateBus.__init__ = _patched_init  # type: ignore[assignment]
 
             try:
+                async def _simulation_progress(event_type: str, payload: dict[str, Any]) -> None:
+                    """Forward detailed simulation updates to live dashboard clients."""
+                    if event_type == "simulation_start":
+                        await ws_manager.broadcast(run_id, {
+                            "type": "phase",
+                            "phase": "simulation",
+                            "message": "Phase 2: Market Simulation",
+                        })
+                    await ws_manager.broadcast(run_id, {
+                        "type": event_type,
+                        "payload": payload,
+                    })
+
                 # Determine scale params
                 scale_map = {
                     "demo": (10, 3),
@@ -303,25 +372,40 @@ async def _run_sprint_background(run_id: str, concept: str, sim_scale: str) -> N
                     "status": "thinking",
                 })
 
-                sprint_result = await run_sprint(
-                    startup_idea=concept,
-                    num_personas=personas,
-                    num_rounds=rounds,
-                    skip_simulation=False,
-                    sim_scale=sim_scale if sim_scale in ("demo", "standard", "large", "million") else None,
-                )
+                async def _simulation_progress_bridge(event_type: str, payload: dict[str, Any]) -> None:
+                    future = asyncio.run_coroutine_threadsafe(
+                        _simulation_progress(event_type, payload),
+                        server_loop,
+                    )
+                    await asyncio.wrap_future(future)
+
+                def _run_sprint_sync() -> dict[str, Any]:
+                    return asyncio.run(
+                        run_sprint(
+                            startup_idea=concept,
+                            num_personas=personas,
+                            num_rounds=rounds,
+                            skip_simulation=False,
+                            sim_scale=sim_scale if sim_scale in ("demo", "standard", "large", "million") else None,
+                            simulation_progress_callback=_simulation_progress_bridge,
+                        )
+                    )
+
+                sprint_result = await asyncio.to_thread(_run_sprint_sync)
             finally:
                 # Always restore the original StateBus.__init__
                 StateBus.__init__ = _original_init  # type: ignore[assignment]
         finally:
             os.chdir(original_cwd)
 
+        archive_dir = _archive_run_outputs(run_id)
+
         # Persist events to database
         # run_sprint() returns "trace" (list of event dicts) and "events" (int count).
         # Prefer the actual trace list; fall back to reading trace.json from disk.
         trace_events = sprint_result.get("trace", [])
         if not isinstance(trace_events, list) or not trace_events:
-            trace_data = _read_json_file(OUTPUTS_DIR / "trace.json")
+            trace_data = _read_json_file(archive_dir / "trace.json")
             trace_events = trace_data if isinstance(trace_data, list) else []
 
         pivots = 0
@@ -369,7 +453,7 @@ async def _run_sprint_background(run_id: str, concept: str, sim_scale: str) -> N
                 "compliance": "Legal",
             }
             for artifact_type, agent_name in artifact_dirs.items():
-                art_dir = OUTPUTS_DIR / artifact_type
+                art_dir = archive_dir / artifact_type
                 if art_dir.is_dir():
                     for fpath in art_dir.iterdir():
                         if fpath.is_file() and not fpath.name.startswith("."):
@@ -387,8 +471,8 @@ async def _run_sprint_background(run_id: str, concept: str, sim_scale: str) -> N
                             session.add(db_artifact)
 
             # Persist simulation data
-            sim_results_path = OUTPUTS_DIR / "simulation_results.json"
-            sim_geo_path = OUTPUTS_DIR / "simulation_geo.json"
+            sim_results_path = archive_dir / "simulation_results.json"
+            sim_geo_path = archive_dir / "simulation_geo.json"
             sim_id: Optional[str] = None
 
             if sim_results_path.exists():
@@ -725,7 +809,13 @@ async def get_trace(run_id: str) -> dict[str, Any]:
                 })
             return {"trace": trace}
 
-    # Run exists in DB but has no events yet -- return empty trace
+    # Completed runs may have an archived snapshot; otherwise return an empty
+    # trace so we do not leak stale shared outputs from a different run.
+    if _has_run_snapshot(run_id):
+        trace = _read_json_file(_run_outputs_dir(run_id) / "trace.json")
+        if isinstance(trace, list):
+            return {"trace": trace}
+
     return {"trace": []}
 
 
@@ -769,12 +859,14 @@ async def get_artifacts(run_id: str) -> dict[str, Any]:
                 ]
             }
 
-    # Run exists in DB but has no artifacts yet
-    artifacts = []
-    for folder in ("prototype", "financial_model", "gtm", "compliance"):
-        folder_path = OUTPUTS_DIR / folder
-        artifacts.extend(_list_artifact_files(folder_path))
-    return {"artifacts": artifacts}
+    if _has_run_snapshot(run_id):
+        artifacts = []
+        out = _run_outputs_dir(run_id)
+        for folder in ("prototype", "financial_model", "gtm", "compliance"):
+            artifacts.extend(_list_artifact_files(out / folder))
+        return {"artifacts": artifacts}
+
+    return {"artifacts": []}
 
 
 @app.get("/api/runs/{run_id}/board-discussion")
@@ -783,6 +875,9 @@ async def get_board_discussion(run_id: str) -> Any:
     # Verify run exists (latest or in DB)
     if not await _verify_run_exists(run_id):
         raise HTTPException(status_code=404, detail="Run not found")
+
+    if run_id != "latest" and not _has_run_snapshot(run_id):
+        return {"discussion": []}
 
     out = _run_outputs_dir(run_id)
     discussion = _read_json_file(out / "board_discussion.json")
@@ -797,6 +892,11 @@ async def get_simulation(run_id: str) -> dict[str, Any]:
     # Verify run exists (latest or in DB)
     if not await _verify_run_exists(run_id):
         raise HTTPException(status_code=404, detail="Run not found")
+
+    out = _run_outputs_dir(run_id)
+    use_snapshot = run_id == "latest" or _has_run_snapshot(run_id)
+    file_results = _read_json_file(out / "simulation_results.json") if use_snapshot else None
+    file_geo = _read_json_file(out / "simulation_geo.json") if use_snapshot else None
 
     if run_id != "latest":
         async with get_session() as session:
@@ -814,7 +914,7 @@ async def get_simulation(run_id: str) -> dict[str, Any]:
                 reactions = reaction_result.scalars().all()
 
                 return {
-                    "results": {
+                    "results": file_results or {
                         "id": sim.id,
                         "llm_agents": sim.llm_agents,
                         "lightweight_agents": sim.lightweight_agents,
@@ -822,7 +922,7 @@ async def get_simulation(run_id: str) -> dict[str, Any]:
                         "duration_seconds": sim.duration_seconds,
                         "overall_sentiment": sim.overall_sentiment,
                     },
-                    "geo": [
+                    "geo": file_geo or [
                         {
                             "id": r.id,
                             "round": r.round_num,
@@ -839,10 +939,7 @@ async def get_simulation(run_id: str) -> dict[str, Any]:
                 }
 
     # Fallback: read from JSON files (for "latest" or DB run without sim data)
-    out = _run_outputs_dir(run_id)
-    results = _read_json_file(out / "simulation_results.json")
-    geo = _read_json_file(out / "simulation_geo.json")
-    return {"results": results, "geo": geo}
+    return {"results": file_results, "geo": file_geo or []}
 
 
 @app.get("/api/stats")
@@ -928,6 +1025,9 @@ async def get_sprint_report(run_id: str) -> Any:
     if not await _verify_run_exists(run_id):
         raise HTTPException(status_code=404, detail="Run not found")
 
+    if run_id != "latest" and not _has_run_snapshot(run_id):
+        return JSONResponse({"error": "sprint_report.md not found"}, status_code=404)
+
     out = _run_outputs_dir(run_id)
     report_path = out / "sprint_report.md"
     if report_path.exists():
@@ -941,6 +1041,9 @@ async def get_summary(run_id: str) -> Any:
     # Verify run exists (latest or in DB)
     if not await _verify_run_exists(run_id):
         raise HTTPException(status_code=404, detail="Run not found")
+
+    if run_id != "latest" and not _has_run_snapshot(run_id):
+        return JSONResponse({"error": "sprint_summary.json not found"}, status_code=404)
 
     out = _run_outputs_dir(run_id)
     summary = _read_json_file(out / "sprint_summary.json")

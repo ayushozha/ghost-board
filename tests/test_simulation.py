@@ -91,6 +91,47 @@ class TestEngine:
         assert result.total_messages == 4  # 2 personas * 2 rounds
         assert all(m.persona_name in ["Alice", "Bob"] for r in result.rounds for m in r.messages)
 
+    @pytest.mark.asyncio
+    async def test_run_simulation_emits_progress_events(self):
+        mock_client = AsyncMock()
+        turn_response = json.dumps({
+            "content": "I agree with Bob that pricing needs more proof.",
+            "sentiment": 0.2,
+            "references": ["Bob"],
+            "stance_change": "none",
+        })
+        mock_client.chat.completions.create = AsyncMock(return_value=MockResponse(turn_response))
+
+        personas = [
+            MarketPersona(name="Alice", archetype="vc", background="VC", priorities=["ROI"], risk_tolerance=0.7, initial_stance="neutral", influence_score=0.8),
+            MarketPersona(name="Bob", archetype="skeptic", background="Operator", priorities=["risk"], risk_tolerance=0.2, initial_stance="negative", influence_score=0.5),
+        ]
+
+        seen_events = []
+
+        async def record_progress(event_type, payload):
+            seen_events.append((event_type, payload))
+
+        await run_simulation(
+            startup_idea="Test startup",
+            strategy_summary="SaaS platform",
+            personas=personas,
+            num_rounds=1,
+            client=mock_client,
+            progress_callback=record_progress,
+        )
+
+        event_types = [event_type for event_type, _payload in seen_events]
+        assert event_types[0] == "simulation_start"
+        assert event_types[-1] == "simulation_complete"
+        assert event_types.count("persona_post") == 2
+        assert event_types.count("simulation_round") == 1
+
+        persona_payload = next(payload for event_type, payload in seen_events if event_type == "persona_post")
+        assert "references" in persona_payload
+        assert "lat" in persona_payload
+        assert "lng" in persona_payload
+
 
 class TestAnalyzer:
     @pytest.mark.asyncio

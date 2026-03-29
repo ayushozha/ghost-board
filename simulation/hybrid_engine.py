@@ -20,7 +20,8 @@ from openai import AsyncOpenAI
 from simulation.personas import MarketPersona, generate_personas
 from simulation.engine import (
     run_simulation, SimulationResult, SimulationRound, SimulationMessage,
-    _persona_turn, _shift_stance,
+    SimulationProgressCallback, _emit_progress, _message_to_stream_payload,
+    _persona_turn, _round_sentiment_by_archetype, _shift_stance,
 )
 from simulation.analyzer import analyze_simulation, MarketSignal, categorize_sentiment
 from simulation.lightweight_agents import (
@@ -42,6 +43,7 @@ async def run_hybrid_simulation(
     strategy_summary: str,
     scale: str = "demo",
     client: AsyncOpenAI | None = None,
+    progress_callback: SimulationProgressCallback | None = None,
 ) -> tuple[SimulationResult, MarketSignal, dict[str, Any]]:
     """Run hybrid simulation with LLM + lightweight agents.
 
@@ -74,6 +76,19 @@ async def run_hybrid_simulation(
     rng = np.random.default_rng(42)
     swarm_history: list[dict[str, Any]] = []
 
+    await _emit_progress(
+        progress_callback,
+        "simulation_start",
+        {
+            "startup_idea": startup_idea,
+            "scale": scale,
+            "rounds": num_rounds,
+            "total_llm_agents": llm_count,
+            "total_lightweight_agents": lightweight_count,
+            "total_agents": llm_count + lightweight_count,
+        },
+    )
+
     for round_num in range(1, num_rounds + 1):
         # 3a: LLM agents take their turns with FULL accumulated history
         round_messages: list[SimulationMessage] = []
@@ -100,6 +115,16 @@ async def run_hybrid_simulation(
                 current_stances[persona.name] = _shift_stance(
                     current_stances[persona.name], positive=False
                 )
+
+            await _emit_progress(
+                progress_callback,
+                "persona_post",
+                _message_to_stream_payload(
+                    persona=persona,
+                    message=msg,
+                    stance=current_stances.get(persona.name, persona.initial_stance),
+                ),
+            )
 
         # 3b: Calculate LLM sentiment for this round
         if round_messages:
@@ -133,6 +158,32 @@ async def run_hybrid_simulation(
             messages=round_messages,
             avg_sentiment=blended_sentiment,
         ))
+
+        await _emit_progress(
+            progress_callback,
+            "simulation_round",
+            {
+                "round_number": round_num,
+                "avg_sentiment": blended_sentiment,
+                "llm_sentiment": llm_sentiment,
+                "crowd_sentiment": votes["avg_sentiment"],
+                "crowd_positive": votes["positive"],
+                "crowd_negative": votes["negative"],
+                "crowd_neutral": votes["neutral"],
+                "sentiment_by_archetype": _round_sentiment_by_archetype(round_messages),
+                "posts": [
+                    {
+                        "persona": m.persona_name,
+                        "archetype": m.archetype,
+                        "content": m.content,
+                        "sentiment": m.sentiment,
+                        "references": list(m.references),
+                        "stance_change": m.stance_change,
+                    }
+                    for m in round_messages
+                ],
+            },
+        )
 
     # Phase 4: Build combined result using tracked per-persona stances
     final_stances = dict(current_stances)
@@ -178,6 +229,22 @@ async def run_hybrid_simulation(
     # Save structured outputs for dashboard
     _save_hybrid_outputs(sim_result, signal, llm_personas, hybrid_stats)
 
+    await _emit_progress(
+        progress_callback,
+        "simulation_complete",
+        {
+            "rounds": num_rounds,
+            "duration_seconds": hybrid_stats["duration_seconds"],
+            "total_messages": sim_result.total_messages,
+            "final_signal": {
+                "overall_sentiment": signal.overall_sentiment,
+                "confidence": signal.confidence,
+                "pivot_recommended": signal.pivot_recommended,
+                "pivot_suggestion": signal.pivot_suggestion,
+            },
+        },
+    )
+
     return sim_result, signal, hybrid_stats
 
 
@@ -201,12 +268,27 @@ def _save_hybrid_outputs(
             "lng": geo.lng if geo else 0.0,
             "city": geo.city if geo else "",
             "country": geo.country if geo else "",
+            "company": p.real_company_reference,
             "initial_stance": p.initial_stance,
             "influence": p.influence_score,
             "final_stance": sim_result.final_stances.get(p.name, "neutral"),
         }
         msgs = [m for r in sim_result.rounds for m in r.messages if m.persona_name == p.name]
-        entry["messages"] = [{"round": m.round_num, "content": m.content, "sentiment": m.sentiment} for m in msgs]
+        entry["messages"] = [
+            {
+                "round": m.round_num,
+                "content": m.content,
+                "post": m.content,
+                "sentiment": m.sentiment,
+                "references": list(m.references),
+                "stance_change": m.stance_change,
+            }
+            for m in msgs
+        ]
+        if msgs:
+            entry["post"] = msgs[-1].content
+            entry["sentiment"] = msgs[-1].sentiment
+            entry["references"] = list(msgs[-1].references)
         geo_data.append(entry)
 
     with open("outputs/simulation_geo.json", "w", encoding="utf-8") as f:
