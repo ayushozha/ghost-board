@@ -20,6 +20,44 @@
   color-scheme: dark;
 }
 
+/* Light mode overrides — applied when data-theme="light" is set on #root */
+#root[data-theme="light"] {
+  --gb-bg-primary: #f0f2f5;
+  --gb-bg-secondary: #e4e7ed;
+  --gb-bg-card: #ffffff;
+  --gb-border: #cbd5e1;
+  --gb-text-primary: #1e293b;
+  --gb-text-secondary: #475569;
+  --gb-text-muted: #94a3b8;
+  --gb-accent-blue: #0284c7;
+  --gb-accent-green: #16a34a;
+  --gb-accent-red: #dc2626;
+  --gb-accent-yellow: #d97706;
+  --gb-accent-purple: #7c3aed;
+  --gb-accent-cyan: #0891b2;
+  --gb-glow: 0 0 20px rgba(2, 132, 199, 0.12);
+
+  color-scheme: light;
+}
+
+/* Light mode Tailwind utility overrides */
+#root[data-theme="light"] .bg-gray-950 { background-color: #f0f2f5 !important; }
+#root[data-theme="light"] .bg-gray-900 { background-color: #e4e7ed !important; }
+#root[data-theme="light"] .bg-gray-900\/80 { background-color: rgba(228, 231, 237, 0.92) !important; }
+#root[data-theme="light"] .bg-gray-800 { background-color: #d1d5db !important; }
+#root[data-theme="light"] .bg-gray-800\/80 { background-color: rgba(209, 213, 219, 0.85) !important; }
+#root[data-theme="light"] .bg-gray-800\/50 { background-color: rgba(209, 213, 219, 0.55) !important; }
+#root[data-theme="light"] .bg-gray-800\/40 { background-color: rgba(209, 213, 219, 0.45) !important; }
+#root[data-theme="light"] .bg-gray-700 { background-color: #9ca3af !important; }
+#root[data-theme="light"] .border-gray-800 { border-color: #cbd5e1 !important; }
+#root[data-theme="light"] .border-gray-700 { border-color: #94a3b8 !important; }
+#root[data-theme="light"] .text-gray-100 { color: #1e293b !important; }
+#root[data-theme="light"] .text-gray-200 { color: #334155 !important; }
+#root[data-theme="light"] .text-gray-300 { color: #475569 !important; }
+#root[data-theme="light"] .text-gray-400 { color: #64748b !important; }
+#root[data-theme="light"] .text-gray-500 { color: #94a3b8 !important; }
+#root[data-theme="light"] .text-gray-600 { color: #94a3b8 !important; }
+#root[data-theme="light"] .divide-gray-800 > * + * { border-color: #cbd5e1 !important; }
 
 body {
   font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
@@ -28,6 +66,8 @@ body {
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Prevent horizontal overflow on small screens */
+  overflow-x: hidden;
 }
 
 #root {
@@ -71,4 +111,129 @@ body {
 @keyframes scanline {
   0% { transform: translateY(-100%); }
   100% { transform: translateY(100vh); }
+}
+
+/* ── Mobile responsive helpers ── */
+
+/* Ensure touch targets are large enough on mobile */
+@media (max-width: 639px) {
+  button, a, [role="button"] {
+    min-height: 44px;
+  }
+
+  /* Boardroom: ensure agent cards don't overflow the pentagon on tiny screens */
+  .boardroom-mobile-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  /* PivotTimeline: force horizontal scroll, don't squish nodes */
+  .ptl-scroll {
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+  }
+
+  /* MarketArena: stack three columns vertically */
+  .arena-three-col {
+    flex-direction: column !important;
+  }
+
+  /* Globe height override on mobile */
+  .arena-globe-mobile {
+    height: 250px !important;
+    min-height: 250px !important;
+    max-height: 250px !important;
+  }
+}
+
+/* Tablet (640-1023px): 2-col layouts */
+@media (min-width: 640px) and (max-width: 1023px) {
+  .arena-three-col {
+    flex-wrap: wrap !important;
+  }
+
+  /* Globe height on tablet */
+  .arena-globe-tablet {
+    height: 360px !important;
+    min-height: 360px !important;
+  }
+}
+
+/* Desktop (1024px+): remove fixed heights from MarketArena panels so flex drives the height */
+@media (min-width: 1024px) {
+  .arena-panel-height {
+    height: auto !important;
+    min-height: 0 !important;
+  }
+  .arena-globe-height {
+    height: auto !important;
+    min-height: 0 !important;
+  }
+}
+
+/* ── Print styles for Sprint Report PDF export ── */
+@media print {
+  /* Light background for readability */
+  body {
+    background: #ffffff !important;
+    color: #111111 !important;
+  }
+
+  /* Hide nav, export buttons, and chrome */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Force light backgrounds on dark Tailwind cards */
+  .bg-gray-950,
+  [class*="bg-gray-9"] {
+    background-color: #f8f9fa !important;
+  }
+
+  /* Dark text on white */
+  .text-white {
+    color: #111111 !important;
+  }
+  .text-gray-300,
+  .text-gray-200 {
+    color: #333333 !important;
+  }
+  .text-gray-400,
+  .text-gray-500,
+  .text-gray-600 {
+    color: #555555 !important;
+  }
+
+  /* Borders visible on white */
+  .border-gray-800,
+  .border-gray-700 {
+    border-color: #cccccc !important;
+  }
+
+  /* Avoid splitting cards across pages */
+  .rounded-2xl,
+  .rounded-xl,
+  .rounded-lg {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Remove height constraints that clip content */
+  .overflow-hidden,
+  .overflow-auto,
+  .overflow-y-auto,
+  .overflow-x-auto {
+    overflow: visible !important;
+  }
+
+  /* Full-width layout */
+  .max-w-7xl {
+    max-width: 100% !important;
+  }
+
+  @page {
+    margin: 1.5cm;
+    size: A4 portrait;
+  }
 }

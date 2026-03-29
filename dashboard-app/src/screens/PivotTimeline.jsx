@@ -2,6 +2,72 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { getRunTrace, connectLive } from "../api";
 
 // ---------------------------------------------------------------------------
+// Demo / fallback trace data (used when API + static file both unavailable)
+// ---------------------------------------------------------------------------
+const DEMO_TRACE = [
+  {
+    event_id: "demo-1", event_type: "STRATEGY_SET", source: "CEO",
+    timestamp: new Date(Date.now() - 300000).toISOString(), triggered_by: null,
+    payload: { strategy: "API-first B2B stablecoin payouts", target_market: "SMBs in fintech", details: "Launch with 5 enterprise clients before consumer rollout." },
+  },
+  {
+    event_id: "demo-2", event_type: "PROTOTYPE_READY", source: "CTO",
+    timestamp: new Date(Date.now() - 270000).toISOString(), triggered_by: "demo-1",
+    payload: { files: ["api/payout.py", "api/auth.py"], description: "REST API prototype with stablecoin payout endpoints built using Codex." },
+  },
+  {
+    event_id: "demo-3", event_type: "FINANCIAL_MODEL_READY", source: "CFO",
+    timestamp: new Date(Date.now() - 255000).toISOString(), triggered_by: "demo-1",
+    payload: { burn_rate: "$42k/mo", runway: "18 months", revenue_projection: "$1.2M ARR by month 12" },
+  },
+  {
+    event_id: "demo-4", event_type: "BLOCKER", source: "Legal",
+    timestamp: new Date(Date.now() - 240000).toISOString(), triggered_by: "demo-2",
+    payload: { severity: "critical", area: "MSB Licensing", details: "Operating as a Money Services Business requires licenses in all 50 states. Estimated cost $2M+ and 12-month timeline.", citations: ["https://www.fincen.gov/money-services-business-registration", "31 CFR § 1022.380"], recommended_action: "Restrict to B2B in 5 pilot states with existing partnerships." },
+  },
+  {
+    event_id: "demo-5", event_type: "PIVOT", source: "CEO",
+    timestamp: new Date(Date.now() - 220000).toISOString(), triggered_by: "demo-4",
+    payload: { pivot_reason: "MSB licensing in 50 states costs $2M+ and takes 12 months. Pivoting to B2B-only in 5 states reduces compliance cost to ~$50K.", new_strategy: "B2B API in TX, NY, CA, FL, IL only", changes: { CTO: "Remove /consumer/* endpoints, add enterprise SSO", CFO: "Reduce compliance budget from $2M to $50K, update burn rate", CMO: "Reposition as 'enterprise stablecoin API' not consumer app" } },
+  },
+  {
+    event_id: "demo-6", event_type: "UPDATE", source: "CTO",
+    timestamp: new Date(Date.now() - 200000).toISOString(), triggered_by: "demo-5",
+    payload: { description: "Removed consumer onboarding flow. Added enterprise SSO (SAML 2.0). API now scoped to B2B only.", files_changed: ["api/payout.py", "api/auth.py", "api/enterprise_sso.py"] },
+  },
+  {
+    event_id: "demo-7", event_type: "UPDATE", source: "CFO",
+    timestamp: new Date(Date.now() - 195000).toISOString(), triggered_by: "demo-5",
+    payload: { description: "Updated financial model: compliance cost reduced 40x from $2M to $50K. New burn rate $38k/mo.", burn_rate: "$38k/mo", compliance_cost: "$50K" },
+  },
+  {
+    event_id: "demo-8", event_type: "GTM_READY", source: "CMO",
+    timestamp: new Date(Date.now() - 180000).toISOString(), triggered_by: "demo-5",
+    payload: { tagline: "The Enterprise Stablecoin API", positioning: "B2B-first, compliance-native stablecoin payouts for fintech platforms.", channels: ["Developer conferences", "FinTech newsletters", "LinkedIn B2B outreach"] },
+  },
+  {
+    event_id: "demo-9", event_type: "SIMULATION_RESULT", source: "Market Sim",
+    timestamp: new Date(Date.now() - 150000).toISOString(), triggered_by: "demo-7",
+    payload: { rounds: 5, personas: 1000050, sentiment_score: 0.34, positive: 62, neutral: 21, negative: 17, top_concern: "Regulatory clarity in remaining states", vc_sentiment: 0.61, user_sentiment: 0.28, press_sentiment: 0.19 },
+  },
+  {
+    event_id: "demo-10", event_type: "PIVOT", source: "CEO",
+    timestamp: new Date(Date.now() - 120000).toISOString(), triggered_by: "demo-9",
+    payload: { pivot_reason: "Simulation shows VCs love the B2B pivot (+0.61) but press is skeptical (+0.19). Adding a compliance transparency page and public audit trail to improve press sentiment.", new_strategy: "B2B API + public compliance dashboard", changes: { CTO: "Build public compliance status page at /compliance", CMO: "Add press kit with regulatory certifications" } },
+  },
+  {
+    event_id: "demo-11", event_type: "COMPLIANCE_REPORT_READY", source: "Legal",
+    timestamp: new Date(Date.now() - 90000).toISOString(), triggered_by: "demo-10",
+    payload: { states: ["TX", "NY", "CA", "FL", "IL"], status: "In progress", citations: ["https://www.dfs.ny.gov/apps_and_licensing/virtual_currency_businesses", "https://www.tfc.texas.gov/divisions/consumer/money-services/"], estimated_completion: "Q2 2025" },
+  },
+  {
+    event_id: "demo-12", event_type: "UPDATE", source: "CTO",
+    timestamp: new Date(Date.now() - 60000).toISOString(), triggered_by: "demo-10",
+    payload: { description: "Built public compliance dashboard. Real-time license status per state. Embeddable widget for enterprise clients.", files_changed: ["api/compliance_status.py", "frontend/ComplianceDashboard.jsx"] },
+  },
+];
+
+// ---------------------------------------------------------------------------
 // Color / sizing config per event type
 // ---------------------------------------------------------------------------
 const EVENT_STYLES = {
@@ -109,6 +175,14 @@ const TIMELINE_STYLES = `
   @keyframes ptl-dashFlow {
     to { stroke-dashoffset: -18; }
   }
+  @keyframes ptl-panelSlideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes ptl-pivotPulseNode {
+    0%, 100% { box-shadow: 0 0 16px rgba(234,179,8,0.7), 0 0 32px rgba(234,179,8,0.3); }
+    50% { box-shadow: 0 0 28px rgba(234,179,8,0.9), 0 0 56px rgba(234,179,8,0.5); }
+  }
   .ptl-scroll::-webkit-scrollbar {
     height: 8px;
   }
@@ -123,22 +197,98 @@ const TIMELINE_STYLES = `
   .ptl-scroll::-webkit-scrollbar-thumb:hover {
     background: #4b5563;
   }
+  .ptl-filter-btn {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 9999px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .ptl-filter-btn:hover {
+    filter: brightness(1.2);
+  }
+  .ptl-zoom-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 1px solid #374151;
+    background: #1f2937;
+    color: #9ca3af;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 700;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+    user-select: none;
+  }
+  .ptl-zoom-btn:hover {
+    background: #374151;
+    color: #e5e7eb;
+  }
+  .ptl-zoom-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+  /* Mobile: ensure root div is at least full screen height for scrollability */
+  .ptl-root-mobile {
+    min-height: 100vh;
+  }
+  /* Desktop: root must not exceed viewport (flex layout drives it) */
+  @media (min-width: 768px) {
+    .ptl-root-mobile {
+      min-height: 0;
+    }
+  }
+  /* Touch-friendly timeline scrolling */
+  .ptl-scroll {
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+  }
+  /* Filter bar: allow horizontal scroll on very small screens */
+  .ptl-filter-bar {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .ptl-filter-bar::-webkit-scrollbar {
+    display: none;
+  }
+  /* Minimum touch target for filter buttons */
+  .ptl-filter-btn {
+    min-height: 36px;
+  }
+  /* Minimum touch target for zoom buttons */
+  .ptl-zoom-btn {
+    min-height: 36px;
+    min-width: 36px;
+  }
 `;
 
 // ---------------------------------------------------------------------------
 // Timeline Node
 // ---------------------------------------------------------------------------
-function TimelineNode({ event, isSelected, onClick, nodeRef, isNew }) {
+function TimelineNode({ event, isSelected, onClick, nodeRef, isNew, zoom }) {
   const s = getStyle(event.event_type);
   const isPivot = event.event_type === "PIVOT";
   const isBlocker = event.event_type === "BLOCKER";
+  // Scale node width by zoom (zoom is 0.5-2.0, default 1.0)
+  const baseWidth = isPivot ? 110 : s.size <= 34 ? 80 : 90;
+  const nodeWidth = Math.round(baseWidth * zoom);
 
   return (
     <div
       ref={nodeRef}
       className="flex flex-col items-center cursor-pointer group flex-shrink-0"
       style={{
-        width: isPivot ? 110 : s.size <= 34 ? 80 : 90,
+        width: nodeWidth,
         animation: isNew ? "ptl-slideInRight 0.4s ease-out both" : undefined,
       }}
       onClick={onClick}
@@ -158,14 +308,15 @@ function TimelineNode({ event, isSelected, onClick, nodeRef, isNew }) {
           width: s.size,
           height: s.size,
           background: s.bg,
-          border: `2px solid ${s.border}`,
+          border: `${isSelected ? 3 : 2}px solid ${s.border}`,
           boxShadow: isSelected
             ? `0 0 24px ${s.glow}, 0 0 48px ${s.glow}`
-            : isPivot
-            ? `0 0 16px ${s.glow}`
-            : isBlocker
-            ? `0 0 10px ${s.glow}`
-            : "none",
+            : undefined,
+          animation: isPivot && !isSelected
+            ? "ptl-pivotPulseNode 2.5s ease-in-out infinite"
+            : isBlocker && !isSelected
+            ? undefined
+            : undefined,
         }}
       >
         <span
@@ -226,7 +377,7 @@ function TimelineNode({ event, isSelected, onClick, nodeRef, isNew }) {
 // ---------------------------------------------------------------------------
 // Causality SVG (dashed arcs connecting triggered_by relationships)
 // ---------------------------------------------------------------------------
-function CausalityArcs({ events, nodePositions, scrollLeft }) {
+function CausalityArcs({ events, nodePositions, selectedEventId }) {
   const arcs = useMemo(() => {
     const result = [];
     events.forEach((evt, idx) => {
@@ -236,15 +387,21 @@ function CausalityArcs({ events, nodePositions, scrollLeft }) {
       const from = nodePositions[fromIdx];
       const to = nodePositions[idx];
       if (!from || !to) return;
-      result.push({ from, to, idx, fromIdx, eventType: evt.event_type });
+      const isRelatedToSelected = selectedEventId &&
+        (evt.event_id === selectedEventId ||
+         evt.triggered_by === selectedEventId ||
+         events.find(e => e.event_id === selectedEventId)?.triggered_by === evt.event_id);
+      result.push({ from, to, idx, fromIdx, eventType: evt.event_type, isRelatedToSelected });
     });
     return result;
-  }, [events, nodePositions]);
+  }, [events, nodePositions, selectedEventId]);
 
   if (arcs.length === 0) return null;
 
-  const maxX = Math.max(...Object.values(nodePositions).map((p) => p.x), 0) + 200;
-  const maxArc = 80;
+  const allPositions = Object.values(nodePositions);
+  if (allPositions.length === 0) return null;
+  const maxX = Math.max(...allPositions.map((p) => p.x), 0) + 200;
+  const maxArc = 90;
 
   return (
     <svg
@@ -256,6 +413,7 @@ function CausalityArcs({ events, nodePositions, scrollLeft }) {
       <defs>
         {arcs.map((a, i) => {
           const s = getStyle(a.eventType);
+          const highlighted = a.isRelatedToSelected;
           return (
             <linearGradient
               key={`cg-${i}`}
@@ -265,14 +423,31 @@ function CausalityArcs({ events, nodePositions, scrollLeft }) {
               x2="100%"
               y2="0%"
             >
-              <stop offset="0%" stopColor={s.border} stopOpacity="0.2" />
-              <stop offset="50%" stopColor={s.border} stopOpacity="0.7" />
-              <stop offset="100%" stopColor={s.border} stopOpacity="0.2" />
+              <stop offset="0%" stopColor={s.border} stopOpacity={highlighted ? 0.5 : 0.15} />
+              <stop offset="50%" stopColor={s.border} stopOpacity={highlighted ? 1.0 : 0.55} />
+              <stop offset="100%" stopColor={s.border} stopOpacity={highlighted ? 0.5 : 0.15} />
             </linearGradient>
           );
         })}
+        {/* Per-type arrow markers */}
+        {["STRATEGY_SET","BLOCKER","PIVOT","UPDATE","SIMULATION_RESULT"].map((et) => {
+          const s = getStyle(et);
+          return (
+            <marker
+              key={`arrow-${et}`}
+              id={`ptl-arrow-${et}`}
+              markerWidth="8"
+              markerHeight="6"
+              refX="7"
+              refY="3"
+              orient="auto"
+            >
+              <polygon points="0 0, 8 3, 0 6" fill={s.border} opacity="0.8" />
+            </marker>
+          );
+        })}
         <marker
-          id="ptl-arrow"
+          id="ptl-arrow-default"
           markerWidth="8"
           markerHeight="6"
           refX="7"
@@ -285,18 +460,28 @@ function CausalityArcs({ events, nodePositions, scrollLeft }) {
       {arcs.map((a, i) => {
         const midX = (a.from.x + a.to.x) / 2;
         const dist = Math.abs(a.to.x - a.from.x);
-        const arcHeight = Math.min(maxArc, dist * 0.3);
+        const arcHeight = Math.min(maxArc, dist * 0.35 + 20);
         const arcY = a.from.y - arcHeight;
+        const highlighted = a.isRelatedToSelected;
+        const strokeW = highlighted ? 2.5 : 1.5;
+        const dashArray = highlighted ? "8 4" : "5 5";
+        const animDuration = highlighted ? "1.8s" : "3s";
+        const markerType = ["STRATEGY_SET","BLOCKER","PIVOT","UPDATE","SIMULATION_RESULT"].includes(a.eventType)
+          ? a.eventType : "default";
         return (
           <path
             key={i}
             d={`M ${a.from.x} ${a.from.y} Q ${midX} ${arcY} ${a.to.x} ${a.to.y}`}
             fill="none"
             stroke={`url(#cg-${i})`}
-            strokeWidth="1.5"
-            strokeDasharray="6 4"
-            markerEnd="url(#ptl-arrow)"
-            style={{ animation: "ptl-dashFlow 3s linear infinite" }}
+            strokeWidth={strokeW}
+            strokeDasharray={dashArray}
+            markerEnd={`url(#ptl-arrow-${markerType})`}
+            style={{
+              animation: `ptl-dashFlow ${animDuration} linear infinite`,
+              opacity: selectedEventId && !highlighted ? 0.3 : 1,
+              transition: "opacity 0.25s ease",
+            }}
           />
         );
       })}
@@ -731,6 +916,114 @@ function DetailPanel({ event, allEvents, onSelectEvent }) {
 }
 
 // ---------------------------------------------------------------------------
+// Filter configuration
+// ---------------------------------------------------------------------------
+const FILTER_TYPES = [
+  { key: "ALL", label: "ALL", color: "#6b7280", activeColor: "#e5e7eb", activeBg: "#374151", activeBorder: "#6b7280" },
+  { key: "STRATEGY", label: "STRATEGY", color: "#93c5fd", activeColor: "#93c5fd", activeBg: "#1e3a5f", activeBorder: "#3b82f6" },
+  { key: "BLOCKER", label: "BLOCKER", color: "#fca5a5", activeColor: "#fca5a5", activeBg: "#5f1e1e", activeBorder: "#ef4444" },
+  { key: "PIVOT", label: "PIVOT", color: "#fde68a", activeColor: "#fde68a", activeBg: "#5f4b1e", activeBorder: "#eab308" },
+  { key: "UPDATE", label: "UPDATE", color: "#86efac", activeColor: "#86efac", activeBg: "#1e3f2e", activeBorder: "#22c55e" },
+  { key: "SIM", label: "SIM", color: "#d8b4fe", activeColor: "#d8b4fe", activeBg: "#3b1e5f", activeBorder: "#a855f7" },
+];
+
+// Map event_type values to filter keys
+function getFilterKey(eventType) {
+  if (!eventType) return "UPDATE";
+  const t = eventType.toUpperCase();
+  if (t === "STRATEGY_SET") return "STRATEGY";
+  if (t === "BLOCKER") return "BLOCKER";
+  if (t === "PIVOT") return "PIVOT";
+  if (t.includes("SIMULATION")) return "SIM";
+  return "UPDATE";
+}
+
+// ---------------------------------------------------------------------------
+// Filter bar
+// ---------------------------------------------------------------------------
+function FilterBar({ activeFilter, onFilterChange, eventCounts }) {
+  return (
+    <div className="ptl-filter-bar flex items-center gap-1.5">
+      {FILTER_TYPES.map((ft) => {
+        const isActive = activeFilter === ft.key;
+        const count = ft.key === "ALL" ? eventCounts.total : (eventCounts[ft.key] || 0);
+        return (
+          <button
+            key={ft.key}
+            className="ptl-filter-btn"
+            style={{
+              background: isActive ? ft.activeBg : "transparent",
+              color: isActive ? ft.activeColor : "#6b7280",
+              borderColor: isActive ? ft.activeBorder : "#374151",
+            }}
+            onClick={() => onFilterChange(ft.key)}
+          >
+            {ft.label}
+            {count > 0 && (
+              <span
+                style={{
+                  marginLeft: 5,
+                  fontSize: 10,
+                  opacity: 0.75,
+                  fontWeight: 500,
+                }}
+              >
+                {count}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Zoom controls
+// ---------------------------------------------------------------------------
+function ZoomControls({ zoom, onZoomChange }) {
+  const ZOOM_MIN = 0.5;
+  const ZOOM_MAX = 2.5;
+  const ZOOM_STEP = 0.25;
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-[10px] text-gray-600 uppercase tracking-wider select-none">zoom</span>
+      <button
+        className="ptl-zoom-btn"
+        onClick={() => onZoomChange(Math.max(ZOOM_MIN, zoom - ZOOM_STEP))}
+        disabled={zoom <= ZOOM_MIN}
+        title="Zoom out"
+      >
+        −
+      </button>
+      <span
+        className="text-xs text-gray-400 tabular-nums select-none"
+        style={{ minWidth: 32, textAlign: "center" }}
+      >
+        {Math.round(zoom * 100)}%
+      </span>
+      <button
+        className="ptl-zoom-btn"
+        onClick={() => onZoomChange(Math.min(ZOOM_MAX, zoom + ZOOM_STEP))}
+        disabled={zoom >= ZOOM_MAX}
+        title="Zoom in"
+      >
+        +
+      </button>
+      <button
+        className="ptl-zoom-btn"
+        onClick={() => onZoomChange(1.0)}
+        title="Reset zoom"
+        style={{ fontSize: 10, fontWeight: 600 }}
+      >
+        ⟳
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Stats bar
 // ---------------------------------------------------------------------------
 function StatsBar({ events }) {
@@ -788,12 +1081,31 @@ export default function PivotTimeline({ runId }) {
   const [nodePositions, setNodePositions] = useState({});
   const [wsConnected, setWsConnected] = useState(false);
   const [newEventIds, setNewEventIds] = useState(new Set());
+  const [activeFilter, setActiveFilter] = useState("ALL");
+  const [zoom, setZoom] = useState(1.0);
 
   const scrollRef = useRef(null);
   const nodesRef = useRef({});
   const wsRef = useRef(null);
   const eventsRef = useRef(events);
   eventsRef.current = events;
+
+  // ── Compute filtered events ────────────────────────────────────────
+  const filteredEvents = useMemo(() => {
+    if (activeFilter === "ALL") return events;
+    return events.filter((e) => getFilterKey(e.event_type) === activeFilter);
+  }, [events, activeFilter]);
+
+  // ── Compute event counts for filter bar ───────────────────────────
+  const eventCounts = useMemo(() => {
+    const counts = { total: events.length };
+    for (const ft of FILTER_TYPES) {
+      if (ft.key !== "ALL") {
+        counts[ft.key] = events.filter((e) => getFilterKey(e.event_type) === ft.key).length;
+      }
+    }
+    return counts;
+  }, [events]);
 
   // ── Fetch initial trace data ───────────────────────────────────────
   useEffect(() => {
@@ -811,18 +1123,20 @@ export default function PivotTimeline({ runId }) {
           setEvents(trace);
         }
       } catch (err) {
-        // Fallback: try static trace.json
+        // Fallback 1: try static trace.json
         try {
           const res = await fetch("/outputs/trace.json");
           if (res.ok) {
             const data = await res.json();
             const trace = Array.isArray(data) ? data : data.trace || data.events || [];
-            if (!cancelled) setEvents(trace);
+            if (!cancelled) setEvents(trace.length > 0 ? trace : DEMO_TRACE);
           } else {
-            if (!cancelled) setError(err.message);
+            // Fallback 2: use built-in demo data
+            if (!cancelled) setEvents(DEMO_TRACE);
           }
         } catch {
-          if (!cancelled) setError(err.message);
+          // Fallback 2: use built-in demo data
+          if (!cancelled) setEvents(DEMO_TRACE);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -911,7 +1225,7 @@ export default function PivotTimeline({ runId }) {
   useEffect(() => {
     const timer = setTimeout(updatePositions, 80);
     return () => clearTimeout(timer);
-  }, [events, updatePositions]);
+  }, [events, filteredEvents, zoom, updatePositions]);
 
   // ── Select event handler (also scrolls timeline to that node) ──────
   const handleSelectEvent = useCallback(
@@ -919,8 +1233,8 @@ export default function PivotTimeline({ runId }) {
       setSelected((prev) =>
         prev?.event_id === evt.event_id ? null : evt
       );
-      // Scroll to the node in the timeline
-      const idx = events.findIndex((e) => e.event_id === evt.event_id);
+      // Scroll to the node in the timeline (use filteredEvents for node index)
+      const idx = filteredEvents.findIndex((e) => e.event_id === evt.event_id);
       if (idx >= 0 && nodesRef.current[idx]) {
         nodesRef.current[idx].scrollIntoView({
           behavior: "smooth",
@@ -929,8 +1243,15 @@ export default function PivotTimeline({ runId }) {
         });
       }
     },
-    [events]
+    [filteredEvents]
   );
+
+  // ── When filter changes, clear selection if selected event is now hidden ──
+  useEffect(() => {
+    if (selected && !filteredEvents.some(e => e.event_id === selected.event_id)) {
+      setSelected(null);
+    }
+  }, [activeFilter, filteredEvents, selected]);
 
   // ── Loading / Error / Empty states ─────────────────────────────────
   if (loading) {
@@ -971,87 +1292,124 @@ export default function PivotTimeline({ runId }) {
     );
   }
 
+  // Compute base node spacing based on zoom
+  const baseNodeGap = Math.round(4 * zoom);
+  const minWidth = filteredEvents.length * Math.round(100 * zoom) + 200;
+
   // ── Main render ────────────────────────────────────────────────────
   return (
-    <div className="h-full flex flex-col bg-gray-950 text-gray-100">
+    <div className="flex flex-col md:h-full bg-gray-950 text-gray-100 ptl-root-mobile">
       <style>{TIMELINE_STYLES}</style>
 
       {/* ── Header bar ── */}
-      <div className="flex-shrink-0 border-b border-gray-800 bg-gray-900/60 backdrop-blur-sm px-6 py-3">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-3">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+      <div className="flex-shrink-0 border-b border-gray-800 bg-gray-900/60 backdrop-blur-sm px-3 sm:px-4 py-2 sm:py-2.5">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          {/* Left: title + live indicator */}
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            <h2 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
               <span className="text-purple-400">{"\u25C6"}</span>
-              Pivot Timeline
+              <span className="hidden sm:inline">Pivot Timeline</span>
+              <span className="sm:hidden">Timeline</span>
             </h2>
-            <span className="text-xs text-gray-500">
-              Causal Decision Trail
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
             {wsConnected && (
               <div className="flex items-center gap-1.5 text-xs text-green-400">
                 <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                Live
+                <span className="hidden sm:inline">Live</span>
               </div>
             )}
-            <StatsBar events={events} />
           </div>
-        </div>
-      </div>
 
-      {/* ── Timeline area (top 60%) ── */}
-      <div className="flex-[6] min-h-0 relative border-b border-gray-800">
-        <div
-          ref={scrollRef}
-          className="ptl-scroll h-full overflow-x-auto overflow-y-hidden relative"
-          onScroll={updatePositions}
-        >
-          {/* Min width to ensure scrollability */}
-          <div
-            className="relative h-full flex items-center"
-            style={{ minWidth: events.length * 100 + 200, paddingLeft: 40, paddingRight: 80 }}
-          >
-            {/* Horizontal connectors */}
-            <HorizontalConnectors
-              nodePositions={nodePositions}
-              eventCount={events.length}
+          {/* Center: filter buttons — scrollable on mobile */}
+          <div className="flex-1 flex justify-center overflow-x-auto">
+            <FilterBar
+              activeFilter={activeFilter}
+              onFilterChange={setActiveFilter}
+              eventCounts={eventCounts}
             />
+          </div>
 
-            {/* Causality arcs */}
-            <CausalityArcs
-              events={events}
-              nodePositions={nodePositions}
-              scrollLeft={scrollRef.current?.scrollLeft || 0}
-            />
-
-            {/* Event nodes */}
-            <div className="relative flex items-center gap-1">
-              {events.map((evt, idx) => {
-                const isSelected = selected?.event_id === evt.event_id;
-                const isNew = newEventIds.has(evt.event_id);
-                return (
-                  <TimelineNode
-                    key={evt.event_id || idx}
-                    event={evt}
-                    isSelected={isSelected}
-                    onClick={() => handleSelectEvent(evt)}
-                    nodeRef={(el) => (nodesRef.current[idx] = el)}
-                    isNew={isNew}
-                  />
-                );
-              })}
+          {/* Right: zoom controls + stats */}
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            <ZoomControls zoom={zoom} onZoomChange={setZoom} />
+            <div className="hidden sm:block">
+              <StatsBar events={events} />
             </div>
           </div>
         </div>
-
-        {/* Fade edges */}
-        <div className="absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-gray-950 to-transparent pointer-events-none z-10" />
-        <div className="absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-gray-950 to-transparent pointer-events-none z-10" />
       </div>
 
-      {/* ── Detail panel (bottom 40%) ── */}
-      <div className="flex-[4] min-h-0 bg-gray-900/40">
+      {/* ── Timeline area — fixed height on desktop, scrollable on mobile ── */}
+      <div className="md:flex-[6] md:min-h-0 relative border-b border-gray-800" style={{ minHeight: '200px' }}>
+        {filteredEvents.length === 0 ? (
+          <div className="h-full flex items-center justify-center text-gray-600 py-12">
+            <div className="text-center">
+              <div className="text-2xl mb-2">⊘</div>
+              <div className="text-sm">No events match the current filter.</div>
+              <button
+                className="mt-3 text-xs text-blue-400 hover:text-blue-300 underline min-h-[44px]"
+                onClick={() => setActiveFilter("ALL")}
+              >
+                Show all events
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div
+            ref={scrollRef}
+            className="ptl-scroll h-full overflow-x-auto overflow-y-hidden relative"
+            style={{ WebkitOverflowScrolling: 'touch' }}
+            onScroll={updatePositions}
+          >
+            {/* Min width to ensure scrollability — key for mobile horizontal scroll */}
+            <div
+              className="relative h-full flex items-center"
+              style={{ minWidth: Math.max(minWidth, 600), paddingLeft: 40, paddingRight: 80 }}
+            >
+              {/* Horizontal connectors */}
+              <HorizontalConnectors
+                nodePositions={nodePositions}
+                eventCount={filteredEvents.length}
+              />
+
+              {/* Causality arcs */}
+              <CausalityArcs
+                events={filteredEvents}
+                nodePositions={nodePositions}
+                selectedEventId={selected?.event_id}
+              />
+
+              {/* Event nodes */}
+              <div
+                className="relative flex items-center"
+                style={{ gap: baseNodeGap }}
+              >
+                {filteredEvents.map((evt, idx) => {
+                  const isSelected = selected?.event_id === evt.event_id;
+                  const isNew = newEventIds.has(evt.event_id);
+                  return (
+                    <TimelineNode
+                      key={evt.event_id || idx}
+                      event={evt}
+                      isSelected={isSelected}
+                      onClick={() => handleSelectEvent(evt)}
+                      nodeRef={(el) => (nodesRef.current[idx] = el)}
+                      isNew={isNew}
+                      zoom={zoom}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Fade edges */}
+        <div className="absolute left-0 top-0 bottom-0 w-6 sm:w-10 bg-gradient-to-r from-gray-950 to-transparent pointer-events-none z-10" />
+        <div className="absolute right-0 top-0 bottom-0 w-6 sm:w-10 bg-gradient-to-l from-gray-950 to-transparent pointer-events-none z-10" />
+      </div>
+
+      {/* ── Detail panel ── */}
+      <div className="md:flex-[4] md:min-h-0 bg-gray-900/40 overflow-y-auto" style={{ minHeight: '200px' }}>
         <DetailPanel
           event={selected}
           allEvents={events}

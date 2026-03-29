@@ -1023,6 +1023,7 @@ export default function SprintReport({ runId }) {
   const [runData, setRunData] = useState(null);
   const [artifacts, setArtifacts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [jsonDownloading, setJsonDownloading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -1042,6 +1043,45 @@ export default function SprintReport({ runId }) {
     return () => { cancelled = true; };
   }, [runId]);
 
+  function handleExportPdf() {
+    window.print();
+  }
+
+  async function handleExportJson() {
+    setJsonDownloading(true);
+    try {
+      const id = runId || 'latest';
+      const [run, arts, trace, simResults] = await Promise.all([
+        fetch(`/api/runs/${id}`).then((r) => r.ok ? r.json() : null).catch(() => null),
+        fetch(`/api/runs/${id}/artifacts`).then((r) => r.ok ? r.json() : null).catch(() => null),
+        fetch('/api/artifacts/trace.json').then((r) => r.ok ? r.json() : null).catch(() => null),
+        fetch('/api/artifacts/simulation_results.json').then((r) => r.ok ? r.json() : null).catch(() => null),
+      ]);
+
+      const exportData = {
+        exported_at: new Date().toISOString(),
+        run_id: id,
+        run: run,
+        artifacts: arts?.artifacts || [],
+        trace: trace,
+        simulation_results: simResults,
+      };
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const dateStr = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `sprint-${id}-${dateStr}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } finally {
+      setJsonDownloading(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center min-h-[80vh]">
@@ -1056,7 +1096,7 @@ export default function SprintReport({ runId }) {
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)] max-w-7xl mx-auto w-full px-4 py-4 gap-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between sprint-report-header">
         <div>
           <h2 className="text-2xl font-bold text-white flex items-center gap-2">
             <span className="text-emerald-400">{'\uD83D\uDCCA'}</span> Sprint Report
@@ -1064,6 +1104,27 @@ export default function SprintReport({ runId }) {
           <p className="text-xs text-gray-500 font-mono mt-0.5">
             Artifacts and cost summary &middot; Run {runId || 'latest'}
           </p>
+        </div>
+        <div className="flex items-center gap-2 no-print">
+          <button
+            onClick={handleExportPdf}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-600 text-gray-300 hover:border-gray-400 hover:text-white hover:bg-white/[0.04] transition-all duration-150 cursor-pointer"
+          >
+            <span>{'\uD83D\uDDCB'}</span>
+            <span>Export PDF</span>
+          </button>
+          <button
+            onClick={handleExportJson}
+            disabled={jsonDownloading}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all duration-150 cursor-pointer ${
+              jsonDownloading
+                ? 'border-cyan-700 text-cyan-500 bg-cyan-900/10 cursor-not-allowed'
+                : 'border-gray-600 text-gray-300 hover:border-cyan-500 hover:text-cyan-300 hover:bg-cyan-900/10'
+            }`}
+          >
+            <span>{jsonDownloading ? '\u23F3' : '\uD83D\uDCBE'}</span>
+            <span>{jsonDownloading ? 'Downloading...' : 'Export JSON'}</span>
+          </button>
         </div>
       </div>
 

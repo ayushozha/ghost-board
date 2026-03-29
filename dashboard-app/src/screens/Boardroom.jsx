@@ -264,6 +264,35 @@ function AgentCard({ name, config, status, lastMessage }) {
   );
 }
 
+// ── Mobile Agent Card (grid layout, no absolute positioning) ──
+function MobileAgentCard({ name, config, status, lastMessage }) {
+  const statusCfg = STATUS_CONFIG[status] || STATUS_CONFIG.idle;
+  const isActive = status !== 'idle' && status !== 'done';
+  const borderClass = statusCfg.borderCls || config.border;
+  const animClass = statusCfg.animCls;
+  const bubbleText = isActive && lastMessage
+    ? (lastMessage.length > 80 ? lastMessage.substring(0, 80) + '...' : lastMessage)
+    : null;
+
+  return (
+    <div className={`flex flex-col ${animClass}`}>
+      <div className={`relative rounded-xl border ${borderClass} bg-gradient-to-b ${config.bg} backdrop-blur-sm p-3 text-center transition-all duration-500 min-h-[44px]`}>
+        <div className="absolute top-2 right-2 flex items-center gap-1">
+          <div className={`w-2 h-2 rounded-full ${statusCfg.dot}`} />
+        </div>
+        <div className="text-2xl mb-1">{config.icon}</div>
+        <div className={`text-sm font-bold ${config.text}`}>{name}</div>
+        <div className="text-[9px] text-slate-500 leading-tight">{statusCfg.label}</div>
+      </div>
+      {bubbleText && (
+        <div className="mt-1 p-2 rounded-lg bg-black/80 backdrop-blur border border-white/10 text-[10px] text-slate-300 leading-relaxed">
+          {bubbleText}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Discussion entry ──
 function DiscussionEntry({ entry, isNew }) {
   const agentName = normalizeAgent(entry.agent);
@@ -670,12 +699,12 @@ export default function Boardroom({ runId, onEvent }) {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] max-w-[1600px] mx-auto w-full px-4 py-4 gap-0">
+    <div className="flex flex-col md:h-[calc(100vh-8rem)] max-w-[1600px] mx-auto w-full px-2 sm:px-4 py-2 sm:py-4 gap-0">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-black/20 backdrop-blur-sm shrink-0 rounded-t-xl">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-3 border-b border-white/10 bg-black/20 backdrop-blur-sm shrink-0 rounded-t-xl flex-wrap gap-2">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <div
-            className="text-xl font-bold"
+            className="text-base sm:text-xl font-bold"
             style={{
               background: 'linear-gradient(135deg, #818cf8, #a78bfa)',
               WebkitBackgroundClip: 'text',
@@ -684,11 +713,11 @@ export default function Boardroom({ runId, onEvent }) {
           >
             THE BOARDROOM
           </div>
-          <span className="text-xs text-slate-500 font-mono">Executive Session</span>
+          <span className="hidden sm:inline text-xs text-slate-500 font-mono">Executive Session</span>
           <ConnectionIndicator status={wsStatus} />
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-slate-500 font-mono">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          <span className="text-xs text-slate-500 font-mono hidden sm:inline">
             {totalEvents} events
           </span>
           <span className="text-xs px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono">
@@ -714,13 +743,13 @@ export default function Boardroom({ runId, onEvent }) {
         </div>
       </div>
 
-      {/* Body: 60% agent constellation (top), 40% discussion feed (bottom) */}
-      <div className="flex flex-col flex-1 overflow-hidden border border-white/5 rounded-b-xl">
-        {/* Top: Agent constellation (60% height) */}
-        <div className="relative bg-gray-900/30 overflow-hidden" style={{ height: '60%' }}>
+      {/* Body: agent constellation (top), discussion feed (bottom) */}
+      <div className="flex flex-col flex-1 md:overflow-hidden border border-white/5 rounded-b-xl">
+        {/* Top: Agent constellation — pentagon on md+, grid on mobile */}
+        <div className="bg-gray-900/30 md:overflow-hidden md:flex-[6]">
           {/* Background gradient */}
           <div
-            className="absolute inset-0 opacity-20"
+            className="hidden md:block absolute inset-0 opacity-20 pointer-events-none"
             style={{
               background: 'linear-gradient(-45deg, #0f172a, #1e1b4b, #0c1445, #172554)',
               backgroundSize: '400% 400%',
@@ -728,43 +757,68 @@ export default function Boardroom({ runId, onEvent }) {
             }}
           />
 
-          {/* Connection lines */}
-          <ConnectionSVG activeLines={activeLines} />
-
-          {/* Center label */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none" style={{ zIndex: 0 }}>
-            <div className="text-gray-700 text-xs font-mono uppercase tracking-widest">Event Bus</div>
+          {/* ── Mobile/Tablet: grid layout ── */}
+          <div className="md:hidden grid grid-cols-2 sm:grid-cols-3 gap-3 p-4">
+            {Object.entries(AGENTS).map(([name, config]) => (
+              <MobileAgentCard
+                key={name}
+                name={name}
+                config={config}
+                status={agentStatuses[name]}
+                lastMessage={agentMessages[name]}
+              />
+            ))}
           </div>
 
-          {/* Agent cards */}
-          {Object.entries(AGENTS).map(([name, config]) => (
-            <AgentCard
-              key={name}
-              name={name}
-              config={config}
-              status={agentStatuses[name]}
-              lastMessage={agentMessages[name]}
+          {/* ── Desktop: absolute pentagon layout ── */}
+          <div className="relative hidden md:block" style={{ height: '100%', minHeight: '280px' }}>
+            <div
+              className="absolute inset-0 opacity-20"
+              style={{
+                background: 'linear-gradient(-45deg, #0f172a, #1e1b4b, #0c1445, #172554)',
+                backgroundSize: '400% 400%',
+                animation: 'boardroom-gradient 15s ease infinite',
+              }}
             />
-          ))}
+
+            {/* Connection lines */}
+            <ConnectionSVG activeLines={activeLines} />
+
+            {/* Center label */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none" style={{ zIndex: 0 }}>
+              <div className="text-gray-700 text-xs font-mono uppercase tracking-widest">Event Bus</div>
+            </div>
+
+            {/* Agent cards */}
+            {Object.entries(AGENTS).map(([name, config]) => (
+              <AgentCard
+                key={name}
+                name={name}
+                config={config}
+                status={agentStatuses[name]}
+                lastMessage={agentMessages[name]}
+              />
+            ))}
+          </div>
         </div>
 
-        {/* Bottom: Discussion feed (40% height) */}
-        <div className="border-t border-white/10 bg-black/20 backdrop-blur-sm flex flex-col" style={{ height: '40%' }}>
+        {/* Bottom: Discussion feed */}
+        <div className="border-t border-white/10 bg-black/20 backdrop-blur-sm flex flex-col md:flex-[4] md:overflow-hidden" style={{ minHeight: '200px' }}>
           {/* Feed header */}
-          <div className="px-4 py-2 border-b border-white/10 flex items-center justify-between shrink-0">
+          <div className="px-3 sm:px-4 py-2 border-b border-white/10 flex items-center justify-between shrink-0 flex-wrap gap-1">
             <div className="flex items-center gap-2">
               <div className="text-sm font-semibold text-slate-300">Discussion Feed</div>
               <span className="text-[10px] text-slate-600 font-mono">{discussion.length} messages</span>
             </div>
             <div className="flex items-center gap-2">
               {/* Legend */}
-              <span className="text-[9px] text-red-400 border border-red-500/20 px-1.5 py-0.5 rounded">BLOCKER = red</span>
-              <span className="text-[9px] text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded">PIVOT = yellow</span>
+              <span className="text-[9px] text-red-400 border border-red-500/20 px-1.5 py-0.5 rounded">BLOCKER</span>
+              <span className="text-[9px] text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded">PIVOT</span>
             </div>
           </div>
 
           {/* Scrollable feed */}
-          <div ref={feedRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-2 boardroom-scrollbar">
+          <div ref={feedRef} className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 space-y-2 boardroom-scrollbar" style={{ maxHeight: '400px' }}>
             {discussion.map((entry, i) => {
               const entryId = `${entry.timestamp}-${entry.agent}-${entry.event_type}`;
               return (
@@ -848,6 +902,10 @@ export default function Boardroom({ runId, onEvent }) {
         .boardroom-scrollbar::-webkit-scrollbar { width: 5px; }
         .boardroom-scrollbar::-webkit-scrollbar-track { background: rgba(30,27,75,0.5); border-radius: 3px; }
         .boardroom-scrollbar::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 3px; }
+        /* On md+ screens restore the discussion feed height behaviour */
+        @media (min-width: 768px) {
+          .boardroom-scrollbar { max-height: none !important; }
+        }
       `}</style>
     </div>
   );

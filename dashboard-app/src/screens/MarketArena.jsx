@@ -4,7 +4,21 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { getRunSimulation, loadStaticSimulation, loadStaticSimulationGeo, connectLive } from '../api';
-import Globe from '../components/Globe';
+import { lazy, Suspense } from 'react';
+
+// Lazy-load Globe so Three.js only downloads when the globe panel is rendered.
+const Globe = lazy(() => import('../components/Globe'));
+
+function GlobeFallback() {
+  return (
+    <div className="w-full h-full flex items-center justify-center bg-gray-900/30 rounded-2xl">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-16 h-16 rounded-full bg-gray-800 animate-pulse" />
+        <div className="h-3 bg-gray-800 rounded w-24 animate-pulse" />
+      </div>
+    </div>
+  );
+}
 
 // ── Archetype configuration ────────────────────────────────────────
 const ARCHETYPE_CONFIG = {
@@ -215,7 +229,7 @@ function SentimentGauge({ value }) {
 }
 
 // ── Recharts sentiment line chart ──────────────────────────────────
-function SentimentLineChart({ roundsData }) {
+function SentimentLineChart({ roundsData, isAnimating }) {
   const chartData = useMemo(() => {
     if (!roundsData || roundsData.length === 0) return [];
     return roundsData.map((rd) => ({
@@ -268,7 +282,9 @@ function SentimentLineChart({ roundsData }) {
           strokeDasharray="6 3"
           dot={false}
           name="avg"
-          isAnimationActive={false}
+          isAnimationActive={isAnimating}
+          animationDuration={800}
+          animationEasing="ease-out"
         />
         {archetypes.map((arch) => (
           <Line
@@ -279,11 +295,146 @@ function SentimentLineChart({ roundsData }) {
             strokeWidth={1.5}
             dot={{ r: 2 }}
             name={arch}
-            isAnimationActive={false}
+            isAnimationActive={isAnimating}
+            animationDuration={800}
+            animationEasing="ease-out"
           />
         ))}
       </LineChart>
     </ResponsiveContainer>
+  );
+}
+
+// ── Persona Detail Panel ──────────────────────────────────────────
+function PersonaDetailPanel({ persona, onClose }) {
+  if (!persona) return null;
+
+  const arch = getArchCfg(persona.archetype);
+  const stanceVal = persona.stance ?? persona.sentiment ?? 0;
+  const s = stanceInfo(stanceVal);
+  const allMessages = persona.messages || [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      {/* Panel */}
+      <div className="relative z-10 w-full max-w-md mx-4">
+        <div className="bg-gray-950/97 border border-indigo-500/30 rounded-2xl shadow-2xl shadow-indigo-500/10 overflow-hidden">
+          {/* Header */}
+          <div
+            className="px-5 py-4 border-b border-gray-800/60 flex items-start gap-3"
+            style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(168,85,247,0.05))' }}
+          >
+            <div
+              className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 font-bold text-base"
+              style={{ background: `${arch.hex}20`, border: `1.5px solid ${arch.hex}50`, color: arch.hex }}
+            >
+              {(persona.name || '?')[0].toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-white font-bold text-sm truncate">{persona.name || 'Unknown'}</div>
+              {persona.company && (
+                <div className="text-[11px] text-gray-500 font-mono truncate">{persona.company}</div>
+              )}
+              {persona.city && (
+                <div className="text-[10px] text-gray-600 font-mono truncate">{persona.city}</div>
+              )}
+            </div>
+            <div className="flex flex-col items-end gap-1.5 shrink-0">
+              <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-full ${arch.twBg} ${arch.tw} border border-current/20`}>
+                {arch.label}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <span className={`w-2 h-2 rounded-full ${s.dotCls}`} />
+                <span className={`text-[11px] font-mono font-semibold ${s.cls}`}>{s.text}</span>
+                {typeof stanceVal === 'number' && (
+                  <span className="text-[10px] text-gray-600 font-mono">({fmtSentiment(stanceVal)})</span>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-7 h-7 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center text-gray-400 hover:text-white transition-colors shrink-0"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Body */}
+          <div className="px-5 py-4 max-h-[55vh] overflow-y-auto space-y-4">
+            {/* Location */}
+            {(persona.city || (persona.lat != null && persona.lng != null)) && (
+              <div className="flex items-center gap-2">
+                <svg className="w-3.5 h-3.5 text-gray-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                  <circle cx="12" cy="10" r="3" />
+                </svg>
+                <span className="text-xs text-gray-500 font-mono">
+                  {persona.city ? persona.city : `${persona.lat?.toFixed(2)}°, ${persona.lng?.toFixed(2)}°`}
+                </span>
+              </div>
+            )}
+
+            {/* Messages / Post history */}
+            {allMessages.length > 0 ? (
+              <div>
+                <div className="text-[10px] text-gray-600 font-mono uppercase tracking-wider mb-2">Post History</div>
+                <div className="space-y-2">
+                  {allMessages.map((msg, idx) => {
+                    const msgSent = msg.sentiment ?? 0;
+                    const mInfo = stanceInfo(msgSent);
+                    return (
+                      <div key={idx} className="p-3 rounded-xl bg-gray-900/60 border border-gray-800/50">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className={`w-1.5 h-1.5 rounded-full ${mInfo.dotCls}`} />
+                          <span className="text-[10px] text-gray-600 font-mono">Round {msg.round || idx + 1}</span>
+                          <span className={`text-[10px] font-mono ml-auto ${mInfo.cls}`}>{fmtSentiment(msgSent)}</span>
+                        </div>
+                        <p className="text-xs text-gray-300 leading-relaxed">{msg.content || msg.post || ''}</p>
+                        {msg.references && msg.references.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {msg.references.map((ref) => (
+                              <span key={ref} className="text-[9px] text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 rounded-full font-mono">
+                                @{ref}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (persona.post || persona.message) ? (
+              <div>
+                <div className="text-[10px] text-gray-600 font-mono uppercase tracking-wider mb-2">Latest Post</div>
+                <div className="p-3 rounded-xl bg-gray-900/60 border border-gray-800/50">
+                  <p className="text-xs text-gray-300 leading-relaxed">{persona.post || persona.message}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="text-xs text-gray-600 font-mono text-center py-2">No posts yet</div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="px-5 py-3 border-t border-gray-800/40 flex justify-end">
+            <button
+              onClick={onClose}
+              className="text-xs text-gray-500 hover:text-gray-300 font-mono transition-colors px-3 py-1.5 rounded-lg hover:bg-gray-800/50"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -296,7 +447,14 @@ export default function MarketArena({ runId }) {
   const [activePersona, setActivePersona] = useState(null);
   const [currentRound, setCurrentRound] = useState(0);
   const [newPostIds, setNewPostIds] = useState(new Set());
+  // Track whether chart should animate (true briefly after each round update)
+  const [chartAnimating, setChartAnimating] = useState(false);
+  // WebSocket connection status for live indicator
+  const [wsStatus, setWsStatus] = useState('disconnected'); // 'connected' | 'connecting' | 'disconnected'
+  // Selected persona for detail panel (clicked on globe or feed)
+  const [selectedPersonaData, setSelectedPersonaData] = useState(null);
   const feedRef = useRef(null);
+  const feedEndRef = useRef(null);
   const wsRef = useRef(null);
   const pollRef = useRef(null);
   const prevFeedCountRef = useRef(0);
@@ -307,10 +465,15 @@ export default function MarketArena({ runId }) {
     if (!runId) return;
 
     let wsConnected = false;
+    setWsStatus('connecting');
 
     // Attempt WebSocket connection
     try {
       const ws = connectLive(runId, {
+        onOpen: () => {
+          wsConnected = true;
+          setWsStatus('connected');
+        },
         onEvent: (event) => {
           const eventType = String(event.event_type || event.type || '').toLowerCase();
           const payload = event.payload || event.data || event;
@@ -321,6 +484,9 @@ export default function MarketArena({ runId }) {
 
           if (eventType === 'simulation_round') {
             handleSimulationUpdate(payload);
+            // Trigger chart animation for this round
+            setChartAnimating(true);
+            setTimeout(() => setChartAnimating(false), 1200);
           }
 
           // Also handle individual persona posts streamed via WS
@@ -341,11 +507,13 @@ export default function MarketArena({ runId }) {
             return;
           }
           wsConnected = false;
+          setWsStatus('disconnected');
           // Fallback to polling when WS disconnects
           startPolling();
         },
         onError: () => {
           wsConnected = false;
+          setWsStatus('disconnected');
           startPolling();
         },
       });
@@ -354,6 +522,7 @@ export default function MarketArena({ runId }) {
       wsConnected = true;
     } catch {
       // WS not available, start polling immediately
+      setWsStatus('disconnected');
       startPolling();
     }
 
@@ -608,14 +777,15 @@ export default function MarketArena({ runId }) {
         });
       }
     });
-    items.sort((a, b) => (b.message.round || 0) - (a.message.round || 0));
+    // Sort oldest-first so newest posts appear at the bottom (auto-scroll target)
+    items.sort((a, b) => (a.message.round || 0) - (b.message.round || 0));
     return items;
   }, [personas, currentRound]);
 
-  // Auto-scroll feed when new items arrive
+  // Auto-scroll feed to bottom when new items arrive (newest posts at bottom)
   useEffect(() => {
-    if (feedItems.length > prevFeedCountRef.current && feedRef.current) {
-      feedRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    if (feedItems.length > prevFeedCountRef.current && feedEndRef.current) {
+      feedEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
     prevFeedCountRef.current = feedItems.length;
   }, [feedItems.length]);
@@ -686,6 +856,18 @@ export default function MarketArena({ runId }) {
 
   const handleFeedClick = useCallback((name) => {
     setActivePersona((prev) => (prev === name ? null : name));
+    // Also open detail panel for the clicked persona
+    const p = personas.find((x) => x.name === name);
+    if (p) setSelectedPersonaData(p);
+  }, [personas]);
+
+  const handleGlobePersonaClick = useCallback((persona) => {
+    setSelectedPersonaData((prev) => (prev && prev.name === persona.name ? null : persona));
+    setActivePersona(persona.name);
+  }, []);
+
+  const handleCloseDetailPanel = useCallback(() => {
+    setSelectedPersonaData(null);
   }, []);
 
   // ── Loading state ──
@@ -727,7 +909,7 @@ export default function MarketArena({ runId }) {
   const progressPct = totalRounds > 0 ? (displayRound / totalRounds) * 100 : 0;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] w-full px-2 py-2 gap-2">
+    <div className="flex flex-col md:h-[calc(100vh-4rem)] w-full px-2 py-2 gap-2">
       {/* Slide-in animation keyframes */}
       <style>{`
         @keyframes slideIn {
@@ -741,21 +923,21 @@ export default function MarketArena({ runId }) {
       `}</style>
 
       {/* ── Top bar ── */}
-      <div className="flex items-center justify-between flex-wrap gap-2 px-4 py-2.5 bg-gray-900/70 border border-gray-800/60 rounded-xl backdrop-blur-sm">
-        <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex items-center justify-between flex-wrap gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-gray-900/70 border border-gray-800/60 rounded-xl backdrop-blur-sm">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <h2 className="text-lg font-bold bg-gradient-to-r from-cyan-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent">
+            <h2 className="text-sm sm:text-lg font-bold bg-gradient-to-r from-cyan-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent">
               Market Stress Test
             </h2>
           </div>
-          <span className="text-gray-700">|</span>
-          <span className="text-sm text-gray-300 font-mono">
-            Round <span className="text-white font-bold">{displayRound}</span>
+          <span className="hidden sm:inline text-gray-700">|</span>
+          <span className="text-xs sm:text-sm text-gray-300 font-mono">
+            R<span className="text-white font-bold">{displayRound}</span>
             <span className="text-gray-600">/{totalRounds}</span>
           </span>
-          <span className="text-gray-700">|</span>
-          <span className="text-sm text-gray-300 font-mono">
+          <span className="hidden sm:inline text-gray-700">|</span>
+          <span className="hidden sm:inline text-sm text-gray-300 font-mono">
             <span className="text-cyan-400 font-bold">{llmAgents}</span>
             <span className="text-gray-500"> LLM</span>
             {lightweightAgents > 0 && (
@@ -766,18 +948,38 @@ export default function MarketArena({ runId }) {
               </>
             )}
           </span>
-          <span className="text-gray-700">|</span>
-          <span className="text-sm font-mono">
-            <span className="text-gray-500">Sentiment </span>
+          <span className="hidden sm:inline text-gray-700">|</span>
+          <span className="text-xs sm:text-sm font-mono">
+            <span className="text-gray-500">Sent </span>
             <span className="font-bold" style={{ color: sentimentColor(overallSentiment) }}>
               {fmtSentiment(overallSentiment)}
             </span>
           </span>
         </div>
-        {/* Progress bar */}
-        <div className="flex items-center gap-2">
+        {/* WS status + progress bar */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* WebSocket live indicator */}
+          {runId && (
+            <div className="flex items-center gap-1.5">
+              <span
+                className={`w-2 h-2 rounded-full shrink-0 ${
+                  wsStatus === 'connected'
+                    ? 'bg-emerald-500 animate-pulse'
+                    : wsStatus === 'connecting'
+                    ? 'bg-yellow-500 animate-pulse'
+                    : 'bg-gray-600'
+                }`}
+              />
+              <span className={`hidden sm:inline text-[10px] font-mono ${
+                wsStatus === 'connected' ? 'text-emerald-400' :
+                wsStatus === 'connecting' ? 'text-yellow-400' : 'text-gray-600'
+              }`}>
+                {wsStatus === 'connected' ? 'LIVE' : wsStatus === 'connecting' ? 'CONNECTING' : 'OFFLINE'}
+              </span>
+            </div>
+          )}
           <span className="text-[10px] text-gray-600 font-mono">{Math.round(progressPct)}%</span>
-          <div className="w-48 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+          <div className="w-20 sm:w-48 h-1.5 bg-gray-800 rounded-full overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-cyan-500 via-indigo-500 to-purple-500 rounded-full transition-all duration-700"
               style={{ width: `${progressPct}%` }}
@@ -786,12 +988,13 @@ export default function MarketArena({ runId }) {
         </div>
       </div>
 
-      {/* ── Three-column layout ── */}
-      <div className="flex-1 flex gap-2 min-h-0">
+      {/* ── Layout: vertical stack on mobile, three columns on lg+ ── */}
+      <div className="flex-1 flex flex-col lg:flex-row gap-2 lg:min-h-0">
 
-        {/* LEFT: Post feed (30%) */}
-        <div className="w-[30%] min-w-[240px] bg-gray-900/50 border border-gray-800 rounded-2xl flex flex-col min-h-0">
-          <div className="px-4 py-2.5 border-b border-gray-800/60 flex items-center gap-2 shrink-0">
+        {/* LEFT: Post feed — full width + fixed height on mobile, 30% flex on lg */}
+        <div className="w-full lg:w-[30%] lg:min-w-[220px] bg-gray-900/50 border border-gray-800 rounded-2xl flex flex-col arena-panel-height"
+          style={{ height: '280px' }}>
+          <div className="px-3 sm:px-4 py-2 sm:py-2.5 border-b border-gray-800/60 flex items-center gap-2 shrink-0">
             <svg className="w-3.5 h-3.5 text-purple-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
@@ -802,7 +1005,7 @@ export default function MarketArena({ runId }) {
           </div>
           <div ref={feedRef} className="flex-1 overflow-y-auto p-2.5 space-y-1.5 min-h-0 scroll-smooth">
             {feedItems.length === 0 && currentRound === 0 ? (
-              <div className="flex items-center justify-center h-full">
+              <div className="flex items-center justify-center h-full py-8">
                 <div className="text-center">
                   <div className="w-8 h-8 mx-auto mb-2 rounded-full bg-indigo-500/10 flex items-center justify-center">
                     <div className="w-3 h-3 rounded-full bg-indigo-500/50 animate-pulse" />
@@ -811,7 +1014,7 @@ export default function MarketArena({ runId }) {
                 </div>
               </div>
             ) : feedItems.length === 0 ? (
-              <div className="flex items-center justify-center h-full">
+              <div className="flex items-center justify-center h-full py-8">
                 <p className="text-sm text-gray-600 font-mono">No posts yet...</p>
               </div>
             ) : (
@@ -826,42 +1029,51 @@ export default function MarketArena({ runId }) {
                 />
               ))
             )}
+            {/* Sentinel element — auto-scroll target for new posts */}
+            <div ref={feedEndRef} />
           </div>
         </div>
 
-        {/* CENTER: Globe (40%) */}
-        <div className="w-[40%] min-w-[280px] bg-gray-900/50 border border-gray-800 rounded-2xl overflow-hidden relative min-h-0">
-          <Globe
-            personas={personas}
-            activePersona={activePersona}
-            arcs={arcs}
-          />
+        {/* CENTER: Globe — 250px tall on mobile, flex-1 on lg */}
+        <div className="w-full lg:w-[40%] lg:min-w-[280px] bg-gray-900/50 border border-gray-800 rounded-2xl overflow-hidden relative arena-globe-height"
+          style={{ height: '250px' }}>
+          <div className="w-full h-full">
+            <Suspense fallback={<GlobeFallback />}>
+              <Globe
+                personas={personas}
+                activePersona={activePersona}
+                arcs={arcs}
+                selectedPersona={selectedPersonaData?.name ?? null}
+                onPersonaClick={handleGlobePersonaClick}
+              />
+            </Suspense>
+          </div>
           {/* Globe legend overlay */}
-          <div className="absolute bottom-3 left-3 flex flex-wrap gap-2 px-2.5 py-1.5 bg-gray-950/80 backdrop-blur-sm rounded-lg border border-gray-800/50">
+          <div className="absolute bottom-2 left-2 flex flex-wrap gap-1.5 px-2 py-1 bg-gray-950/80 backdrop-blur-sm rounded-lg border border-gray-800/50">
             {Object.entries(ARCHETYPE_CONFIG).map(([key, cfg]) => (
               <div key={key} className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full" style={{ background: cfg.hex }} />
-                <span className="text-[9px] text-gray-500">{cfg.label}</span>
+                <span className="text-[9px] text-gray-500 hidden sm:inline">{cfg.label}</span>
               </div>
             ))}
           </div>
           {/* Globe top-right agent counter */}
-          <div className="absolute top-3 right-3 px-2.5 py-1.5 bg-gray-950/80 backdrop-blur-sm rounded-lg border border-gray-800/50">
+          <div className="absolute top-2 right-2 px-2 py-1 bg-gray-950/80 backdrop-blur-sm rounded-lg border border-gray-800/50">
             <span className="text-[10px] text-gray-500 font-mono">
-              {totalAgents.toLocaleString()} agents active
+              {totalAgents.toLocaleString()} agents
             </span>
           </div>
         </div>
 
-        {/* RIGHT: Sentiment Dashboard (30%) */}
-        <div className="w-[30%] min-w-[240px] bg-gray-900/50 border border-gray-800 rounded-2xl flex flex-col min-h-0">
-          <div className="px-4 py-2.5 border-b border-gray-800/60 flex items-center gap-2 shrink-0">
+        {/* RIGHT: Sentiment Dashboard — full width on mobile, 30% on lg */}
+        <div className="w-full lg:w-[30%] lg:min-w-[220px] bg-gray-900/50 border border-gray-800 rounded-2xl flex flex-col lg:min-h-0">
+          <div className="px-3 sm:px-4 py-2 sm:py-2.5 border-b border-gray-800/60 flex items-center gap-2 shrink-0">
             <svg className="w-3.5 h-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
             </svg>
             <span className="text-sm font-semibold text-gray-300">Sentiment Dashboard</span>
           </div>
-          <div className="flex-1 overflow-y-auto p-3 space-y-1 min-h-0">
+          <div className="flex-1 overflow-y-auto p-3 space-y-1 lg:min-h-0">
 
             {/* Sentiment gauge */}
             <SentimentGauge value={overallSentiment} />
@@ -904,7 +1116,7 @@ export default function MarketArena({ runId }) {
               <div className="pb-3 border-b border-gray-800/40">
                 <div className="text-[10px] text-gray-600 font-mono uppercase tracking-wider mb-2 mt-2">Sentiment Over Time</div>
                 <div className="h-[180px]">
-                  <SentimentLineChart roundsData={visibleRoundsData} />
+                  <SentimentLineChart roundsData={visibleRoundsData} isAnimating={chartAnimating} />
                 </div>
               </div>
             )}
@@ -970,6 +1182,14 @@ export default function MarketArena({ runId }) {
           </div>
         </div>
       </div>
+
+      {/* Persona detail modal (globe click or feed click) */}
+      {selectedPersonaData && (
+        <PersonaDetailPanel
+          persona={selectedPersonaData}
+          onClose={handleCloseDetailPanel}
+        />
+      )}
     </div>
   );
 }
