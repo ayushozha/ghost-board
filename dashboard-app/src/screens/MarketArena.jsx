@@ -438,6 +438,157 @@ function PersonaDetailPanel({ persona, onClose }) {
   );
 }
 
+// ── Sentiment Heatmap ─────────────────────────────────────────────
+const HEATMAP_ARCHETYPES = [
+  'vc', 'journalist', 'early_adopter', 'competitor', 'user', 'regulator', 'influencer', 'enterprise_buyer',
+];
+
+function heatmapColor(val) {
+  if (typeof val !== 'number') return '#6b7280';
+  // Interpolate: -1 -> red, 0 -> gray, +1 -> green
+  const clamped = Math.max(-1, Math.min(1, val));
+  if (clamped >= 0) {
+    // gray(107,114,128) -> green(34,197,94)
+    const t = clamped;
+    const r = Math.round(107 + (34 - 107) * t);
+    const g = Math.round(114 + (197 - 114) * t);
+    const b = Math.round(128 + (94 - 128) * t);
+    return `rgb(${r},${g},${b})`;
+  } else {
+    // red(239,68,68) -> gray(107,114,128)
+    const t = clamped + 1; // 0 at -1, 1 at 0
+    const r = Math.round(239 + (107 - 239) * t);
+    const g = Math.round(68 + (114 - 68) * t);
+    const b = Math.round(68 + (128 - 68) * t);
+    return `rgb(${r},${g},${b})`;
+  }
+}
+
+function SentimentHeatmap({ roundsData, effectiveRound }) {
+  const [tooltip, setTooltip] = useState(null);
+
+  if (!roundsData || roundsData.length === 0) {
+    return (
+      <div className="pb-3 border-b border-gray-800/40">
+        <div className="text-[10px] text-gray-600 font-mono uppercase tracking-wider mb-2 mt-2">
+          Archetype Sentiment Heatmap
+        </div>
+        <div className="flex items-center justify-center py-4">
+          <p className="text-[10px] text-gray-600 font-mono">Run a simulation to see heatmap</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Collect all archetypes present in data, supplemented by HEATMAP_ARCHETYPES
+  const presentArchetypes = new Set();
+  roundsData.forEach((rd) => {
+    Object.keys(rd.sentiment_by_archetype || {}).forEach((k) => presentArchetypes.add(k));
+  });
+  // Show archetypes from HEATMAP_ARCHETYPES that are present, then any extras
+  const rows = [
+    ...HEATMAP_ARCHETYPES.filter((a) => presentArchetypes.has(a)),
+    ...[...presentArchetypes].filter((a) => !HEATMAP_ARCHETYPES.includes(a)),
+  ];
+
+  const rounds = roundsData.map((rd) => rd.round_number);
+
+  return (
+    <div className="pb-3 border-b border-gray-800/40">
+      <div className="text-[10px] text-gray-600 font-mono uppercase tracking-wider mb-2 mt-2">
+        Archetype Sentiment Heatmap
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse" style={{ tableLayout: 'fixed', minWidth: `${rows.length * 0}px` }}>
+          <thead>
+            <tr>
+              {/* Row-label column */}
+              <th className="w-20 shrink-0" />
+              {rounds.map((r) => (
+                <th
+                  key={r}
+                  className="text-center pb-1"
+                  style={{ width: 28 }}
+                >
+                  <span className="text-[8px] text-gray-600 font-mono">R{r}</span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((arch) => {
+              const cfg = getArchCfg(arch);
+              return (
+                <tr key={arch}>
+                  <td className="pr-1.5 py-0.5">
+                    <span className="text-[9px] text-gray-500 font-mono truncate block text-right" style={{ maxWidth: 72 }}>
+                      {cfg.label}
+                    </span>
+                  </td>
+                  {roundsData.map((rd) => {
+                    const val = rd.sentiment_by_archetype?.[arch];
+                    const isFuture = rd.round_number > effectiveRound;
+                    const color = heatmapColor(val);
+                    const displayVal = typeof val === 'number' ? fmtSentiment(val) : 'N/A';
+                    return (
+                      <td
+                        key={rd.round_number}
+                        className="py-0.5 px-0.5 relative"
+                        style={{ opacity: isFuture ? 0.4 : 1 }}
+                        onMouseEnter={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setTooltip({
+                            arch: cfg.label,
+                            round: rd.round_number,
+                            val: displayVal,
+                            x: rect.left + rect.width / 2,
+                            y: rect.top - 6,
+                          });
+                        }}
+                        onMouseLeave={() => setTooltip(null)}
+                      >
+                        <div
+                          className="rounded-sm cursor-default"
+                          style={{
+                            width: 20,
+                            height: 14,
+                            background: typeof val === 'number' ? color : '#374151',
+                            margin: '0 auto',
+                          }}
+                        />
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {/* Tooltip rendered in a fixed overlay */}
+      {tooltip && (
+        <div
+          className="fixed z-50 pointer-events-none px-2 py-1.5 rounded-lg bg-gray-950/95 border border-gray-700/60 shadow-xl"
+          style={{ left: tooltip.x, top: tooltip.y, transform: 'translate(-50%, -100%)' }}
+        >
+          <span className="text-[10px] font-mono text-gray-300">
+            {tooltip.arch} · R{tooltip.round} · <span className="text-white font-bold">{tooltip.val}</span>
+          </span>
+        </div>
+      )}
+      {/* Color scale legend */}
+      <div className="flex items-center gap-2 mt-2">
+        <span className="text-[8px] text-red-400 font-mono">-1</span>
+        <div
+          className="flex-1 h-2 rounded-full"
+          style={{ background: 'linear-gradient(to right, #ef4444, #6b7280, #22c55e)' }}
+        />
+        <span className="text-[8px] text-emerald-400 font-mono">+1</span>
+      </div>
+    </div>
+  );
+}
+
 // ── Main MarketArena component ─────────────────────────────────────
 export default function MarketArena({ runId }) {
   const [geoData, setGeoData] = useState([]);
@@ -730,6 +881,9 @@ export default function MarketArena({ runId }) {
     ? geoData
     : (shouldUseDemoFallback ? DEMO_GEO : []);
 
+  // ── Replay speed state (0=paused, 0.5, 1, 2, 5) ──
+  const [replaySpeed, setReplaySpeed] = useState(1);
+
   // ── Animated round progression (only in demo/static mode) ──
   const totalRounds = results.rounds || results.rounds_data?.length || (shouldUseDemoFallback ? 5 : 0);
 
@@ -737,12 +891,15 @@ export default function MarketArena({ runId }) {
     if (loading) return;
     // Pause auto-advance while the user is replaying a specific round
     if (replayRound !== null) return;
+    // Pause if speed is 0
+    if (replaySpeed === 0) return;
     // Only auto-advance if no WS is providing updates
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return;
     if (currentRound >= totalRounds) return;
-    const timer = setTimeout(() => setCurrentRound((r) => r + 1), 1800);
+    const intervalMs = 2000 / replaySpeed;
+    const timer = setTimeout(() => setCurrentRound((r) => r + 1), intervalMs);
     return () => clearTimeout(timer);
-  }, [currentRound, loading, totalRounds, replayRound]);
+  }, [currentRound, loading, totalRounds, replayRound, replaySpeed]);
 
   // ── Replay / effective round ──
   // When replayRound is null we show live data (currentRound).
@@ -1014,6 +1171,33 @@ export default function MarketArena({ runId }) {
             </span>
           )}
         </span>
+
+        {/* Speed buttons */}
+        <div className="flex items-center gap-1 ml-1 shrink-0">
+          {replaySpeed === 0 && (
+            <span className="text-[9px] font-bold font-mono text-yellow-400 uppercase tracking-wider mr-1">PAUSED</span>
+          )}
+          {[
+            { label: '⏸', value: 0, title: 'Pause' },
+            { label: '0.5×', value: 0.5, title: '0.5× speed' },
+            { label: '1×', value: 1, title: '1× speed' },
+            { label: '2×', value: 2, title: '2× speed' },
+            { label: '5×', value: 5, title: '5× speed' },
+          ].map(({ label, value, title }) => (
+            <button
+              key={value}
+              onClick={() => setReplaySpeed(value)}
+              title={title}
+              className={`h-6 px-1.5 flex items-center justify-center rounded-md border transition-colors text-[10px] font-bold font-mono ${
+                replaySpeed === value
+                  ? 'bg-indigo-600 border-indigo-500 text-white'
+                  : 'bg-gray-800/60 border-gray-700 text-gray-400 hover:bg-gray-700 hover:text-white'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
     );
   }
@@ -1249,6 +1433,12 @@ export default function MarketArena({ runId }) {
                 </div>
               </div>
             )}
+
+            {/* Archetype Sentiment Heatmap */}
+            <SentimentHeatmap
+              roundsData={results.rounds_data || []}
+              effectiveRound={effectiveRound}
+            />
 
             {/* Signal summary */}
             {results.final_signal && displayRound >= totalRounds && (

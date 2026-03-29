@@ -153,6 +153,63 @@ function humanKey(key) {
 }
 
 // ---------------------------------------------------------------------------
+// Search helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Wrap every occurrence of `needle` in `text` with a <mark> tag.
+ * Returns an array of React nodes (strings and <mark> elements).
+ * When needle is empty or falsy, returns the original string unchanged.
+ */
+function highlightText(text, needle) {
+  if (!needle || !text) return text;
+  const str = String(text);
+  const lower = str.toLowerCase();
+  const lowerNeedle = needle.toLowerCase();
+  const parts = [];
+  let cursor = 0;
+  let pos;
+  while ((pos = lower.indexOf(lowerNeedle, cursor)) !== -1) {
+    if (pos > cursor) parts.push(str.slice(cursor, pos));
+    parts.push(
+      <mark
+        key={pos}
+        style={{ background: "#fde68a", color: "#1a1a1a", borderRadius: 2, padding: "0 1px" }}
+      >
+        {str.slice(pos, pos + needle.length)}
+      </mark>
+    );
+    cursor = pos + needle.length;
+  }
+  if (cursor < str.length) parts.push(str.slice(cursor));
+  return parts.length > 0 ? parts : str;
+}
+
+/** Return true if event matches the search needle (case-insensitive). */
+function eventMatchesSearch(event, needle) {
+  if (!needle) return true;
+  const lower = needle.toLowerCase();
+
+  // Check event_type
+  if ((event.event_type || "").toLowerCase().includes(lower)) return true;
+  // Check source
+  if ((event.source || "").toLowerCase().includes(lower)) return true;
+
+  // Check payload
+  const payload = event.payload;
+  if (payload && typeof payload === "object") {
+    // Full JSON stringify
+    if (JSON.stringify(payload).toLowerCase().includes(lower)) return true;
+    // Also explicitly check common text fields
+    for (const field of ["content", "rationale", "message", "text", "details", "description", "reason", "pivot_reason", "strategy", "new_strategy", "area", "tagline", "positioning"]) {
+      const val = payload[field];
+      if (val && String(val).toLowerCase().includes(lower)) return true;
+    }
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------------------
 // CSS keyframes injected once
 // ---------------------------------------------------------------------------
 const TIMELINE_STYLES = `
@@ -275,7 +332,7 @@ const TIMELINE_STYLES = `
 // ---------------------------------------------------------------------------
 // Timeline Node
 // ---------------------------------------------------------------------------
-function TimelineNode({ event, isSelected, onClick, nodeRef, isNew, zoom }) {
+function TimelineNode({ event, isSelected, onClick, nodeRef, isNew, zoom, searchText }) {
   const s = getStyle(event.event_type);
   const isPivot = event.event_type === "PIVOT";
   const isBlocker = event.event_type === "BLOCKER";
@@ -298,7 +355,7 @@ function TimelineNode({ event, isSelected, onClick, nodeRef, isNew, zoom }) {
         className="text-[11px] font-semibold mb-1.5 truncate max-w-full text-center transition-colors duration-200"
         style={{ color: isSelected ? s.text : "#9ca3af" }}
       >
-        {event.source}
+        {searchText ? highlightText(event.source, searchText) : event.source}
       </div>
 
       {/* Circle node */}
@@ -533,7 +590,7 @@ function HorizontalConnectors({ nodePositions, eventCount }) {
 // ---------------------------------------------------------------------------
 // BLOCKER detail renderer
 // ---------------------------------------------------------------------------
-function BlockerDetail({ payload }) {
+function BlockerDetail({ payload, searchText }) {
   return (
     <div className="space-y-3">
       {payload.severity && (
@@ -557,7 +614,7 @@ function BlockerDetail({ payload }) {
           <span className="text-xs text-gray-500 uppercase tracking-wider w-24 flex-shrink-0 mt-0.5">
             Area
           </span>
-          <span className="text-sm text-gray-200">{payload.area}</span>
+          <span className="text-sm text-gray-200">{highlightText(payload.area, searchText)}</span>
         </div>
       )}
       {(payload.details || payload.description) && (
@@ -566,7 +623,7 @@ function BlockerDetail({ payload }) {
             Details
           </span>
           <span className="text-sm text-gray-300 leading-relaxed">
-            {payload.details || payload.description}
+            {highlightText(payload.details || payload.description, searchText)}
           </span>
         </div>
       )}
@@ -585,11 +642,11 @@ function BlockerDetail({ payload }) {
                     rel="noopener noreferrer"
                     className="text-blue-400 hover:text-blue-300 underline text-sm break-all"
                   >
-                    {cite}
+                    {highlightText(cite, searchText)}
                   </a>
                 ) : (
                   <span className="text-sm text-gray-300">
-                    {typeof cite === "string" ? cite : JSON.stringify(cite)}
+                    {highlightText(typeof cite === "string" ? cite : JSON.stringify(cite), searchText)}
                   </span>
                 )}
               </li>
@@ -603,7 +660,7 @@ function BlockerDetail({ payload }) {
             Action
           </span>
           <span className="text-sm text-yellow-200 leading-relaxed">
-            {payload.recommended_action}
+            {highlightText(payload.recommended_action, searchText)}
           </span>
         </div>
       )}
@@ -614,7 +671,7 @@ function BlockerDetail({ payload }) {
 // ---------------------------------------------------------------------------
 // PIVOT detail renderer
 // ---------------------------------------------------------------------------
-function PivotDetail({ payload }) {
+function PivotDetail({ payload, searchText }) {
   return (
     <div className="space-y-3">
       {(payload.pivot_reason || payload.reason || payload.details) && (
@@ -623,7 +680,7 @@ function PivotDetail({ payload }) {
             Pivot Reason
           </span>
           <p className="text-sm text-yellow-100 leading-relaxed bg-yellow-900/20 border border-yellow-800/30 rounded-lg p-3">
-            {payload.pivot_reason || payload.reason || payload.details}
+            {highlightText(payload.pivot_reason || payload.reason || payload.details, searchText)}
           </p>
         </div>
       )}
@@ -639,12 +696,10 @@ function PivotDetail({ payload }) {
                 className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-3"
               >
                 <span className="text-xs font-bold text-blue-300 uppercase">
-                  {agent}
+                  {highlightText(agent, searchText)}
                 </span>
                 <p className="text-sm text-gray-300 mt-1">
-                  {typeof change === "string"
-                    ? change
-                    : JSON.stringify(change, null, 2)}
+                  {highlightText(typeof change === "string" ? change : JSON.stringify(change, null, 2), searchText)}
                 </p>
               </div>
             ))}
@@ -657,7 +712,7 @@ function PivotDetail({ payload }) {
             New Strategy
           </span>
           <p className="text-sm text-gray-200 leading-relaxed">
-            {payload.new_strategy}
+            {highlightText(payload.new_strategy, searchText)}
           </p>
         </div>
       )}
@@ -668,7 +723,7 @@ function PivotDetail({ payload }) {
 // ---------------------------------------------------------------------------
 // Generic payload renderer (readable text, not raw JSON)
 // ---------------------------------------------------------------------------
-function GenericPayload({ payload }) {
+function GenericPayload({ payload, searchText }) {
   if (!payload || typeof payload !== "object") {
     return <p className="text-gray-500 text-sm italic">No payload data</p>;
   }
@@ -697,10 +752,10 @@ function GenericPayload({ payload }) {
                       <span className="text-gray-600 mt-0.5">&bull;</span>
                       {item.includes("\n") ? (
                         <pre className="text-xs font-mono text-gray-400 whitespace-pre-wrap">
-                          {item}
+                          {highlightText(item, searchText)}
                         </pre>
                       ) : (
-                        <span>{item}</span>
+                        <span>{highlightText(item, searchText)}</span>
                       )}
                     </li>
                   ))}
@@ -712,14 +767,14 @@ function GenericPayload({ payload }) {
                   rel="noopener noreferrer"
                   className="text-blue-400 hover:text-blue-300 underline break-all"
                 >
-                  {value}
+                  {highlightText(value, searchText)}
                 </a>
               ) : typeof formatted === "string" && formatted.includes("\n") ? (
                 <pre className="text-xs font-mono text-gray-300 whitespace-pre-wrap bg-gray-900/50 rounded p-2 max-h-48 overflow-y-auto">
-                  {formatted}
+                  {highlightText(formatted, searchText)}
                 </pre>
               ) : (
-                <span className="leading-relaxed">{formatted}</span>
+                <span className="leading-relaxed">{highlightText(String(formatted), searchText)}</span>
               )}
             </div>
           </div>
@@ -732,7 +787,7 @@ function GenericPayload({ payload }) {
 // ---------------------------------------------------------------------------
 // Detail Panel (bottom 40%)
 // ---------------------------------------------------------------------------
-function DetailPanel({ event, allEvents, onSelectEvent }) {
+function DetailPanel({ event, allEvents, onSelectEvent, searchText }) {
   if (!event) {
     return (
       <div className="h-full flex items-center justify-center text-gray-600">
@@ -838,11 +893,11 @@ function DetailPanel({ event, allEvents, onSelectEvent }) {
           {/* Payload content - type-specific rendering */}
           <div className="mb-4">
             {isBlocker ? (
-              <BlockerDetail payload={payload} />
+              <BlockerDetail payload={payload} searchText={searchText} />
             ) : isPivot ? (
-              <PivotDetail payload={payload} />
+              <PivotDetail payload={payload} searchText={searchText} />
             ) : (
-              <GenericPayload payload={payload} />
+              <GenericPayload payload={payload} searchText={searchText} />
             )}
           </div>
         </div>
@@ -1083,6 +1138,8 @@ export default function PivotTimeline({ runId }) {
   const [newEventIds, setNewEventIds] = useState(new Set());
   const [activeFilter, setActiveFilter] = useState("ALL");
   const [zoom, setZoom] = useState(1.0);
+  const [searchText, setSearchText] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const scrollRef = useRef(null);
   const nodesRef = useRef({});
@@ -1090,11 +1147,23 @@ export default function PivotTimeline({ runId }) {
   const eventsRef = useRef(events);
   eventsRef.current = events;
 
-  // ── Compute filtered events ────────────────────────────────────────
+  // ── Debounce search input (250 ms) ─────────────────────────────────
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchText.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [searchText]);
+
+  // ── Compute filtered events (type filter AND search) ───────────────
   const filteredEvents = useMemo(() => {
-    if (activeFilter === "ALL") return events;
-    return events.filter((e) => getFilterKey(e.event_type) === activeFilter);
-  }, [events, activeFilter]);
+    let result = events;
+    if (activeFilter !== "ALL") {
+      result = result.filter((e) => getFilterKey(e.event_type) === activeFilter);
+    }
+    if (debouncedSearch) {
+      result = result.filter((e) => eventMatchesSearch(e, debouncedSearch));
+    }
+    return result;
+  }, [events, activeFilter, debouncedSearch]);
 
   // ── Compute event counts for filter bar ───────────────────────────
   const eventCounts = useMemo(() => {
@@ -1246,12 +1315,12 @@ export default function PivotTimeline({ runId }) {
     [filteredEvents]
   );
 
-  // ── When filter changes, clear selection if selected event is now hidden ──
+  // ── When filter or search changes, clear selection if selected event is now hidden ──
   useEffect(() => {
     if (selected && !filteredEvents.some(e => e.event_id === selected.event_id)) {
       setSelected(null);
     }
-  }, [activeFilter, filteredEvents, selected]);
+  }, [activeFilter, debouncedSearch, filteredEvents, selected]);
 
   // ── Loading / Error / Empty states ─────────────────────────────────
   if (loading) {
@@ -1303,7 +1372,8 @@ export default function PivotTimeline({ runId }) {
 
       {/* ── Header bar ── */}
       <div className="flex-shrink-0 border-b border-gray-800 bg-gray-900/60 backdrop-blur-sm px-3 sm:px-4 py-2 sm:py-2.5">
-        <div className="flex items-center justify-between flex-wrap gap-2">
+        {/* Row 1: title + search + zoom/stats */}
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
           {/* Left: title + live indicator */}
           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
             <h2 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
@@ -1319,13 +1389,27 @@ export default function PivotTimeline({ runId }) {
             )}
           </div>
 
-          {/* Center: filter buttons — scrollable on mobile */}
-          <div className="flex-1 flex justify-center overflow-x-auto">
-            <FilterBar
-              activeFilter={activeFilter}
-              onFilterChange={setActiveFilter}
-              eventCounts={eventCounts}
-            />
+          {/* Center: search input */}
+          <div className="flex-1 flex justify-center min-w-0 px-2">
+            <div className="relative w-full max-w-xs">
+              <input
+                type="text"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                placeholder="Search events..."
+                className="w-full bg-gray-800 border border-gray-700 rounded-full text-sm text-gray-200 placeholder-gray-600 px-4 py-1 pr-8 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500/40 transition-all"
+                style={{ minHeight: 32 }}
+              />
+              {searchText && (
+                <button
+                  onClick={() => setSearchText("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors text-sm leading-none"
+                  title="Clear search"
+                >
+                  ×
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Right: zoom controls + stats */}
@@ -1336,6 +1420,22 @@ export default function PivotTimeline({ runId }) {
             </div>
           </div>
         </div>
+
+        {/* Row 2: filter buttons + optional match count */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex-1 flex overflow-x-auto">
+            <FilterBar
+              activeFilter={activeFilter}
+              onFilterChange={setActiveFilter}
+              eventCounts={eventCounts}
+            />
+          </div>
+          {debouncedSearch && (
+            <span className="text-[11px] text-gray-500 flex-shrink-0 whitespace-nowrap">
+              {filteredEvents.length} of {events.length} events match
+            </span>
+          )}
+        </div>
       </div>
 
       {/* ── Timeline area — fixed height on desktop, scrollable on mobile ── */}
@@ -1344,13 +1444,29 @@ export default function PivotTimeline({ runId }) {
           <div className="h-full flex items-center justify-center text-gray-600 py-12">
             <div className="text-center">
               <div className="text-2xl mb-2">⊘</div>
-              <div className="text-sm">No events match the current filter.</div>
-              <button
-                className="mt-3 text-xs text-blue-400 hover:text-blue-300 underline min-h-[44px]"
-                onClick={() => setActiveFilter("ALL")}
-              >
-                Show all events
-              </button>
+              <div className="text-sm">
+                {debouncedSearch
+                  ? `No events match "${debouncedSearch}"${activeFilter !== "ALL" ? ` in ${activeFilter}` : ""}.`
+                  : "No events match the current filter."}
+              </div>
+              <div className="flex items-center justify-center gap-3 mt-3">
+                {debouncedSearch && (
+                  <button
+                    className="text-xs text-blue-400 hover:text-blue-300 underline min-h-[44px]"
+                    onClick={() => setSearchText("")}
+                  >
+                    Clear search
+                  </button>
+                )}
+                {activeFilter !== "ALL" && (
+                  <button
+                    className="text-xs text-blue-400 hover:text-blue-300 underline min-h-[44px]"
+                    onClick={() => setActiveFilter("ALL")}
+                  >
+                    Show all types
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         ) : (
@@ -1395,6 +1511,7 @@ export default function PivotTimeline({ runId }) {
                       nodeRef={(el) => (nodesRef.current[idx] = el)}
                       isNew={isNew}
                       zoom={zoom}
+                      searchText={debouncedSearch}
                     />
                   );
                 })}
@@ -1414,6 +1531,7 @@ export default function PivotTimeline({ runId }) {
           event={selected}
           allEvents={events}
           onSelectEvent={handleSelectEvent}
+          searchText={debouncedSearch}
         />
       </div>
     </div>

@@ -131,6 +131,98 @@ function SpinnerIcon({ className = 'w-5 h-5' }) {
   );
 }
 
+// PRD-293: Advanced Config defaults
+const DEFAULT_CONFIG = {
+  personas: 30,
+  rounds: 5,
+  sim_scale: 'demo',
+  skip_simulation: false,
+  model: 'gpt-4o',
+};
+
+// PRD-293: Advanced Config Panel
+function AdvancedConfig({ config, onChange }) {
+  return (
+    <div className="mt-3 p-4 rounded-xl bg-gray-900/80 border border-gray-700/60 font-mono text-xs space-y-3">
+      {/* Personas slider */}
+      <div className="flex items-center gap-3">
+        <label className="text-gray-400 w-28 shrink-0">
+          Personas: <span className="text-cyan-300">{config.personas}</span>
+        </label>
+        <input
+          type="range"
+          min={10}
+          max={100}
+          step={1}
+          value={config.personas}
+          onChange={(e) => onChange({ ...config, personas: Number(e.target.value) })}
+          className="flex-1 accent-cyan-400 cursor-pointer"
+        />
+        <span className="text-gray-600 w-8 text-right">{config.personas}</span>
+      </div>
+
+      {/* Rounds slider */}
+      <div className="flex items-center gap-3">
+        <label className="text-gray-400 w-28 shrink-0">
+          Rounds: <span className="text-cyan-300">{config.rounds}</span>
+        </label>
+        <input
+          type="range"
+          min={1}
+          max={10}
+          step={1}
+          value={config.rounds}
+          onChange={(e) => onChange({ ...config, rounds: Number(e.target.value) })}
+          className="flex-1 accent-cyan-400 cursor-pointer"
+        />
+        <span className="text-gray-600 w-8 text-right">{config.rounds}</span>
+      </div>
+
+      {/* Sim Scale + Model on same row */}
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <label className="text-gray-400">Sim Scale:</label>
+          <select
+            value={config.sim_scale}
+            onChange={(e) => onChange({ ...config, sim_scale: e.target.value })}
+            className="bg-gray-800 border border-gray-600 text-gray-200 rounded px-2 py-0.5 text-xs cursor-pointer focus:outline-none focus:border-cyan-500"
+          >
+            <option value="demo">demo</option>
+            <option value="standard">standard</option>
+            <option value="large">large</option>
+            <option value="million">million</option>
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-gray-400">Model:</label>
+          <select
+            value={config.model}
+            onChange={(e) => onChange({ ...config, model: e.target.value })}
+            className="bg-gray-800 border border-gray-600 text-gray-200 rounded px-2 py-0.5 text-xs cursor-pointer focus:outline-none focus:border-cyan-500"
+          >
+            <option value="gpt-4o">gpt-4o</option>
+            <option value="gpt-4o-mini">gpt-4o-mini</option>
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="skip-sim"
+            checked={config.skip_simulation}
+            onChange={(e) => onChange({ ...config, skip_simulation: e.target.checked })}
+            className="accent-cyan-400 cursor-pointer"
+          />
+          <label htmlFor="skip-sim" className="text-gray-400 cursor-pointer select-none">
+            Skip Simulation
+          </label>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // -- Main MissionControl component --
 export default function MissionControl({ onLaunch, onNewSprint, isLive = false, sprintStatus = 'idle', activeConcept = '' }) {
   const [concept, setConcept] = useState('');
@@ -139,6 +231,10 @@ export default function MissionControl({ onLaunch, onNewSprint, isLive = false, 
   const [demoConcepts, setDemoConcepts] = useState([]);
   const [showDemos, setShowDemos] = useState(false);
   const inputRef = useRef(null);
+
+  // PRD-293: advanced config state
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [advancedConfig, setAdvancedConfig] = useState(DEFAULT_CONFIG);
 
   const isActive = sprintStatus === 'running' || sprintStatus === 'completed';
 
@@ -177,7 +273,15 @@ export default function MissionControl({ onLaunch, onNewSprint, isLive = false, 
     setError(null);
 
     try {
-      const data = await startSprint(trimmed, { sim_scale: 'demo' });
+      // PRD-293: merge advanced config into sprint options
+      const sprintOptions = {
+        sim_scale: advancedConfig.sim_scale,
+        personas: advancedConfig.personas,
+        rounds: advancedConfig.rounds,
+        skip_simulation: advancedConfig.skip_simulation,
+        model: advancedConfig.model,
+      };
+      const data = await startSprint(trimmed, sprintOptions);
       if (data.run_id && onLaunch) {
         onLaunch(data.run_id, trimmed);
       }
@@ -204,6 +308,8 @@ export default function MissionControl({ onLaunch, onNewSprint, isLive = false, 
     setError(null);
     setIsLaunching(false);
     setShowDemos(false);
+    setShowAdvanced(false);
+    setAdvancedConfig(DEFAULT_CONFIG);
     if (onNewSprint) onNewSprint();
   }
 
@@ -386,6 +492,23 @@ export default function MissionControl({ onLaunch, onNewSprint, isLive = false, 
                     </button>
                   ))}
                 </div>
+              )}
+
+              {/* PRD-293: Advanced Config toggle */}
+              <div className="mt-3 flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced((v) => !v)}
+                  className="flex items-center gap-1.5 text-[11px] font-mono text-gray-500 hover:text-cyan-400 transition-colors select-none"
+                >
+                  <span>{showAdvanced ? '▲' : '▼'}</span>
+                  <span>⚙ Advanced</span>
+                </button>
+              </div>
+
+              {/* PRD-293: Advanced Config Panel */}
+              {showAdvanced && (
+                <AdvancedConfig config={advancedConfig} onChange={setAdvancedConfig} />
               )}
 
               {/* Error state */}

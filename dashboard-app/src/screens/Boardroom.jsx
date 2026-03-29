@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { getRunDiscussion, getRunTrace, loadStaticDiscussion, connectLive } from '../api';
+import AgentHealthBar from '../components/AgentHealthBar';
 
 // ── Agent configuration ──
 const AGENTS = {
@@ -293,21 +294,108 @@ function MobileAgentCard({ name, config, status, lastMessage }) {
   );
 }
 
+// ── Detect pivot entries: event_type contains 'pivot', or type==='PIVOT', or CEO message with PIVOT keyword ──
+function isPivotEntry(entry) {
+  const et = (entry.event_type || entry.type || '').toLowerCase();
+  if (et.includes('pivot')) return true;
+  const agentName = normalizeAgent(entry.agent);
+  if (agentName === 'CEO' && (entry.message || '').toUpperCase().includes('PIVOT')) return true;
+  return false;
+}
+
+// ── Extract "triggered by" source from a pivot entry ──
+function extractTriggeredBy(entry) {
+  if (entry.triggered_by) return String(entry.triggered_by);
+  // Parse common patterns from the message text
+  const msg = entry.message || '';
+  const legalMatch = msg.match(/legal\s+blocker|MSB|FinCEN|CFPB|SEC|compliance\s+blocker/i);
+  if (legalMatch) return `Legal BLOCKER — ${legalMatch[0]}`;
+  const blockerMatch = msg.match(/blocker[:\s]+([^.]{0,80})/i);
+  if (blockerMatch) return blockerMatch[1].trim();
+  return 'Legal BLOCKER';
+}
+
+// ── Pivot Card: full-width yellow treatment ──
+function PivotCard({ entry, isNew }) {
+  const config = AGENTS.CEO;
+  const time = entry.timestamp
+    ? new Date(entry.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : '';
+  const triggeredBy = extractTriggeredBy(entry);
+  const rationale = entry.message || '';
+  const reasoning = entry.reasoning && entry.reasoning !== entry.message ? entry.reasoning : '';
+
+  return (
+    <div
+      className={`rounded-lg border-l-4 border-yellow-400 border border-yellow-500/30 bg-yellow-950/20 p-3 transition-colors hover:bg-yellow-950/30 ${isNew ? 'boardroom-fade-in' : ''}`}
+    >
+      {/* Top row: PIVOT badge + agent info + time */}
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-yellow-500/25 text-yellow-300 border border-yellow-500/40 tracking-wider">
+          PIVOT DECISION
+        </span>
+        <span className="text-base">{config.icon}</span>
+        <span className={`text-sm font-semibold ${config.text}`}>CEO</span>
+        <span className="text-[10px] text-slate-600 ml-auto font-mono">{time}</span>
+      </div>
+
+      {/* Triggered by */}
+      <div className="flex items-start gap-1.5 mb-1.5 text-[11px]">
+        <span className="text-yellow-600 font-semibold shrink-0">Triggered by:</span>
+        <span className="text-yellow-300/80">{triggeredBy}</span>
+      </div>
+
+      {/* Affects */}
+      <div className="flex items-center gap-1.5 mb-2 text-[11px]">
+        <span className="text-yellow-600 font-semibold shrink-0">Affects:</span>
+        <div className="flex gap-1 flex-wrap">
+          {['CTO', 'CFO', 'CMO'].map(agent => (
+            <span
+              key={agent}
+              className={`px-1.5 py-0.5 rounded text-[10px] font-mono border ${
+                agent === 'CTO' ? 'bg-blue-500/15 text-blue-300 border-blue-500/25' :
+                agent === 'CFO' ? 'bg-green-500/15 text-green-300 border-green-500/25' :
+                                  'bg-purple-500/15 text-purple-300 border-purple-500/25'
+              }`}
+            >
+              {agent}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Rationale */}
+      <div className="text-xs text-slate-200 leading-relaxed">{rationale}</div>
+
+      {/* Extended reasoning */}
+      {reasoning && (
+        <div className="text-[11px] text-yellow-300/50 leading-relaxed border-l-2 border-yellow-500/30 pl-2 mt-2 italic">
+          {reasoning.length > 300 ? reasoning.substring(0, 300) + '...' : reasoning}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Discussion entry ──
 function DiscussionEntry({ entry, isNew }) {
+  // Pivot entries get special full-width treatment
+  if (isPivotEntry(entry)) {
+    return <PivotCard entry={entry} isNew={isNew} />;
+  }
+
   const agentName = normalizeAgent(entry.agent);
   const config = AGENTS[agentName] || AGENTS.CEO;
   const badge = getEventBadge(entry.event_type);
   const et = (entry.event_type || '').toLowerCase();
   const isBlocker = et.includes('blocker');
-  const isPivot = et.includes('pivot');
   const time = entry.timestamp
     ? new Date(entry.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     : '';
 
-  let highlightCls = 'border-white/5 hover:border-white/10';
-  if (isBlocker) highlightCls = 'border-red-500/30 bg-red-500/5 hover:border-red-500/40';
-  else if (isPivot) highlightCls = 'border-yellow-500/30 bg-yellow-500/5 hover:border-yellow-500/40';
+  const highlightCls = isBlocker
+    ? 'border-red-500/30 bg-red-500/5 hover:border-red-500/40'
+    : 'border-white/5 hover:border-white/10';
 
   return (
     <div
@@ -931,6 +1019,15 @@ export default function Boardroom({ runId, onEvent }) {
             ))}
           </div>
         </div>
+
+        {/* Agent Health Bar — compact status row below the constellation */}
+        <AgentHealthBar
+          agents={Object.entries(agentStatuses).map(([name, status]) => ({
+            name,
+            status,
+            currentTask: agentMessages[name] || null,
+          }))}
+        />
 
         {/* Bottom: Discussion feed */}
         <div className="border-t border-white/10 bg-black/20 backdrop-blur-sm flex flex-col md:flex-[4] md:overflow-hidden" style={{ minHeight: '200px' }}>

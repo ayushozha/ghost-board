@@ -20,7 +20,7 @@ class GeoLocation(BaseModel):
 class MarketPersona(BaseModel):
     """A synthetic stakeholder for market simulation."""
     name: str
-    archetype: str = Field(description="VC, early_adopter, skeptic, journalist, competitor, regulator")
+    archetype: str = Field(description="VC, early_adopter, skeptic, journalist, competitor, regulator, influencer, enterprise_buyer")
     background: str
     priorities: list[str] = Field(default_factory=list)
     risk_tolerance: float = Field(ge=0.0, le=1.0, default=0.5)
@@ -30,7 +30,9 @@ class MarketPersona(BaseModel):
     geographic_location: GeoLocation = Field(default_factory=GeoLocation)
 
 
-# Archetype distribution for realistic simulation
+# Archetype distribution for realistic simulation.
+# Total weight = 13 (original) + 3 new at ~1 each = 16.
+# New archetypes each get ~6-8% of total personas.
 ARCHETYPE_DISTRIBUTION = {
     "vc": 2,
     "early_adopter": 3,
@@ -38,6 +40,82 @@ ARCHETYPE_DISTRIBUTION = {
     "journalist": 1,
     "competitor": 1,
     "regulator": 1,
+    "influencer": 1,
+    "enterprise_buyer": 1,
+}
+
+# LLM system-prompt tone for each archetype (used when generating persona posts).
+ARCHETYPE_LLM_TONES: dict[str, str] = {
+    "vc": (
+        "You are a venture capitalist evaluating a startup. You ask sharp questions about "
+        "market size, unit economics, defensibility, and team. You use measured language and "
+        "think in terms of portfolio risk and return multiples."
+    ),
+    "early_adopter": (
+        "You are an early adopter and tech enthusiast. You get excited about new products, "
+        "try things before others, and share your hands-on impressions. You focus on whether "
+        "it solves a real pain point and how quickly you can get started."
+    ),
+    "skeptic": (
+        "You are a seasoned industry skeptic. You have seen many hype cycles and are quick to "
+        "poke holes in bold claims. You ask hard questions about execution, moat, and whether "
+        "the problem is real. You are not hostile—just rigorous."
+    ),
+    "journalist": (
+        "You are a technology journalist. You look for the story angle: who wins, who loses, "
+        "what is the broader implication. You ask provocative questions and frame things in "
+        "terms of industry impact and public interest."
+    ),
+    "competitor": (
+        "You are an executive at a competing company. You assess threats to your market share, "
+        "challenge differentiation claims, and look for weaknesses to exploit. You may "
+        "downplay the startup's advantages while quietly taking notes."
+    ),
+    "regulator": (
+        "You are a financial regulator. You cite specific regulations, ask about compliance "
+        "certifications, and flag legal risks. You do NOT get excited about innovation—you "
+        "assess risk. You reference real regulatory frameworks (CFPB, FinCEN, SEC, MiCA, FCA) "
+        "and ask whether proper licensing and disclosures are in place."
+    ),
+    "influencer": (
+        "You are a tech influencer with 500K followers. You react emotionally, use exclamation "
+        "marks and emojis, and focus on whether something is 'hot' or 'dead'. Your opinions "
+        "spread fast. You are trend-driven and impulsive—you form a take quickly and share it "
+        "loudly, and your followers amplify it."
+    ),
+    "enterprise_buyer": (
+        "You are a VP of Engineering at a Fortune 500 company. You ask about API docs, SLAs, "
+        "security certifications (SOC 2, ISO 27001), and TCO. You are skeptical but open if "
+        "the ROI is clear and the integration story is solid. You never commit quickly and "
+        "always require a formal evaluation process."
+    ),
+}
+
+# Opinion weight multiplier for lightweight agent stance aggregation.
+# influencer opinions are amplified 3x because of their large follower reach.
+ARCHETYPE_INFLUENCE_MULTIPLIERS: dict[str, float] = {
+    "vc": 1.0,
+    "early_adopter": 1.0,
+    "skeptic": 1.0,
+    "journalist": 1.5,
+    "competitor": 1.0,
+    "regulator": 1.0,
+    "influencer": 3.0,
+    "enterprise_buyer": 1.0,
+}
+
+# Lightweight agent stance bias: (initial_bias, variance).
+# Used by the hybrid engine when spawning non-LLM agents.
+# Stance is a float in [-1.0, 1.0]; bias is the starting offset, variance controls spread.
+ARCHETYPE_STANCE_BIAS: dict[str, tuple[float, float]] = {
+    "vc": (0.1, 0.3),
+    "early_adopter": (0.3, 0.25),
+    "skeptic": (-0.2, 0.2),
+    "journalist": (0.0, 0.35),
+    "competitor": (-0.3, 0.2),
+    "regulator": (-0.3, 0.4),    # starts skeptical, high variance (can be convinced by compliance)
+    "influencer": (0.0, 0.5),    # neutral start, very high variance (mood-driven)
+    "enterprise_buyer": (-0.2, 0.1),  # starts skeptical, low variance (methodical)
 }
 
 
@@ -74,6 +152,12 @@ GEOGRAPHIC_DISTRIBUTION = [
     GeoLocation(city="Buenos Aires", country="Argentina", lat=-34.60, lng=-58.38),
     GeoLocation(city="Mexico City", country="Mexico", lat=19.43, lng=-99.13),
     GeoLocation(city="Toronto", country="Canada", lat=43.65, lng=-79.38),
+    # Additional cities for new archetypes
+    GeoLocation(city="Washington DC", country="US", lat=38.91, lng=-77.04),
+    GeoLocation(city="Brussels", country="Belgium", lat=50.85, lng=4.35),
+    GeoLocation(city="Geneva", country="Switzerland", lat=46.20, lng=6.15),
+    GeoLocation(city="Frankfurt", country="Germany", lat=50.11, lng=8.68),
+    GeoLocation(city="Los Angeles", country="US", lat=34.05, lng=-118.24),
 ]
 
 # Backward-compatible alias
@@ -86,7 +170,9 @@ ARCHETYPE_GEO_WEIGHTS: dict[str, list[str]] = {
     "skeptic": ["New York", "London", "Chicago", "Toronto", "Sydney", "Frankfurt"],
     "journalist": ["New York", "London", "Tokyo", "Paris", "Berlin", "São Paulo"],
     "competitor": ["San Francisco", "New York", "London", "Singapore", "Tokyo", "Berlin"],
-    "regulator": ["Washington DC", "London", "Brussels", "Tokyo", "Singapore", "New York"],
+    "regulator": ["Washington DC", "Brussels", "Geneva", "Singapore", "Frankfurt", "New York"],
+    "influencer": ["Los Angeles", "New York", "London", "Tokyo", "Seoul"],
+    "enterprise_buyer": ["New York", "Chicago", "London", "Frankfurt", "Tokyo"],
 }
 
 # Map city name -> GeoLocation for fast lookup
@@ -216,22 +302,22 @@ Each persona needs:
 - archetype: one of {list(ARCHETYPE_DISTRIBUTION.keys())}
 - background: 1-2 sentence professional background
 - priorities: list of 2-3 things they care about
-- risk_tolerance: 0.0-1.0 (VCs ~0.7, skeptics ~0.2, regulators ~0.1)
+- risk_tolerance: 0.0-1.0 (VCs ~0.7, skeptics ~0.2, regulators ~0.1, enterprise_buyer ~0.3, influencer ~0.6)
 - initial_stance: positive/neutral/negative/hostile
-- influence_score: 0.0-1.0 (how much they influence others)
+- influence_score: 0.0-1.0 (how much they influence others; influencers should be 0.9-1.0)
 - geographic_location: an object with city, country, lat, lng chosen from this global list: {json.dumps(geo_examples)}
 
-Archetype geographic preferences:
-- vc: prefer SF, NY, London, Tel Aviv, Singapore, Berlin
-- early_adopter: prefer SF, Berlin, Seoul, Austin, Singapore
-- journalist: prefer NY, London, Tokyo, Paris, São Paulo
-- skeptic: prefer NY, London, Chicago, Sydney
-- competitor: prefer SF, NY, London, Tokyo, Singapore
-- regulator: prefer NY, London, Singapore, Tokyo
+Archetype descriptions and behaviors:
+- vc: evaluates ROI, market size, team quality. Measured language. Prefers SF, NY, London, Tel Aviv, Singapore, Berlin.
+- early_adopter: excited about new tech, hands-on, focused on pain-point fit. Prefers SF, Berlin, Seoul, Austin, Singapore.
+- journalist: looks for story angles, provocative questions, industry impact. Prefers NY, London, Tokyo, Paris, São Paulo.
+- skeptic: pokes holes in bold claims, questions execution and moat. Prefers NY, London, Chicago, Sydney.
+- competitor: challenges differentiation, assesses market share threat. Prefers SF, NY, London, Tokyo, Singapore.
+- regulator: cites specific regulations (CFPB, FinCEN, SEC, MiCA, FCA), flags legal risks, does NOT celebrate innovation. Prefers Washington DC, Brussels, Geneva, Singapore, Frankfurt.
+- influencer: reacts emotionally with exclamation marks and emojis, trend-driven, 500K+ followers, opinions spread fast, very high influence_score. Prefers Los Angeles, New York, London, Tokyo, Seoul.
+- enterprise_buyer: VP of Engineering at Fortune 500, asks about API docs, SLAs, SOC 2, TCO, never commits quickly. Prefers NY, Chicago, London, Frankfurt, Tokyo.
 
 Make them realistic, diverse, and globally distributed across 5+ continents.
-VCs should evaluate ROI, skeptics should poke holes, journalists should ask hard questions,
-competitors should challenge differentiation.
 
 Respond with ONLY a JSON array."""
 
@@ -282,5 +368,8 @@ def _fallback_personas(startup_idea: str, num_personas: int) -> list[MarketPerso
         MarketPersona(name="Emily Davis", archetype="vc", background="Angel investor, ex-Stripe", priorities=["unit economics", "moat", "scalability"], risk_tolerance=0.8, initial_stance="neutral", influence_score=0.7, geographic_location=GeoLocation(city="Berlin", country="Germany", lat=52.52, lng=13.41)),
         MarketPersona(name="Tom Baker", archetype="skeptic", background="Risk manager at major bank", priorities=["security", "audit trail", "regulatory risk"], risk_tolerance=0.15, initial_stance="negative", influence_score=0.5, geographic_location=GeoLocation(city="Tokyo", country="Japan", lat=35.68, lng=139.69)),
         MarketPersona(name="Nina Patel", archetype="early_adopter", background="Compliance officer at startup bank", priorities=["ease of use", "cost", "reliability"], risk_tolerance=0.5, initial_stance="positive", influence_score=0.3, geographic_location=GeoLocation(city="Mumbai", country="India", lat=19.08, lng=72.88)),
+        MarketPersona(name="Commissioner Henri Dubois", archetype="regulator", background="EU financial regulator at ESMA, specialist in MiCA and stablecoin frameworks", priorities=["consumer protection", "AML compliance", "MiCA certification"], risk_tolerance=0.1, initial_stance="negative", influence_score=0.9, geographic_location=GeoLocation(city="Brussels", country="Belgium", lat=50.85, lng=4.35)),
+        MarketPersona(name="Zoe Tanaka", archetype="influencer", background="Tech influencer with 800K Twitter/X followers, known for fintech and crypto takes", priorities=["virality", "audience growth", "trend relevance"], risk_tolerance=0.6, initial_stance="neutral", influence_score=1.0, geographic_location=GeoLocation(city="Los Angeles", country="US", lat=34.05, lng=-118.24)),
+        MarketPersona(name="Robert Harrington", archetype="enterprise_buyer", background="VP of Engineering at a Fortune 100 financial services firm", priorities=["API reliability", "SOC 2 compliance", "total cost of ownership"], risk_tolerance=0.3, initial_stance="neutral", influence_score=0.6, geographic_location=GeoLocation(city="New York", country="US", lat=40.71, lng=-74.01)),
     ]
     return templates[:num_personas]

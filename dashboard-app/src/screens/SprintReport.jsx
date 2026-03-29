@@ -34,6 +34,50 @@ function formatUsd(val) {
   return '$' + (n < 1 ? n.toFixed(4) : n >= 1000 ? n.toLocaleString(undefined, { maximumFractionDigits: 0 }) : n.toFixed(2));
 }
 
+/**
+ * Format a number as a dollar amount with comma separators.
+ * Positive → green, negative → red, zero → white (class returned separately).
+ */
+function formatCurrency(val) {
+  if (val === null || val === undefined) return { text: '$0', colorClass: 'text-white' };
+  const n = Number(val);
+  if (isNaN(n)) return { text: '$0', colorClass: 'text-white' };
+  const abs = Math.abs(n);
+  const formatted =
+    abs < 1
+      ? abs.toFixed(4)
+      : abs >= 1_000_000
+        ? (abs / 1_000_000).toLocaleString(undefined, { maximumFractionDigits: 2 }) + 'M'
+        : abs >= 1_000
+          ? abs.toLocaleString(undefined, { maximumFractionDigits: 0 })
+          : abs.toFixed(2);
+  const text = (n < 0 ? '-$' : '$') + formatted;
+  const colorClass = n > 0 ? 'text-green-400' : n < 0 ? 'text-red-400' : 'text-white';
+  return { text, colorClass };
+}
+
+/** Format a percentage value, color-coded by sign. */
+function formatPercent(val) {
+  if (val === null || val === undefined) return { text: '0%', colorClass: 'text-white' };
+  const n = Number(val);
+  if (isNaN(n)) return { text: '0%', colorClass: 'text-white' };
+  const text = (n > 0 ? '+' : '') + n.toFixed(1) + '%';
+  const colorClass = n > 0 ? 'text-green-400' : n < 0 ? 'text-red-400' : 'text-white';
+  return { text, colorClass };
+}
+
+/** Render a currency value as a colored <span>. */
+function CurrencyCell({ value, forceColor }) {
+  const { text, colorClass } = formatCurrency(value);
+  return <span className={`font-mono font-semibold ${forceColor || colorClass}`}>{text}</span>;
+}
+
+/** Render a percentage value as a colored <span>. */
+function PercentCell({ value }) {
+  const { text, colorClass } = formatPercent(value);
+  return <span className={`font-mono font-semibold ${colorClass}`}>{text}</span>;
+}
+
 function apiFetch(path) {
   return fetch(`/api${path}`).then((r) => {
     if (!r.ok) throw new Error(`${r.status}`);
@@ -225,13 +269,15 @@ function PrototypeTab({ artifacts }) {
           {loadingFile ? (
             <div className="p-4 text-gray-500 text-sm">Loading...</div>
           ) : (
-            <pre className="text-sm font-mono leading-6 text-gray-300">
-              {fileContent.split('\n').map((line, i) => (
-                <div key={i} className="flex hover:bg-white/[0.02]">
-                  <span className="inline-block w-12 text-right pr-4 text-gray-600 select-none flex-shrink-0 text-xs leading-6 bg-gray-900/40">{i + 1}</span>
-                  <span className="flex-1 px-4">{highlightSyntax(line)}</span>
-                </div>
-              ))}
+            <pre className="font-mono text-sm leading-6 bg-gray-950 h-full">
+              <code className="block">
+                {fileContent.split('\n').map((line, i) => (
+                  <div key={i} className="flex hover:bg-white/[0.03]">
+                    <span className="inline-block w-12 text-right pr-4 text-gray-600 select-none flex-shrink-0 text-xs leading-6 bg-gray-900/60 border-r border-gray-800">{i + 1}</span>
+                    <span className="flex-1 px-4 whitespace-pre">{highlightSyntax(line)}</span>
+                  </div>
+                ))}
+              </code>
             </pre>
           )}
         </div>
@@ -242,32 +288,46 @@ function PrototypeTab({ artifacts }) {
 
 function highlightSyntax(line) {
   if (typeof line !== 'string') return line;
+  // Full-line comments
   if (line.trimStart().startsWith('#')) return <span className="text-gray-500 italic">{line}</span>;
   if (line.trimStart().startsWith('//')) return <span className="text-gray-500 italic">{line}</span>;
 
-  const combined = /(["'])(?:(?=(\\?))\2.)*?\1|\b(def|class|import|from|return|if|else|elif|for|while|try|except|finally|with|as|async|await|yield|raise|pass|break|continue|and|or|not|in|is|None|True|False|self|const|let|var|function|export|default)\b|(@\w+)|(#.*$|\/\/.*$)/g;
+  // Capture groups:
+  // 1: string opening quote (strings)
+  // 3: keyword
+  // 4: decorator
+  // 5: inline comment
+  // 6: number
+  const combined = /(["'])(?:(?=(\\?))\2.)*?\1|\b(def|class|import|from|return|if|else|elif|for|while|try|except|finally|with|as|async|await|yield|raise|pass|break|continue|and|or|not|in|is|None|True|False|self|const|let|var|function|export|default|type|interface|extends|implements|new|this|super|null|undefined|true|false|void)\b|(@\w+)|(#[^'"]*$|\/\/[^'"]*$)|\b(\d+\.?\d*)\b/g;
   const parts = [];
   let lastIndex = 0;
   let match;
 
   while ((match = combined.exec(line)) !== null) {
-    if (match.index > lastIndex) parts.push(<span key={`t-${lastIndex}`}>{line.slice(lastIndex, match.index)}</span>);
+    if (match.index > lastIndex) parts.push(<span key={`t-${lastIndex}`} className="text-gray-100">{line.slice(lastIndex, match.index)}</span>);
     const text = match[0];
     if (match[1]) {
+      // string literal → green
       parts.push(<span key={`s-${match.index}`} className="text-green-400">{text}</span>);
     } else if (match[3]) {
-      parts.push(<span key={`k-${match.index}`} className="text-purple-400 font-semibold">{text}</span>);
+      // keyword → cyan
+      parts.push(<span key={`k-${match.index}`} className="text-cyan-400 font-semibold">{text}</span>);
     } else if (match[4]) {
+      // decorator → yellow
       parts.push(<span key={`d-${match.index}`} className="text-yellow-400">{text}</span>);
     } else if (match[5]) {
+      // inline comment → gray italic
       parts.push(<span key={`c-${match.index}`} className="text-gray-500 italic">{text}</span>);
+    } else if (match[6]) {
+      // number → orange
+      parts.push(<span key={`n-${match.index}`} className="text-orange-400">{text}</span>);
     } else {
-      parts.push(<span key={`u-${match.index}`}>{text}</span>);
+      parts.push(<span key={`u-${match.index}`} className="text-gray-100">{text}</span>);
     }
     lastIndex = match.index + text.length;
   }
-  if (lastIndex < line.length) parts.push(<span key={`e-${lastIndex}`}>{line.slice(lastIndex)}</span>);
-  return parts.length > 0 ? <>{parts}</> : line;
+  if (lastIndex < line.length) parts.push(<span key={`e-${lastIndex}`} className="text-gray-100">{line.slice(lastIndex)}</span>);
+  return parts.length > 0 ? <>{parts}</> : <span className="text-gray-100">{line}</span>;
 }
 
 // ---------------------------------------------------------------------------
@@ -312,8 +372,8 @@ function FinancialTab({ runId }) {
     <div className="space-y-6 p-4 overflow-auto">
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MetricCard label="Revenue Y1" value={formatUsd(y1Revenue)} color="green" />
-        <MetricCard label="Burn Rate" value={formatUsd(runway.monthly_burn_rate)} color="red" />
+        <MetricCard label="Revenue Y1" value={formatCurrency(y1Revenue).text} color="green" />
+        <MetricCard label="Burn Rate" value={formatCurrency(runway.monthly_burn_rate).text} color="red" />
         <MetricCard label="Runway" value={`${runway.runway_months || 0} mo`} color="yellow" />
         <MetricCard label="LTV/CAC" value={`${ue.ltv_cac_ratio || 0}x`} color="cyan" />
       </div>
@@ -382,11 +442,11 @@ function FinancialTab({ runId }) {
                   return (
                     <tr key={m.month} className="border-b border-gray-800/50 hover:bg-white/[0.02] transition-colors">
                       <td className="p-3 text-gray-300 font-mono text-xs">M{m.month}</td>
-                      <td className="p-3 text-right text-green-400 font-mono text-xs">{formatUsd(m.revenue)}</td>
-                      <td className="p-3 text-right text-orange-400 font-mono text-xs">{formatUsd(m.cogs)}</td>
-                      <td className={`p-3 text-right font-mono text-xs ${gross >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>{formatUsd(gross)}</td>
-                      <td className="p-3 text-right text-red-400 font-mono text-xs">{formatUsd(m.opex)}</td>
-                      <td className={`p-3 text-right font-mono text-xs font-bold ${net >= 0 ? 'text-green-300' : 'text-red-300'}`}>{formatUsd(net)}</td>
+                      <td className="p-3 text-right text-xs"><CurrencyCell value={m.revenue} forceColor="text-green-400" /></td>
+                      <td className="p-3 text-right text-xs"><CurrencyCell value={m.cogs} forceColor="text-red-400" /></td>
+                      <td className="p-3 text-right text-xs"><CurrencyCell value={gross} /></td>
+                      <td className="p-3 text-right text-xs"><CurrencyCell value={m.opex} forceColor="text-red-400" /></td>
+                      <td className="p-3 text-right text-xs font-bold"><CurrencyCell value={net} /></td>
                     </tr>
                   );
                 })}
@@ -394,14 +454,20 @@ function FinancialTab({ runId }) {
               <tfoot>
                 <tr className="border-t-2 border-gray-700 font-bold">
                   <td className="p-3 text-gray-200 text-xs">Total</td>
-                  <td className="p-3 text-right text-green-300 font-mono text-xs">{formatUsd(monthly.reduce((s, m) => s + (m.revenue || 0), 0))}</td>
-                  <td className="p-3 text-right text-orange-300 font-mono text-xs">{formatUsd(monthly.reduce((s, m) => s + (m.cogs || 0), 0))}</td>
-                  <td className={`p-3 text-right font-mono text-xs ${monthly.reduce((s, m) => s + (m.revenue || 0) - (m.cogs || 0), 0) >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
-                    {formatUsd(monthly.reduce((s, m) => s + (m.revenue || 0) - (m.cogs || 0), 0))}
+                  <td className="p-3 text-right text-xs">
+                    <CurrencyCell value={monthly.reduce((s, m) => s + (m.revenue || 0), 0)} forceColor="text-green-300" />
                   </td>
-                  <td className="p-3 text-right text-red-300 font-mono text-xs">{formatUsd(monthly.reduce((s, m) => s + (m.opex || 0), 0))}</td>
-                  <td className={`p-3 text-right font-mono text-xs ${monthly.reduce((s, m) => s + (m.revenue || 0) - (m.cogs || 0) - (m.opex || 0), 0) >= 0 ? 'text-green-300' : 'text-red-300'}`}>
-                    {formatUsd(monthly.reduce((s, m) => s + (m.revenue || 0) - (m.cogs || 0) - (m.opex || 0), 0))}
+                  <td className="p-3 text-right text-xs">
+                    <CurrencyCell value={monthly.reduce((s, m) => s + (m.cogs || 0), 0)} forceColor="text-red-300" />
+                  </td>
+                  <td className="p-3 text-right text-xs">
+                    <CurrencyCell value={monthly.reduce((s, m) => s + (m.revenue || 0) - (m.cogs || 0), 0)} />
+                  </td>
+                  <td className="p-3 text-right text-xs">
+                    <CurrencyCell value={monthly.reduce((s, m) => s + (m.opex || 0), 0)} forceColor="text-red-300" />
+                  </td>
+                  <td className="p-3 text-right text-xs">
+                    <CurrencyCell value={monthly.reduce((s, m) => s + (m.revenue || 0) - (m.cogs || 0) - (m.opex || 0), 0)} />
                   </td>
                 </tr>
               </tfoot>
@@ -418,7 +484,12 @@ function FinancialTab({ runId }) {
             {Object.entries(scenarios).map(([key, val]) => (
               <div key={key} className={`p-3 rounded-lg border ${key === 'optimistic' ? 'border-green-800/50 bg-green-900/15' : key === 'pessimistic' ? 'border-red-800/50 bg-red-900/15' : 'border-blue-800/50 bg-blue-900/15'}`}>
                 <div className="text-xs text-gray-400 capitalize mb-1">{key}</div>
-                <div className="text-lg font-bold text-white">{formatUsd(val.year1_revenue)}</div>
+                <div className="text-lg font-bold">
+                  <CurrencyCell
+                    value={val.year1_revenue}
+                    forceColor={key === 'optimistic' ? 'text-green-400' : key === 'pessimistic' ? 'text-red-400' : 'text-blue-400'}
+                  />
+                </div>
                 <div className="text-xs text-gray-500">{val.description}</div>
               </div>
             ))}
@@ -746,6 +817,73 @@ function GtmTab({ runId }) {
 }
 
 // ---------------------------------------------------------------------------
+// Citation linkifier helpers (Legal / Compliance tab)
+// ---------------------------------------------------------------------------
+
+/**
+ * Sanitize a raw HTML string by stripping <script> tags and event handlers,
+ * returning a string safe to use with dangerouslySetInnerHTML.
+ */
+function sanitizeLegalHtml(html) {
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/\son\w+\s*=\s*["'][^"']*["']/gi, '');
+}
+
+/**
+ * Convert plain-text legal content into HTML with clickable citations and URLs.
+ * Handles:
+ *   - CFR references: "12 C.F.R. § 1026.1" → ecfr.gov search
+ *   - USC references: "15 U.S.C. § 78a" → uscode.house.gov
+ *   - Raw URLs already in the text
+ */
+function linkifyCitations(text) {
+  if (!text) return '';
+  // Escape HTML entities first so we don't double-encode later
+  let html = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  // URLs (must run before CFR/USC to avoid double-wrapping)
+  html = html.replace(
+    /https?:\/\/[^\s<>"]+/g,
+    (url) =>
+      `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-cyan-400 underline hover:text-cyan-300">${url}</a>`
+  );
+
+  // CFR: e.g. "12 C.F.R. § 1026.1" or "12 CFR 1026.1"
+  html = html.replace(
+    /(\d+)\s+C\.?F\.?R\.?\s+[§Sec.]*\s*([\d.]+)/gi,
+    (match, title, section) => {
+      const query = encodeURIComponent(`${title} CFR ${section}`);
+      return `<a href="https://www.ecfr.gov/search#query=${query}" target="_blank" rel="noopener noreferrer" class="text-cyan-400 underline hover:text-cyan-300">${match}</a>`;
+    }
+  );
+
+  // USC: e.g. "15 U.S.C. § 78a" or "15 USC 78a"
+  html = html.replace(
+    /(\d+)\s+U\.?S\.?C\.?\s+[§Sec.]*\s*([\w.-]+)/gi,
+    (match) =>
+      `<a href="https://uscode.house.gov" target="_blank" rel="noopener noreferrer" class="text-cyan-400 underline hover:text-cyan-300">${match}</a>`
+  );
+
+  return html;
+}
+
+/** Render a block of legal text with clickable citations. */
+function LegalTextBlock({ text }) {
+  if (!text) return null;
+  const html = sanitizeLegalHtml(linkifyCitations(text));
+  return (
+    <p
+      className="text-sm text-gray-300 mb-2 leading-relaxed"
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Tab: Compliance (regulatory concerns with severity badges)
 // ---------------------------------------------------------------------------
 function ComplianceTab({ runId }) {
@@ -803,7 +941,7 @@ function ComplianceTab({ runId }) {
                 <SeverityBadge severity={b.severity} />
                 <span className="text-white font-semibold">{b.area}</span>
               </div>
-              <p className="text-sm text-gray-300 mb-2">{b.description}</p>
+              <LegalTextBlock text={b.description} />
               {b.citations?.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-2">
                   {b.citations.map((c, ci) => (
@@ -853,8 +991,8 @@ function ComplianceTab({ runId }) {
                   <span className="text-xs text-cyan-400 font-mono bg-gray-800 px-2 py-0.5 rounded">{c.section_number}</span>
                   {c.issuing_body && <span className="text-xs text-gray-500">{c.issuing_body}</span>}
                 </div>
-                <p className="text-sm text-gray-300 mb-2">{c.summary}</p>
-                {c.impact && <div className="text-xs text-gray-400 mb-2"><span className="font-semibold text-orange-400">Impact: </span>{c.impact}</div>}
+                <LegalTextBlock text={c.summary} />
+                {c.impact && <div className="text-xs text-gray-400 mb-2"><span className="font-semibold text-orange-400">Impact: </span><LegalTextBlock text={c.impact} /></div>}
                 {c.recommended_action && (
                   <div className="text-xs text-gray-400 bg-gray-800/50 rounded p-2 mt-2">
                     <span className="font-semibold text-gray-300">Recommended: </span>{c.recommended_action}

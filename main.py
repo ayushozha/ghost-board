@@ -269,6 +269,9 @@ async def run_sprint(
     total_events = len(trace)
     pivots = ceo.pivot_count
 
+    # Generate a run_id for output file paths (timestamp-based)
+    run_id = int(sprint_start)
+
     costs = {a.name: a.get_cost_summary() for a in agents}
 
     # Estimate simulation costs (gpt-4o-mini: ~300 tokens per persona turn + analysis)
@@ -284,6 +287,46 @@ async def run_sprint(
     total_cost = sum(c["estimated_cost_usd"] for c in costs.values())
     total_tokens = sum(c["total_tokens"] for c in costs.values())
     human_equivalent = 15000.0
+
+    # ── Save per-agent cost breakdown ──
+    try:
+        # Build cost_data with model info per agent
+        agent_cost_details: dict[str, dict] = {}
+        for a in agents:
+            try:
+                summary = a.get_cost_summary()
+                summary["model"] = getattr(a, "model", "unknown")
+                agent_cost_details[a.name] = summary
+            except Exception:
+                agent_cost_details[a.name] = {"agent": a.name, "model": getattr(a, "model", "unknown"), "total_tokens": 0, "prompt_tokens": 0, "completion_tokens": 0, "estimated_cost_usd": 0.0}
+        # Include simulation estimate if present
+        if "Simulation" in costs:
+            agent_cost_details["Simulation"] = costs["Simulation"]
+
+        cost_data = {
+            "run_id": run_id,
+            "total": {
+                "total_tokens": total_tokens,
+                "prompt_tokens": sum(c.get("prompt_tokens", 0) for c in agent_cost_details.values()),
+                "completion_tokens": sum(c.get("completion_tokens", 0) for c in agent_cost_details.values()),
+                "estimated_cost_usd": round(total_cost, 6),
+            },
+            "agents": agent_cost_details,
+        }
+
+        run_cost_dir = Path(f"outputs/runs/{run_id}")
+        run_cost_dir.mkdir(parents=True, exist_ok=True)
+        run_cost_path = run_cost_dir / "cost.json"
+        with open(run_cost_path, "w", encoding="utf-8") as _f:
+            json.dump(cost_data, _f, indent=2)
+
+        Path("outputs").mkdir(exist_ok=True)
+        with open("outputs/cost.json", "w", encoding="utf-8") as _f:
+            json.dump(cost_data, _f, indent=2)
+
+        console.print(f"  [bold yellow]Total API cost: ${total_cost:.4f} ({total_tokens:,} tokens)[/bold yellow]")
+    except Exception as _e:
+        console.print(f"  [dim]Cost file save skipped: {_e}[/dim]")
 
     # Compute total agents simulated
     if sim_scale and sim_scale in SCALE_PRESETS:

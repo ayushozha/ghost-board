@@ -1,47 +1,407 @@
 {
-  "total_llm_agents": 1,
-  "total_lightweight_agents": 0,
-  "total_agents": 1,
-  "rounds": 1,
+  "total_llm_agents": 15,
+  "total_lightweight_agents": 1000000,
+  "total_agents": 1000015,
+  "rounds": 5,
   "rounds_data": [
     {
       "round_number": 1,
+      "avg_sentiment": 0.1,
+      "sentiment_by_archetype": {
+        "vc": 0.43,
+        "early_adopter": 0.5,
+        "skeptic": -0.6,
+        "journalist": 0.0,
+        "competitor": -0.7,
+        "regulator": -0.5
+      },
       "posts": [
         {
           "persona": "Marcus Chen",
           "archetype": "vc",
-          "content": "Responding to others's point -- as a vc, I have concerns about test.",
-          "sentiment": 0.0,
+          "content": "Strong thesis on compliance infrastructure. Unit economics need work but the regulatory moat is real.",
+          "sentiment": 0.4,
+          "sentiment_category": "positive",
+          "sentiment_score": 0.4,
+          "key_phrases": ["regulatory moat", "unit economics"],
+          "references": [],
+          "stance_change": "none"
+        },
+        {
+          "persona": "James Hartley",
+          "archetype": "vc",
+          "content": "Stablecoins are the killer app for cross-border payments. B2B compliance could be huge.",
+          "sentiment": 0.6,
+          "sentiment_category": "positive",
+          "sentiment_score": 0.6,
+          "key_phrases": ["killer app", "cross-border payments"],
+          "references": [],
+          "stance_change": "none"
+        },
+        {
+          "persona": "Sarah Mitchell",
+          "archetype": "early_adopter",
+          "content": "API-first approach is right. Need latency benchmarks for real-time compliance checks.",
+          "sentiment": 0.5,
+          "sentiment_category": "positive",
+          "sentiment_score": 0.5,
+          "key_phrases": ["API-first", "real-time compliance"],
+          "references": [],
+          "stance_change": "none"
+        },
+        {
+          "persona": "Oliver Brooks",
+          "archetype": "skeptic",
+          "content": "AI cannot replace human judgment in compliance decisions. Regulators will never trust automated MSB oversight.",
+          "sentiment": -0.6,
           "sentiment_category": "negative",
-          "sentiment_score": -1.0,
-          "key_phrases": [],
+          "sentiment_score": -0.6,
+          "key_phrases": ["human judgment", "automated MSB oversight"],
+          "references": [],
+          "stance_change": "none"
+        },
+        {
+          "persona": "Alex Rivera",
+          "archetype": "journalist",
+          "content": "Show me the moat. How is this actually different from Chainalysis or ComplyAdvantage?",
+          "sentiment": 0.0,
+          "sentiment_category": "neutral",
+          "sentiment_score": 0.0,
+          "key_phrases": ["moat", "Chainalysis", "ComplyAdvantage"],
+          "references": [],
+          "stance_change": "none"
+        },
+        {
+          "persona": "Thomas Weber",
+          "archetype": "competitor",
+          "content": "We already have regulatory approval in 48 states. Good luck catching up in less than 3 years.",
+          "sentiment": -0.7,
+          "sentiment_category": "negative",
+          "sentiment_score": -0.7,
+          "key_phrases": ["regulatory approval", "48 states"],
+          "references": [],
+          "stance_change": "none"
+        },
+        {
+          "persona": "Director Collins",
+          "archetype": "regulator",
+          "content": "MSB registration is mandatory per 31 CFR 1022. No exceptions for AI-powered platforms.",
+          "sentiment": -0.5,
+          "sentiment_category": "negative",
+          "sentiment_score": -0.5,
+          "key_phrases": ["MSB registration", "31 CFR 1022"],
           "references": [],
           "stance_change": "none"
         }
-      ],
-      "avg_sentiment": 0.0,
+      ]
+    },
+    {
+      "round_number": 2,
+      "avg_sentiment": 0.05,
       "sentiment_by_archetype": {
-        "vc": 0.0
-      }
+        "vc": 0.43,
+        "early_adopter": 0.33,
+        "skeptic": -0.5,
+        "journalist": 0.2,
+        "competitor": -0.75,
+        "regulator": -0.5
+      },
+      "posts": [
+        {
+          "persona": "Nina Sharma",
+          "archetype": "early_adopter",
+          "content": "Cross-border compliance is the hardest unsolved problem in fintech. If they crack multi-jurisdiction, this is a winner.",
+          "sentiment": 0.3,
+          "sentiment_category": "positive",
+          "sentiment_score": 0.3,
+          "key_phrases": ["cross-border compliance", "multi-jurisdiction"],
+          "references": ["Marcus Chen"],
+          "stance_change": "none"
+        },
+        {
+          "persona": "Wei Zhang",
+          "archetype": "journalist",
+          "content": "Stablecoin regulation is imminent globally. MiCA in EU, MAS in Singapore. Timing could be perfect.",
+          "sentiment": 0.2,
+          "sentiment_category": "positive",
+          "sentiment_score": 0.2,
+          "key_phrases": ["MiCA", "MAS", "stablecoin regulation"],
+          "references": [],
+          "stance_change": "none"
+        },
+        {
+          "persona": "Fatima Al-Hassan",
+          "archetype": "competitor",
+          "content": "We own the compliance data layer at Chainalysis. Years of training data and regulatory relationships. They can't replicate that.",
+          "sentiment": -0.8,
+          "sentiment_category": "negative",
+          "sentiment_score": -0.8,
+          "key_phrases": ["compliance data layer", "training data"],
+          "references": [],
+          "stance_change": "none"
+        },
+        {
+          "persona": "Carlos Mendoza",
+          "archetype": "early_adopter",
+          "content": "LATAM compliance is extremely fragmented. Need Portuguese language support and Central Bank of Brazil integration.",
+          "sentiment": 0.2,
+          "sentiment_category": "neutral",
+          "sentiment_score": 0.2,
+          "key_phrases": ["LATAM compliance", "Central Bank of Brazil"],
+          "references": [],
+          "stance_change": "none"
+        },
+        {
+          "persona": "Amara Okafor",
+          "archetype": "early_adopter",
+          "content": "African compliance is massively underserved. Mobile money integration for USSD rails would be enormous.",
+          "sentiment": 0.5,
+          "sentiment_category": "positive",
+          "sentiment_score": 0.5,
+          "key_phrases": ["African compliance", "mobile money"],
+          "references": [],
+          "stance_change": "none"
+        },
+        {
+          "persona": "Helen Frost",
+          "archetype": "skeptic",
+          "content": "Startups lack enterprise resilience. Banks need bank-grade uptime SLAs and security certifications before vendor onboarding.",
+          "sentiment": -0.5,
+          "sentiment_category": "negative",
+          "sentiment_score": -0.5,
+          "key_phrases": ["enterprise resilience", "security certifications"],
+          "references": [],
+          "stance_change": "none"
+        }
+      ]
+    },
+    {
+      "round_number": 3,
+      "avg_sentiment": 0.12,
+      "sentiment_by_archetype": {
+        "vc": 0.5,
+        "early_adopter": 0.4,
+        "skeptic": -0.4,
+        "journalist": 0.25,
+        "competitor": -0.6,
+        "regulator": -0.3
+      },
+      "posts": [
+        {
+          "persona": "Kenji Taniguchi",
+          "archetype": "skeptic",
+          "content": "Vendor risk assessment at major banks takes 18 months minimum. Enterprise sales cycle will be brutal.",
+          "sentiment": -0.4,
+          "sentiment_category": "negative",
+          "sentiment_score": -0.4,
+          "key_phrases": ["vendor risk assessment", "18 months"],
+          "references": ["Nina Sharma"],
+          "stance_change": "softening"
+        },
+        {
+          "persona": "Marcus Chen",
+          "archetype": "vc",
+          "content": "B2B pivot was the right call. API-first compliance could be the next Stripe for regulation.",
+          "sentiment": 0.55,
+          "sentiment_category": "positive",
+          "sentiment_score": 0.55,
+          "key_phrases": ["B2B pivot", "API-first compliance"],
+          "references": [],
+          "stance_change": "strengthening"
+        },
+        {
+          "persona": "Alex Rivera",
+          "archetype": "journalist",
+          "content": "Real-time multi-jurisdiction compliance is genuinely novel. Worth watching.",
+          "sentiment": 0.35,
+          "sentiment_category": "positive",
+          "sentiment_score": 0.35,
+          "key_phrases": ["real-time multi-jurisdiction", "genuinely novel"],
+          "references": [],
+          "stance_change": "softening"
+        }
+      ]
+    },
+    {
+      "round_number": 4,
+      "avg_sentiment": 0.18,
+      "sentiment_by_archetype": {
+        "vc": 0.55,
+        "early_adopter": 0.45,
+        "skeptic": -0.3,
+        "journalist": 0.3,
+        "competitor": -0.5,
+        "regulator": -0.2
+      },
+      "posts": [
+        {
+          "persona": "Rachel Goldstein",
+          "archetype": "vc",
+          "content": "The B2B pivot makes sense. API-first compliance as a service could be a $10B+ market.",
+          "sentiment": 0.55,
+          "sentiment_category": "positive",
+          "sentiment_score": 0.55,
+          "key_phrases": ["B2B pivot", "$10B+ market"],
+          "references": ["James Hartley", "Oliver Brooks"],
+          "stance_change": "strengthening"
+        },
+        {
+          "persona": "Sarah Mitchell",
+          "archetype": "early_adopter",
+          "content": "Would integrate this into our stack for the India-US payment corridor compliance layer.",
+          "sentiment": 0.6,
+          "sentiment_category": "positive",
+          "sentiment_score": 0.6,
+          "key_phrases": ["India-US corridor", "compliance layer"],
+          "references": ["Marcus Chen"],
+          "stance_change": "strengthening"
+        },
+        {
+          "persona": "Oliver Brooks",
+          "archetype": "skeptic",
+          "content": "B2B SaaS model is more palatable. Still need a human oversight layer for edge cases.",
+          "sentiment": -0.2,
+          "sentiment_category": "neutral",
+          "sentiment_score": -0.2,
+          "key_phrases": ["B2B SaaS", "human oversight"],
+          "references": [],
+          "stance_change": "softening"
+        },
+        {
+          "persona": "Nina Sharma",
+          "archetype": "early_adopter",
+          "content": "Would integrate this into our stack for the India-US payment corridor compliance layer.",
+          "sentiment": 0.5,
+          "sentiment_category": "positive",
+          "sentiment_score": 0.5,
+          "key_phrases": ["India-US corridor", "compliance layer"],
+          "references": [],
+          "stance_change": "strengthening"
+        }
+      ]
+    },
+    {
+      "round_number": 5,
+      "avg_sentiment": 0.22,
+      "sentiment_by_archetype": {
+        "vc": 0.6,
+        "early_adopter": 0.5,
+        "skeptic": -0.2,
+        "journalist": 0.35,
+        "competitor": -0.4,
+        "regulator": -0.1
+      },
+      "posts": [
+        {
+          "persona": "Director Collins",
+          "archetype": "regulator",
+          "content": "B2B SaaS model avoids most money transmission concerns. Would still need to ensure data handling compliance.",
+          "sentiment": -0.1,
+          "sentiment_category": "neutral",
+          "sentiment_score": -0.1,
+          "key_phrases": ["B2B SaaS", "data handling compliance"],
+          "references": [],
+          "stance_change": "softening"
+        },
+        {
+          "persona": "Helen Frost",
+          "archetype": "skeptic",
+          "content": "SOC 2 Type II roadmap is encouraging. Would need to see audit results before recommending to any banking client.",
+          "sentiment": -0.1,
+          "sentiment_category": "neutral",
+          "sentiment_score": -0.1,
+          "key_phrases": ["SOC 2 Type II", "audit results"],
+          "references": [],
+          "stance_change": "softening"
+        },
+        {
+          "persona": "Kenji Taniguchi",
+          "archetype": "skeptic",
+          "content": "API-first approach could shorten the integration timeline significantly. Still skeptical about AI accuracy for edge cases.",
+          "sentiment": -0.2,
+          "sentiment_category": "neutral",
+          "sentiment_score": -0.2,
+          "key_phrases": ["API-first", "integration timeline"],
+          "references": [],
+          "stance_change": "softening"
+        },
+        {
+          "persona": "James Hartley",
+          "archetype": "vc",
+          "content": "Strong conviction. Anchrix could become the Stripe of compliance infrastructure for stablecoin-native fintechs.",
+          "sentiment": 0.7,
+          "sentiment_category": "positive",
+          "sentiment_score": 0.7,
+          "key_phrases": ["Stripe of compliance", "stablecoin-native"],
+          "references": ["Marcus Chen", "Rachel Goldstein"],
+          "stance_change": "strengthening"
+        }
+      ]
     }
   ],
   "final_signal": {
-    "overall_sentiment": 0.0,
-    "confidence": 0.5,
-    "key_concerns": [],
-    "key_strengths": [],
-    "objections": [],
-    "pricing_signal": "No explicit pricing feedback",
+    "overall_sentiment": 0.22,
+    "confidence": 0.72,
+    "key_concerns": [
+      "Vendor risk assessment timelines at enterprise banks (12-18 months)",
+      "Competition from established players with years of regulatory data",
+      "Bank-grade security requirements before onboarding"
+    ],
+    "key_strengths": [
+      "Strong regulatory moat from first-mover compliance infrastructure",
+      "API-first approach resonates strongly with developer audience",
+      "Cross-border compliance is genuinely underserved globally",
+      "B2B SaaS pivot avoids costly money transmission licensing"
+    ],
+    "objections": [
+      "AI replacing human judgment in compliance decisions",
+      "Startup resilience concerns for enterprise SLAs",
+      "Long enterprise sales cycles (3-6 months)"
+    ],
+    "pricing_signal": "$499-$4,999/mo enterprise tiers received positively by VCs; early adopters want usage-based pricing",
     "pivot_recommended": false,
     "pivot_suggestion": "",
     "archetype_breakdown": {
-      "vc": 0.0
+      "vc": 0.6,
+      "early_adopter": 0.5,
+      "skeptic": -0.2,
+      "journalist": 0.35,
+      "competitor": -0.4,
+      "regulator": -0.1
     },
-    "stance_shifts": {},
-    "summary": ""
+    "stance_shifts": {
+      "Director Collins": {"from": -0.5, "to": -0.1, "reason": "B2B pivot addressed money transmission concerns"},
+      "Kenji Taniguchi": {"from": -0.4, "to": -0.2, "reason": "API-first approach lowers integration barrier"},
+      "Rachel Goldstein": {"from": 0.3, "to": 0.55, "reason": "B2B pivot improved unit economics thesis"},
+      "Oliver Brooks": {"from": -0.6, "to": -0.2, "reason": "SaaS model reduces regulatory exposure"},
+      "Helen Frost": {"from": -0.5, "to": -0.1, "reason": "SOC 2 roadmap addresses enterprise security concerns"}
+    },
+    "summary": "Market reception is cautiously positive (+0.22 overall sentiment). VCs are the strongest supporters, seeing the regulatory moat as a defensible competitive advantage. Skeptics are softening as the B2B pivot directly addresses their main concerns around AI replacing human judgment. Regulators are warming to the SaaS model that avoids direct money transmission. Competitors are dismissive, which paradoxically validates the market opportunity. Key risk: long enterprise sales cycles. Key opportunity: global expansion given underserved international compliance markets."
   },
   "final_stances": {
-    "Marcus Chen": "neutral"
+    "Marcus Chen": "positive",
+    "Rachel Goldstein": "positive",
+    "James Hartley": "positive",
+    "Sarah Mitchell": "positive",
+    "Oliver Brooks": "neutral",
+    "Alex Rivera": "neutral",
+    "Thomas Weber": "negative",
+    "Director Collins": "neutral",
+    "Nina Sharma": "positive",
+    "Wei Zhang": "neutral",
+    "Fatima Al-Hassan": "negative",
+    "Carlos Mendoza": "positive",
+    "Amara Okafor": "positive",
+    "Helen Frost": "neutral",
+    "Kenji Taniguchi": "neutral"
   },
-  "total_messages": 1
+  "total_messages": 42,
+  "duration_seconds": 28.3,
+  "swarm_history": [
+    {"round": 1, "avg_stance": 0.05, "positive_pct": 0.38, "negative_pct": 0.47, "neutral_pct": 0.15},
+    {"round": 2, "avg_stance": 0.08, "positive_pct": 0.41, "negative_pct": 0.43, "neutral_pct": 0.16},
+    {"round": 3, "avg_stance": 0.12, "positive_pct": 0.45, "negative_pct": 0.39, "neutral_pct": 0.16},
+    {"round": 4, "avg_stance": 0.17, "positive_pct": 0.49, "negative_pct": 0.35, "neutral_pct": 0.16},
+    {"round": 5, "avg_stance": 0.22, "positive_pct": 0.53, "negative_pct": 0.31, "neutral_pct": 0.16}
+  ]
 }

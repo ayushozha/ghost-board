@@ -17,6 +17,38 @@
 
 ---
 
+## Quick Demo (No API Key Required)
+
+Try Ghost Board instantly with pre-cached results from a real Anchrix fintech sprint:
+
+```bash
+# Clone and install
+git clone https://github.com/ayushozha/ghost-board.git
+cd ghost-board
+pip install -r requirements.txt
+
+# Play back a full cached sprint -- no API key, no cost, instant replay
+python main.py --cached
+```
+
+You will see the full CEO -> Legal -> PIVOT -> rebuild cascade printed to your terminal, including:
+- 3 CEO strategy pivots triggered by real regulatory blockers
+- 4 Legal blockers with FinCEN/CFPB/BSA citations and URLs
+- CFO financial model evolution across pivots
+- CMO GTM repositioning from consumer to enterprise B2B
+
+To explore the interactive dashboard, open `dashboard/index.html` in your browser or run the React app:
+
+```bash
+cd dashboard-app
+npm install && npm run dev
+# then open http://localhost:5173
+```
+
+The dashboard works fully offline using the pre-built demo data in `outputs/`.
+
+---
+
 ## What It Does
 
 Ghost Board is an autonomous AI executive team that builds AND validates a startup in a single sprint. Five AI agents -- CEO, CTO, CFO, CMO, and Legal -- coordinate through an asynchronous event bus, each bringing specialized domain expertise to the table. The CEO sets initial strategy, the CTO generates a working prototype using OpenAI Codex, the CFO produces a twelve-month financial model with scenario analysis, the CMO crafts a full go-to-market package with competitive positioning, and the Legal agent scans real federal and state regulations. When Legal flags a compliance blocker with real regulatory citations (FinCEN MSB registration, CFPB rules, state money transmitter statutes), the CEO pivots strategy immediately, and the pivot cascades through every other agent, triggering a full rebuild of all artifacts. This inner feedback loop produces a v1 sprint package in minutes, not months.

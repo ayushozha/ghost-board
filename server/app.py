@@ -25,6 +25,14 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
+# asyncpg is optional — if not installed, all pg-pool operations are no-ops
+try:
+    import asyncpg  # type: ignore
+    _ASYNCPG_AVAILABLE = True
+except ImportError:
+    asyncpg = None  # type: ignore[assignment]
+    _ASYNCPG_AVAILABLE = False
+
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
@@ -46,6 +54,161 @@ from server.models import (
     SprintEvent,
     SprintRun,
 )
+
+# ---------------------------------------------------------------------------
+# asyncpg direct PostgreSQL pool (supplemental, optional)
+# ---------------------------------------------------------------------------
+
+_PG_DSN = "postgresql://admin:i87RfJUBx5HZJuykZt4v9u3zaq10wAqV@127.0.0.1:5433/ghost_board"
+
+_db_pool: Any = None  # asyncpg.Pool or None
+
+
+async def init_db_pool() -> None:
+    """Initialise the asyncpg connection pool and ensure sprint_runs table exists.
+
+    Entirely optional — if PostgreSQL is unavailable or asyncpg is not
+    installed, the pool stays None and every downstream call silently skips.
+    """
+    global _db_pool
+    if not _ASYNCPG_AVAILABLE:
+        return
+    try:
+        pool = await asyncpg.create_pool(
+            dsn=_PG_DSN,
+            min_size=1,
+            max_size=5,
+            command_timeout=10,
+            timeout=5,
+        )
+        async with pool.acquire() as conn:
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS sprint_runs (
+                    run_id TEXT PRIMARY KEY,
+                    concept TEXT,
+                    status TEXT DEFAULT 'running',
+                    started_at TIMESTAMP DEFAULT NOW(),
+                    model_config JSONB,
+                    completed_at TIMESTAMP,
+                    total_events INTEGER,
+                    total_pivots INTEGER,
+                    api_cost_usd FLOAT,
+                    artifact_paths JSONB
+                );
+            """)
+        _db_pool = pool
+    except Exception:
+        # PostgreSQL not reachable — continue without it
+        _db_pool = None
+
+
+async def _pg_insert_run(run_id: str, concept: str, model_config: Optional[dict] = None) -> None:
+    """Insert a new sprint run row into PostgreSQL. No-op if pool unavailable."""
+    if _db_pool is None:
+        return
+    try:
+        async with _db_pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO sprint_runs (run_id, concept, status, started_at, model_config)
+                VALUES ($1, $2, 'running', NOW(), $3)
+                ON CONFLICT (run_id) DO NOTHING;
+                """,
+                run_id,
+                concept,
+                json.dumps(model_config or {}),
+            )
+    except Exception:
+        pass
+
+
+async def _pg_complete_run(
+    run_id: str,
+    total_events: int,
+    total_pivots: int,
+    api_cost_usd: float,
+    artifact_paths: Optional[list] = None,
+) -> None:
+    """Update sprint run to completed in PostgreSQL. No-op if pool unavailable."""
+    if _db_pool is None:
+        return
+    try:
+        async with _db_pool.acquire() as conn:
+            await conn.execute(
+                """
+                UPDATE sprint_runs
+                SET status = 'completed',
+                    completed_at = NOW(),
+                    total_events = $2,
+                    total_pivots = $3,
+                    api_cost_usd = $4,
+                    artifact_paths = $5
+                WHERE run_id = $1;
+                """,
+                run_id,
+                total_events,
+                total_pivots,
+                api_cost_usd,
+                json.dumps(artifact_paths or []),
+            )
+    except Exception:
+        pass
+
+
+async def _pg_fail_run(run_id: str) -> None:
+    """Mark sprint run as failed in PostgreSQL. No-op if pool unavailable."""
+    if _db_pool is None:
+        return
+    try:
+        async with _db_pool.acquire() as conn:
+            await conn.execute(
+                """
+                UPDATE sprint_runs
+                SET status = 'failed', completed_at = NOW()
+                WHERE run_id = $1;
+                """,
+                run_id,
+            )
+    except Exception:
+        pass
+
+
+async def _pg_list_runs() -> list[dict[str, Any]]:
+    """Return all sprint_runs from PostgreSQL as dicts. Returns [] if unavailable."""
+    if _db_pool is None:
+        return []
+    try:
+        async with _db_pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT * FROM sprint_runs ORDER BY started_at DESC NULLS LAST;"
+            )
+            result = []
+            for row in rows:
+                d = dict(row)
+                result.append({
+                    "run_id": d.get("run_id"),
+                    "id": d.get("run_id"),
+                    "concept": d.get("concept") or "",
+                    "sim_scale": "unknown",
+                    "status": d.get("status") or "unknown",
+                    "started_at": d["started_at"].isoformat() if d.get("started_at") else None,
+                    "finished_at": d["completed_at"].isoformat() if d.get("completed_at") else None,
+                    "completed_at": d["completed_at"].isoformat() if d.get("completed_at") else None,
+                    "created_at": d["started_at"].isoformat() if d.get("started_at") else None,
+                    "total_events": d.get("total_events") or 0,
+                    "total_pivots": d.get("total_pivots") or 0,
+                    "total_agents_simulated": 0,
+                    "api_cost_usd": d.get("api_cost_usd") or 0.0,
+                    "events": d.get("total_events") or 0,
+                    "pivots": d.get("total_pivots") or 0,
+                    "total_cost": d.get("api_cost_usd") or 0.0,
+                    "wandb_url": None,
+                    "_source": "pg_pool",
+                })
+            return result
+    except Exception:
+        return []
+
 
 # ---------------------------------------------------------------------------
 # WebSocket connection manager
@@ -530,6 +693,15 @@ async def _run_sprint_background(run_id: str, concept: str, sim_scale: str) -> N
                 run_obj.api_cost_usd = api_cost or 0.0
                 run_obj.wandb_url = wandb_url_val
 
+        # Also persist completion to asyncpg pool (no-op if pool unavailable)
+        await _pg_complete_run(
+            run_id,
+            total_events=len(trace_events),
+            total_pivots=pivots,
+            api_cost_usd=api_cost or 0.0,
+            artifact_paths=list(artifact_dirs.keys()),
+        )
+
         # Broadcast completion
         await ws_manager.broadcast(run_id, {
             "type": "status",
@@ -552,6 +724,9 @@ async def _run_sprint_background(run_id: str, concept: str, sim_scale: str) -> N
                 run_obj.status = "failed"
                 run_obj.completed_at = datetime.now(timezone.utc)
 
+        # Also mark failed in asyncpg pool (no-op if pool unavailable)
+        await _pg_fail_run(run_id)
+
         await ws_manager.broadcast(run_id, {
             "type": "status",
             "status": "failed",
@@ -568,9 +743,18 @@ async def _run_sprint_background(run_id: str, concept: str, sim_scale: str) -> N
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Create database tables on startup."""
+    """Create database tables on startup and initialise asyncpg pool."""
     await create_tables()
+    await init_db_pool()
     yield
+    # Close asyncpg pool on shutdown
+    global _db_pool
+    if _db_pool is not None:
+        try:
+            await _db_pool.close()
+        except Exception:
+            pass
+        _db_pool = None
 
 
 # ---------------------------------------------------------------------------
@@ -612,6 +796,9 @@ async def start_sprint(req: SprintRequest) -> SprintResponse:
         )
         session.add(run)
 
+    # Also persist to asyncpg pool (no-op if pool unavailable)
+    await _pg_insert_run(run_id, req.concept, {"sim_scale": req.sim_scale})
+
     # Launch background task
     task = asyncio.create_task(
         _run_sprint_background(run_id, req.concept, req.sim_scale)
@@ -630,6 +817,14 @@ async def list_runs() -> dict[str, Any]:
         )
         runs = result.scalars().all()
         run_list = [_run_to_summary(r) for r in runs]
+
+    # Merge in runs from asyncpg pool that are not already in the ORM results
+    pg_runs = await _pg_list_runs()
+    orm_run_ids = {r["run_id"] for r in run_list}
+    for pg_run in pg_runs:
+        if pg_run["run_id"] not in orm_run_ids:
+            pg_run.pop("_source", None)
+            run_list.append(pg_run)
 
     # Always include a file-based "latest" entry when outputs/trace.json exists.
     # This ensures the dashboard can show real data even when DB runs are stale

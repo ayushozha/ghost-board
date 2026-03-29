@@ -40,6 +40,171 @@ const SCREENS = [
   { id: 'history',  label: 'History',         icon: '\u{1F4DC}', color: 'from-gray-400 to-gray-500',   alwaysEnabled: true },
 ];
 
+// PRD-289: WS event type color mapping
+const WS_TYPE_COLOR = {
+  STRATEGY: '#3b82f6',
+  strategy: '#3b82f6',
+  BLOCKER: '#ef4444',
+  blocker: '#ef4444',
+  PIVOT: '#eab308',
+  pivot: '#eab308',
+  UPDATE: '#22c55e',
+  update: '#22c55e',
+  SIM: '#a855f7',
+  sim: '#a855f7',
+  SIMULATION_START: '#a855f7',
+  SIMULATION_COMPLETE: '#a855f7',
+  SPRINT_COMPLETE: '#22c55e',
+};
+
+function wsEventColor(type) {
+  return WS_TYPE_COLOR[type] || '#6b7280';
+}
+
+// PRD-289: Debug WS panel
+function WsDebugPanel({ wsEventsRef }) {
+  const [open, setOpen] = useState(false);
+  const [, forceRender] = useState(0);
+  const listRef = useRef(null);
+
+  // Poll for new events while open
+  useEffect(() => {
+    if (!open) return;
+    const interval = setInterval(() => forceRender((n) => n + 1), 500);
+    return () => clearInterval(interval);
+  }, [open]);
+
+  // Auto-scroll to bottom on new events
+  useEffect(() => {
+    if (open && listRef.current) {
+      listRef.current.scrollTop = listRef.current.scrollHeight;
+    }
+  });
+
+  const events = wsEventsRef.current;
+
+  return (
+    <div className="fixed bottom-0 left-0 z-[9000] w-full pointer-events-none">
+      {/* Expand button */}
+      <div className="pointer-events-auto absolute bottom-0 left-3 flex flex-col items-start">
+        {!open && (
+          <button
+            onClick={() => setOpen(true)}
+            className="mb-2 px-2 py-1 text-[11px] font-mono bg-gray-900 border border-gray-700 text-gray-400 hover:text-white hover:border-gray-500 rounded transition-colors"
+          >
+            [WS]
+          </button>
+        )}
+      </div>
+
+      {/* Panel */}
+      {open && (
+        <div
+          className="pointer-events-auto w-full"
+          style={{ height: 300, background: '#0d1117', borderTop: '1px solid #30363d' }}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-800">
+            <span className="text-[11px] font-mono text-gray-400">
+              WebSocket Event Log ({events.length} events)
+            </span>
+            <button
+              onClick={() => setOpen(false)}
+              className="text-[11px] font-mono text-gray-500 hover:text-white transition-colors"
+            >
+              [close]
+            </button>
+          </div>
+
+          {/* Event list */}
+          <div
+            ref={listRef}
+            className="overflow-y-auto font-mono text-[11px]"
+            style={{ height: 'calc(300px - 30px)' }}
+          >
+            {events.length === 0 ? (
+              <div className="px-3 py-2 text-gray-600">No WebSocket events yet.</div>
+            ) : (
+              events.map((ev, i) => {
+                const color = wsEventColor(ev.type);
+                const payloadStr = JSON.stringify(ev.payload || {}).slice(0, 80);
+                return (
+                  <div
+                    key={i}
+                    className="flex items-baseline gap-2 px-3 py-0.5 hover:bg-white/[0.03] border-b border-gray-900"
+                  >
+                    <span className="text-gray-600 shrink-0">{ev.time}</span>
+                    <span className="shrink-0 font-bold" style={{ color }}>{ev.type}</span>
+                    {ev.source && (
+                      <span className="text-gray-500 shrink-0">{ev.source}</span>
+                    )}
+                    <span className="text-gray-600 truncate">{payloadStr}</span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// PRD-282: Keyboard Shortcuts Modal
+const SHORTCUT_ENTRIES = [
+  { keys: '1 – 5', desc: 'Jump to screen (Mission → Report)' },
+  { keys: '← / →', desc: 'Step timeline (on Pivot Timeline screen)' },
+  { keys: 'Cmd/Ctrl + E', desc: 'Export current screen' },
+  { keys: '?', desc: 'Toggle this shortcuts panel' },
+  { keys: 'Esc', desc: 'Close modal / shortcuts panel' },
+];
+
+function KeyboardShortcutsModal({ onClose }) {
+  return (
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center"
+      onClick={onClose}
+    >
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+
+      {/* Panel */}
+      <div
+        className="relative z-10 w-full max-w-sm mx-4 bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-bold text-white tracking-wide">Keyboard Shortcuts</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-white transition-colors text-lg leading-none"
+          >
+            &times;
+          </button>
+        </div>
+
+        <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
+          {SHORTCUT_ENTRIES.map(({ keys, desc }) => (
+            <>
+              <kbd
+                key={`k-${keys}`}
+                className="px-2 py-0.5 text-[11px] font-mono bg-gray-800 border border-gray-600 rounded text-cyan-300 whitespace-nowrap self-center"
+              >
+                {keys}
+              </kbd>
+              <span key={`d-${keys}`} className="text-xs text-gray-400 self-center">{desc}</span>
+            </>
+          ))}
+        </div>
+
+        <p className="mt-4 text-[10px] text-gray-600 font-mono text-center">
+          Press <span className="text-gray-400">Esc</span> or click outside to close
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [screen, setScreen] = useState('landing');
   const [runId, setRunId] = useState(null);
@@ -50,6 +215,18 @@ export default function App() {
   const wsRef = useRef(null);
   // Track whether the completion toast has already been shown for the current run
   const completionToastShownRef = useRef(false);
+
+  // PRD-282: modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+
+  // PRD-289: WS event log ref (no re-renders)
+  const wsEventsRef = useRef([]);
+
+  // PRD-289: detect debug mode
+  const isDebug =
+    (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.DEV === true) ||
+    (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1');
 
   const showToast = useCallback((title, message, type = 'info', action = null, duration = 5000) => {
     setToast({ title, message, type, action, duration });
@@ -84,12 +261,89 @@ export default function App() {
     isApiAvailable().then(setIsLive);
   }, []);
 
+  // PRD-282: keyboard shortcut handler
+  useEffect(() => {
+    const SCREEN_KEYS = ['mission', 'boardroom', 'arena', 'timeline', 'report'];
+
+    function onKeyDown(e) {
+      // Don't fire shortcuts when user is typing in an input / textarea
+      const tag = document.activeElement?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable) {
+        // Allow Escape to still work from inputs
+        if (e.key !== 'Escape') return;
+      }
+
+      // Escape: close modal / shortcuts panel
+      if (e.key === 'Escape') {
+        if (shortcutsOpen) { setShortcutsOpen(false); return; }
+        if (modalOpen) { setModalOpen(false); return; }
+        return;
+      }
+
+      // ? key: toggle shortcuts modal
+      if (e.key === '?') {
+        e.preventDefault();
+        setShortcutsOpen((v) => !v);
+        return;
+      }
+
+      // 1-5: navigate to screen
+      if (e.key >= '1' && e.key <= '5') {
+        const idx = parseInt(e.key, 10) - 1;
+        const targetScreen = SCREEN_KEYS[idx];
+        if (targetScreen) {
+          const alwaysAllowed = ['landing', 'mission', 'history'];
+          if (alwaysAllowed.includes(targetScreen) || runId) {
+            setScreen(targetScreen);
+          }
+        }
+        return;
+      }
+
+      // Arrow Left / Right on timeline screen
+      if (screen === 'timeline') {
+        if (e.key === 'ArrowLeft') {
+          window.dispatchEvent(new CustomEvent('timeline-step', { detail: { direction: 'left' } }));
+          return;
+        }
+        if (e.key === 'ArrowRight') {
+          window.dispatchEvent(new CustomEvent('timeline-step', { detail: { direction: 'right' } }));
+          return;
+        }
+      }
+
+      // Cmd/Ctrl + E: export current screen
+      if ((e.metaKey || e.ctrlKey) && e.key === 'e') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('export-current-screen', { detail: { screen } }));
+        return;
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [screen, runId, modalOpen, shortcutsOpen]);
+
   useEffect(() => {
     if (!runId || sprintStatus !== 'running') return;
 
     const ws = connectLive(runId, {
       onEvent: (event) => {
+        // PRD-289: log the event to the ref (keep last 50)
         const t = event.event_type || event.type || '';
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        const ss = String(now.getSeconds()).padStart(2, '0');
+        const logEntry = {
+          time: `${hh}:${mm}:${ss}`,
+          type: t,
+          source: event.source || event.agent_id || '',
+          payload: event.payload || event,
+        };
+        wsEventsRef.current = [...wsEventsRef.current, logEntry].slice(-50);
+
+        // Existing navigation logic
         if (t === 'SIMULATION_START' || t === 'simulation_start') {
           setScreen('arena');
         } else if (t === 'SIMULATION_COMPLETE' || t === 'simulation_complete' || t === 'SIMULATION_RESULT') {
@@ -368,6 +622,25 @@ export default function App() {
       )}
 
       <Toast toast={toast} onClose={() => setToast(null)} />
+
+      {/* PRD-282: ? button to open shortcuts modal (fixed bottom-right, above toast area) */}
+      {!isLanding && (
+        <button
+          onClick={() => setShortcutsOpen(true)}
+          title="Keyboard shortcuts (?)"
+          className="fixed bottom-14 right-4 z-[8000] w-8 h-8 rounded-full bg-gray-800 border border-gray-600 text-gray-400 hover:text-white hover:border-gray-400 transition-colors text-sm font-bold flex items-center justify-center shadow-lg"
+        >
+          ?
+        </button>
+      )}
+
+      {/* PRD-282: Keyboard Shortcuts Modal */}
+      {shortcutsOpen && (
+        <KeyboardShortcutsModal onClose={() => setShortcutsOpen(false)} />
+      )}
+
+      {/* PRD-289: WebSocket debug panel */}
+      {isDebug && <WsDebugPanel wsEventsRef={wsEventsRef} />}
     </div>
     </ThemeContext.Provider>
   );
