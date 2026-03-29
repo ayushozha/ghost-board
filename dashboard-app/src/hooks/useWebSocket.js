@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 export function useWebSocket(runId) {
   const [events, setEvents] = useState([]);

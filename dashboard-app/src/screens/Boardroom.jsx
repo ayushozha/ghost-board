@@ -449,62 +449,6 @@ export default function Boardroom({ runId, onEvent }) {
     }
   }, [processEvent]);
 
-  // ── WebSocket connection with reconnect logic ──
-  const connectWebSocket = useCallback(() => {
-    if (!runId || !mountedRef.current) return;
-
-    // Close existing connection
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
-
-    setWsStatus('connecting');
-
-    try {
-      const ws = connectLive(runId, {
-        onEvent: (event) => {
-          if (!mountedRef.current) return;
-          setWsStatus('connected');
-          reconnectAttemptsRef.current = 0;
-          processWsEvent(event);
-        },
-        onClose: () => {
-          if (!mountedRef.current) return;
-          setWsStatus('disconnected');
-          wsRef.current = null;
-
-          // Start polling fallback
-          startPolling();
-
-          // Attempt reconnect with exponential backoff
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
-          reconnectAttemptsRef.current += 1;
-          reconnectTimeoutRef.current = setTimeout(() => {
-            if (mountedRef.current) connectWebSocket();
-          }, delay);
-        },
-        onError: () => {
-          if (!mountedRef.current) return;
-          setWsStatus('disconnected');
-        },
-      });
-
-      wsRef.current = ws;
-
-      // Check if connection succeeded after 3s
-      setTimeout(() => {
-        if (mountedRef.current && ws.readyState !== WebSocket.OPEN) {
-          setWsStatus('disconnected');
-          startPolling();
-        }
-      }, 3000);
-    } catch {
-      setWsStatus('disconnected');
-      startPolling();
-    }
-  }, [runId, processWsEvent]);
-
   // ── Polling fallback ──
   const fetchDiscussion = useCallback(async () => {
     if (!runId || !mountedRef.current) return;
@@ -578,6 +522,62 @@ export default function Boardroom({ runId, onEvent }) {
       pollIntervalRef.current = null;
     }
   }, []);
+
+  // ── WebSocket connection with reconnect logic ──
+  const connectWebSocket = useCallback(() => {
+    if (!runId || !mountedRef.current) return;
+
+    // Close existing connection
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+
+    setWsStatus('connecting');
+
+    try {
+      const ws = connectLive(runId, {
+        onEvent: (event) => {
+          if (!mountedRef.current) return;
+          setWsStatus('connected');
+          reconnectAttemptsRef.current = 0;
+          processWsEvent(event);
+        },
+        onClose: () => {
+          if (!mountedRef.current) return;
+          setWsStatus('disconnected');
+          wsRef.current = null;
+
+          // Start polling fallback
+          startPolling();
+
+          // Attempt reconnect with exponential backoff
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
+          reconnectAttemptsRef.current += 1;
+          reconnectTimeoutRef.current = setTimeout(() => {
+            if (mountedRef.current) connectWebSocket();
+          }, delay);
+        },
+        onError: () => {
+          if (!mountedRef.current) return;
+          setWsStatus('disconnected');
+        },
+      });
+
+      wsRef.current = ws;
+
+      // Check if connection succeeded after 3s
+      setTimeout(() => {
+        if (mountedRef.current && ws.readyState !== WebSocket.OPEN) {
+          setWsStatus('disconnected');
+          startPolling();
+        }
+      }, 3000);
+    } catch {
+      setWsStatus('disconnected');
+      startPolling();
+    }
+  }, [runId, processWsEvent, startPolling]);
 
   // ── Initialize: load data + connect WebSocket ──
   useEffect(() => {

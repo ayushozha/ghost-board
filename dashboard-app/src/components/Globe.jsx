@@ -1,7 +1,18 @@
-import { useRef, useMemo } from 'react'
+import { useRef, useMemo, useState } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
+
+// Deterministic pseudo-random number generator (mulberry32)
+function createRng(seed) {
+  let s = seed | 0;
+  return function () {
+    s = (s + 0x6D2B79F5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -50,12 +61,13 @@ function colorForPersona(persona) {
 
 function Stars({ count = 500 }) {
   const positions = useMemo(() => {
+    const rng = createRng(42)
     const arr = new Float32Array(count * 3)
     for (let i = 0; i < count; i++) {
       // Distribute on a spherical shell at radius ~30-50
-      const r = 30 + Math.random() * 20
-      const theta = Math.random() * Math.PI * 2
-      const phi = Math.acos(2 * Math.random() - 1)
+      const r = 30 + rng() * 20
+      const theta = rng() * Math.PI * 2
+      const phi = Math.acos(2 * rng() - 1)
       arr[i * 3] = r * Math.sin(phi) * Math.cos(theta)
       arr[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta)
       arr[i * 3 + 2] = r * Math.cos(phi)
@@ -173,10 +185,16 @@ function Atmosphere() {
 // Persona dot -- pointLight-like emissive sphere with pulse on activity
 // ---------------------------------------------------------------------------
 
+let _dotSeed = 0
 function PersonaDot({ position, color, active }) {
   const meshRef = useRef()
   const ringRef = useRef()
-  const pulsePhase = useRef(Math.random() * Math.PI * 2)
+  // Use a stable seed per instance instead of Math.random() during render
+  const [initialPhase] = useState(() => {
+    _dotSeed += 1
+    return createRng(_dotSeed * 7919)() * Math.PI * 2
+  })
+  const pulsePhase = useRef(initialPhase)
 
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime() + pulsePhase.current

@@ -114,14 +114,33 @@ function AgentAvatars() {
   );
 }
 
+// -- Phase labels for progress display --
+const PHASE_LABELS = {
+  idle: 'Ready to launch',
+  running: 'Sprint in progress',
+  completed: 'Sprint complete',
+};
+
+// -- Spinner icon --
+function SpinnerIcon({ className = 'w-5 h-5' }) {
+  return (
+    <svg className={`${className} animate-spin`} viewBox="0 0 24 24" fill="none">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+  );
+}
+
 // -- Main MissionControl component --
-export default function MissionControl({ onLaunch, isLive = false }) {
+export default function MissionControl({ onLaunch, onNewSprint, isLive = false, sprintStatus = 'idle', activeConcept = '' }) {
   const [concept, setConcept] = useState('');
   const [isLaunching, setIsLaunching] = useState(false);
   const [error, setError] = useState(null);
   const [demoConcepts, setDemoConcepts] = useState([]);
   const [showDemos, setShowDemos] = useState(false);
   const inputRef = useRef(null);
+
+  const isActive = sprintStatus === 'running' || sprintStatus === 'completed';
 
   // Fetch demo concepts on mount
   useEffect(() => {
@@ -139,11 +158,13 @@ export default function MissionControl({ onLaunch, isLive = false }) {
     fetchConcepts();
   }, []);
 
-  // Focus input on mount
+  // Focus input on mount (only when idle)
   useEffect(() => {
-    const timer = setTimeout(() => inputRef.current?.focus(), 800);
-    return () => clearTimeout(timer);
-  }, []);
+    if (sprintStatus === 'idle') {
+      const timer = setTimeout(() => inputRef.current?.focus(), 800);
+      return () => clearTimeout(timer);
+    }
+  }, [sprintStatus]);
 
   async function handleLaunch() {
     const trimmed = concept.trim();
@@ -158,7 +179,7 @@ export default function MissionControl({ onLaunch, isLive = false }) {
     try {
       const data = await startSprint(trimmed, { sim_scale: 'demo' });
       if (data.run_id && onLaunch) {
-        onLaunch(data.run_id);
+        onLaunch(data.run_id, trimmed);
       }
     } catch (err) {
       setError(err.message || 'Failed to start sprint. Is the server running?');
@@ -177,6 +198,17 @@ export default function MissionControl({ onLaunch, isLive = false }) {
     setShowDemos(false);
     inputRef.current?.focus();
   }
+
+  function handleNewSprint() {
+    setConcept('');
+    setError(null);
+    setIsLaunching(false);
+    setShowDemos(false);
+    if (onNewSprint) onNewSprint();
+  }
+
+  // Determine the displayed concept text
+  const displayConcept = activeConcept || concept;
 
   return (
     <div className="relative w-full h-full min-h-screen bg-[#0a0a0f] flex flex-col items-center justify-center overflow-hidden">
@@ -222,99 +254,185 @@ export default function MissionControl({ onLaunch, isLive = false }) {
           </div>
         )}
 
-        {/* Input area */}
-        <div
-          className="w-full max-w-xl opacity-0"
-          style={{ animation: 'fade-in-up 0.8s ease forwards 0.3s' }}
-        >
-          <div className="relative group">
-            {/* Outer glow ring on focus */}
-            <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-r from-cyan-400/20 via-blue-500/20 to-purple-600/20 opacity-0 group-focus-within:opacity-100 transition-opacity duration-500 blur-sm" />
-
-            <div className="relative flex items-center bg-gray-900 border border-gray-700 rounded-2xl px-5 py-4 group-focus-within:border-cyan-400 transition-all duration-300 group-focus-within:shadow-[0_0_20px_rgba(34,211,238,0.15)]">
-              <span className="text-cyan-400 mr-3 text-lg font-mono select-none">&gt;</span>
-              <input
-                ref={inputRef}
-                type="text"
-                value={concept}
-                onChange={(e) => { setConcept(e.target.value); setError(null); }}
-                onKeyDown={handleKeyDown}
-                placeholder="Describe your startup concept..."
-                disabled={isLaunching}
-                className="flex-1 bg-transparent text-white text-base placeholder-slate-600 outline-none font-mono disabled:opacity-50"
-                maxLength={500}
-              />
-              {!concept && <TypingCursor />}
-            </div>
-          </div>
-
-          {/* Demo concepts dropdown */}
-          {demoConcepts.length > 0 && (
-            <div className="mt-2 flex items-center gap-2 flex-wrap">
-              <button
-                onClick={() => setShowDemos(!showDemos)}
-                className="text-[11px] text-slate-500 hover:text-cyan-400 transition-colors font-mono"
-              >
-                {showDemos ? 'Hide demos' : 'Try a demo concept'}
-              </button>
-              {showDemos && demoConcepts.map((c) => (
-                <button
-                  key={c.name}
-                  onClick={() => selectDemo(c.full_text)}
-                  className="text-[11px] px-2 py-1 rounded-md bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 border border-cyan-500/20 transition-colors font-mono"
-                >
-                  {c.name}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Error state */}
-          {error && (
-            <div className="mt-3 text-sm text-red-400 text-center font-mono bg-red-500/5 border border-red-500/20 rounded-lg px-4 py-2">
-              {error}
-            </div>
-          )}
-        </div>
-
-        {/* Launch button */}
-        <div
-          className="w-full max-w-xl opacity-0"
-          style={{ animation: 'fade-in-up 0.8s ease forwards 0.45s' }}
-        >
-          <button
-            onClick={handleLaunch}
-            disabled={isLaunching}
-            className="group relative w-full py-4 rounded-xl text-lg font-bold tracking-wide transition-all duration-300 hover:scale-[1.03] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
-            style={{
-              background: isLaunching
-                ? 'linear-gradient(135deg, #164e63 0%, #312e81 50%, #4c1d95 100%)'
-                : 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #9333ea 100%)',
-            }}
-          >
-            {/* Button glow on hover */}
+        {/* ── ACTIVE SPRINT VIEW (running or completed) ── */}
+        {isActive ? (
+          <>
+            {/* Status badge */}
             <div
-              className="absolute -inset-1 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-lg"
-              style={{ background: 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #9333ea 100%)' }}
-            />
-            <span className="relative z-10 flex items-center justify-center gap-3 text-white">
-              {isLaunching ? (
-                <>
-                  <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Starting sprint...
-                </>
-              ) : (
-                <>
-                  <span className="text-xl">&#x25C9;</span>
-                  LAUNCH SPRINT
-                </>
+              className="opacity-0"
+              style={{ animation: 'fade-in-up 0.6s ease forwards 0.2s' }}
+            >
+              <div className={`inline-flex items-center gap-2 px-5 py-2 rounded-full border ${
+                sprintStatus === 'running'
+                  ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300'
+                  : 'bg-green-500/10 border-green-500/30 text-green-300'
+              }`}>
+                {sprintStatus === 'running' && (
+                  <SpinnerIcon className="w-4 h-4" />
+                )}
+                {sprintStatus === 'completed' && (
+                  <span className="text-green-400 text-base">&#10003;</span>
+                )}
+                <span className="text-sm font-mono font-semibold tracking-wide">
+                  {sprintStatus === 'running' ? 'SPRINT IN PROGRESS' : 'SPRINT COMPLETE'}
+                </span>
+              </div>
+            </div>
+
+            {/* Locked concept display */}
+            <div
+              className="w-full max-w-xl opacity-0"
+              style={{ animation: 'fade-in-up 0.6s ease forwards 0.3s' }}
+            >
+              <div className="relative flex items-center bg-gray-900/60 border border-gray-700/50 rounded-2xl px-5 py-4">
+                <span className="text-gray-500 mr-3 text-lg font-mono select-none">&gt;</span>
+                <span className="flex-1 text-gray-400 text-base font-mono truncate">
+                  {displayConcept || 'Startup concept'}
+                </span>
+                <span className="ml-2 text-gray-600 text-xs font-mono">LOCKED</span>
+              </div>
+            </div>
+
+            {/* Phase progress (for running) */}
+            {sprintStatus === 'running' && (
+              <div
+                className="w-full max-w-xl opacity-0"
+                style={{ animation: 'fade-in-up 0.6s ease forwards 0.4s' }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        background: 'linear-gradient(90deg, #06b6d4, #3b82f6, #9333ea)',
+                        width: '60%',
+                        animation: 'progress-pulse 2s ease-in-out infinite',
+                      }}
+                    />
+                  </div>
+                  <span className="text-xs text-slate-500 font-mono whitespace-nowrap">Agents working...</span>
+                </div>
+              </div>
+            )}
+
+            {/* Action buttons */}
+            <div
+              className="flex items-center gap-4 opacity-0"
+              style={{ animation: 'fade-in-up 0.6s ease forwards 0.5s' }}
+            >
+              {sprintStatus === 'completed' && (
+                <button
+                  onClick={() => onLaunch && onLaunch(null)}
+                  className="px-6 py-3 rounded-xl text-sm font-bold tracking-wide text-white transition-all duration-300 hover:scale-[1.03]"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #9333ea 100%)' }}
+                >
+                  View Results
+                </button>
               )}
-            </span>
-          </button>
-        </div>
+              <button
+                onClick={handleNewSprint}
+                className="px-6 py-3 rounded-xl text-sm font-semibold tracking-wide text-slate-300 bg-gray-800 border border-gray-700 hover:bg-gray-700 hover:text-white transition-all duration-300 hover:scale-[1.03]"
+              >
+                New Sprint
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* ── IDLE VIEW (normal input + launch) ── */}
+
+            {/* Input area */}
+            <div
+              className="w-full max-w-xl opacity-0"
+              style={{ animation: 'fade-in-up 0.8s ease forwards 0.3s' }}
+            >
+              <div className="relative group">
+                {/* Outer glow ring on focus */}
+                <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-r from-cyan-400/20 via-blue-500/20 to-purple-600/20 opacity-0 group-focus-within:opacity-100 transition-opacity duration-500 blur-sm" />
+
+                <div className="relative flex items-center bg-gray-900 border border-gray-700 rounded-2xl px-5 py-4 group-focus-within:border-cyan-400 transition-all duration-300 group-focus-within:shadow-[0_0_20px_rgba(34,211,238,0.15)]">
+                  <span className="text-cyan-400 mr-3 text-lg font-mono select-none">&gt;</span>
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={concept}
+                    onChange={(e) => { setConcept(e.target.value); setError(null); }}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Describe your startup concept..."
+                    disabled={isLaunching}
+                    className="flex-1 bg-transparent text-white text-base placeholder-slate-600 outline-none font-mono disabled:opacity-50"
+                    maxLength={500}
+                  />
+                  {!concept && <TypingCursor />}
+                </div>
+              </div>
+
+              {/* Demo concepts dropdown */}
+              {demoConcepts.length > 0 && (
+                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => setShowDemos(!showDemos)}
+                    className="text-[11px] text-slate-500 hover:text-cyan-400 transition-colors font-mono"
+                  >
+                    {showDemos ? 'Hide demos' : 'Try a demo concept'}
+                  </button>
+                  {showDemos && demoConcepts.map((c) => (
+                    <button
+                      key={c.name}
+                      onClick={() => selectDemo(c.full_text)}
+                      className="text-[11px] px-2 py-1 rounded-md bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 border border-cyan-500/20 transition-colors font-mono"
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Error state */}
+              {error && (
+                <div className="mt-3 text-sm text-red-400 text-center font-mono bg-red-500/5 border border-red-500/20 rounded-lg px-4 py-2">
+                  {error}
+                </div>
+              )}
+            </div>
+
+            {/* Launch button */}
+            <div
+              className="w-full max-w-xl opacity-0"
+              style={{ animation: 'fade-in-up 0.8s ease forwards 0.45s' }}
+            >
+              <button
+                onClick={handleLaunch}
+                disabled={isLaunching}
+                className="group relative w-full py-4 rounded-xl text-lg font-bold tracking-wide transition-all duration-300 hover:scale-[1.03] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
+                style={{
+                  background: isLaunching
+                    ? 'linear-gradient(135deg, #164e63 0%, #312e81 50%, #4c1d95 100%)'
+                    : 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #9333ea 100%)',
+                }}
+              >
+                {/* Button glow on hover */}
+                <div
+                  className="absolute -inset-1 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-lg"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #9333ea 100%)' }}
+                />
+                <span className="relative z-10 flex items-center justify-center gap-3 text-white">
+                  {isLaunching ? (
+                    <>
+                      <SpinnerIcon />
+                      Starting sprint...
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xl">&#x25C9;</span>
+                      LAUNCH SPRINT
+                    </>
+                  )}
+                </span>
+              </button>
+            </div>
+          </>
+        )}
 
         {/* Agent avatars */}
         <div
@@ -371,6 +489,10 @@ export default function MissionControl({ onLaunch, isLive = false }) {
         @keyframes scroll-grid {
           0% { transform: translateY(0); }
           100% { transform: translateY(-50%); }
+        }
+        @keyframes progress-pulse {
+          0%, 100% { opacity: 1; width: 40%; }
+          50% { opacity: 0.7; width: 70%; }
         }
       `}</style>
     </div>

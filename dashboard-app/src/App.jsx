@@ -19,6 +19,7 @@ export default function App() {
   const [runId, setRunId] = useState(null);
   const [isLive, setIsLive] = useState(false);
   const [sprintStatus, setSprintStatus] = useState('idle'); // idle | running | completed
+  const [activeConcept, setActiveConcept] = useState('');
   const wsRef = useRef(null);
 
   // Check API availability on mount
@@ -62,11 +63,29 @@ export default function App() {
     };
   }, [runId, sprintStatus]);
 
-  // MissionControl calls onLaunch(run_id) after it starts the sprint via API
-  const handleLaunch = useCallback((newRunId) => {
-    setRunId(newRunId);
-    setSprintStatus('running');
-    setScreen('boardroom');
+  // MissionControl calls onLaunch(run_id, concept) after it starts the sprint via API
+  const handleLaunch = useCallback((newRunId, concept) => {
+    if (newRunId) {
+      setRunId(newRunId);
+      setSprintStatus('running');
+      if (concept) setActiveConcept(concept);
+      setScreen('boardroom');
+    } else {
+      // "View Results" button from completed state -- navigate to report
+      setScreen('report');
+    }
+  }, []);
+
+  // Reset everything for a new sprint
+  const handleNewSprint = useCallback(() => {
+    setRunId(null);
+    setSprintStatus('idle');
+    setActiveConcept('');
+    setScreen('mission');
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
   }, []);
 
   // Boardroom calls onDone() when inner-loop completes
@@ -84,7 +103,7 @@ export default function App() {
   const renderScreen = () => {
     switch (screen) {
       case 'mission':
-        return <MissionControl onLaunch={handleLaunch} />;
+        return <MissionControl onLaunch={handleLaunch} onNewSprint={handleNewSprint} sprintStatus={sprintStatus} activeConcept={activeConcept} isLive={isLive} />;
       case 'boardroom':
         return <Boardroom runId={runId} onDone={handleSprintDone} />;
       case 'arena':
@@ -94,7 +113,7 @@ export default function App() {
       case 'report':
         return <SprintReport runId={runId} />;
       default:
-        return <MissionControl onLaunch={handleLaunch} />;
+        return <MissionControl onLaunch={handleLaunch} onNewSprint={handleNewSprint} sprintStatus={sprintStatus} activeConcept={activeConcept} isLive={isLive} />;
     }
   };
 

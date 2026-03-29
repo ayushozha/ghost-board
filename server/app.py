@@ -165,6 +165,18 @@ def _list_artifact_files(base: Path) -> list[dict]:
     return results
 
 
+async def _verify_run_exists(run_id: str) -> bool:
+    """Return True if run_id is 'latest' or exists in the database."""
+    if run_id == "latest":
+        return True
+    async with get_session() as session:
+        result = await session.execute(
+            select(func.count(SprintRun.id)).where(SprintRun.id == run_id)
+        )
+        count = result.scalar() or 0
+        return count > 0
+
+
 # ---------------------------------------------------------------------------
 # Background sprint runner
 # ---------------------------------------------------------------------------
@@ -243,13 +255,17 @@ async def _run_sprint_background(run_id: str, concept: str, sim_scale: str) -> N
                             etype = event.type.value if hasattr(event.type, "value") else str(event.type)
 
                         if source:
-                            if etype in ("STRATEGY", "PIVOT"):
+                            if etype in ("STRATEGY_SET", "PIVOT"):
                                 status = "thinking"
                             elif etype == "BLOCKER":
                                 status = "blocked"
-                            elif etype in ("UPDATE", "PROTOTYPE", "FINANCIAL_MODEL", "GTM", "COMPLIANCE"):
+                            elif etype in (
+                                "UPDATE", "PROTOTYPE_READY",
+                                "FINANCIAL_MODEL_READY", "GTM_READY",
+                                "COMPLIANCE_REPORT_READY",
+                            ):
                                 status = "building"
-                            elif etype == "SIMULATION_RESULT":
+                            elif etype in ("SIMULATION_RESULT", "SIMULATION_ROUND", "SIMULATION_START"):
                                 status = "analyzing"
                             else:
                                 status = "active"
@@ -340,18 +356,10 @@ async def _run_sprint_background(run_id: str, concept: str, sim_scale: str) -> N
                 )
                 session.add(db_event)
 
-                # Broadcast each event live
-                await ws_manager.broadcast(run_id, {
-                    "type": "event",
-                    "event": {
-                        "id": db_event.id,
-                        "source_agent": db_event.source_agent,
-                        "event_type": db_event.event_type,
-                        "payload": payload_data,
-                        "triggered_by": db_event.triggered_by,
-                        "iteration": db_event.iteration,
-                    },
-                })
+                # NOTE: We do NOT re-broadcast events here because
+                # the _ws_broadcast_hook on StateBus already sent each
+                # event to WebSocket clients in real-time as it happened.
+                # Re-broadcasting would cause duplicate events on the client.
 
             # Persist artifacts from output directories
             artifact_dirs = {
@@ -683,6 +691,10 @@ async def get_trace(run_id: str) -> dict[str, Any]:
             return JSONResponse({"error": "trace.json not found"}, status_code=404)
         return {"trace": trace}
 
+    # Verify run exists in DB
+    if not await _verify_run_exists(run_id):
+        raise HTTPException(status_code=404, detail="Run not found")
+
     async with get_session() as session:
         result = await session.execute(
             select(SprintEvent)
@@ -713,48 +725,54 @@ async def get_trace(run_id: str) -> dict[str, Any]:
                 })
             return {"trace": trace}
 
-    # Fallback: read from trace.json file
-    out = _run_outputs_dir(run_id)
-    trace = _read_json_file(out / "trace.json")
-    if trace is None:
-        return JSONResponse({"error": "trace.json not found"}, status_code=404)
-    return {"trace": trace}
+    # Run exists in DB but has no events yet -- return empty trace
+    return {"trace": []}
 
 
 @app.get("/api/runs/{run_id}/artifacts")
 async def get_artifacts(run_id: str) -> dict[str, Any]:
     """Return all artifacts for a run. Checks DB first, falls back to filesystem."""
-    if run_id != "latest":
-        async with get_session() as session:
-            result = await session.execute(
-                select(AgentArtifact)
-                .where(AgentArtifact.run_id == run_id)
-                .order_by(AgentArtifact.created_at)
-            )
-            db_artifacts = result.scalars().all()
+    if run_id == "latest":
+        # Fallback: list files from filesystem for "latest"
+        artifacts: list[dict] = []
+        for folder in ("prototype", "financial_model", "gtm", "compliance"):
+            folder_path = OUTPUTS_DIR / folder
+            artifacts.extend(_list_artifact_files(folder_path))
+        return {"artifacts": artifacts}
 
-            if db_artifacts:
-                return {
-                    "artifacts": [
-                        {
-                            "id": a.id,
-                            "agent_name": a.agent_name,
-                            "artifact_type": a.artifact_type,
-                            "file_path": a.file_path,
-                            "path": a.file_path,
-                            "name": Path(a.file_path).name,
-                            "content_preview": a.content_preview,
-                            "created_at": _dt_str(a.created_at),
-                        }
-                        for a in db_artifacts
-                    ]
-                }
+    # Verify run exists in DB
+    if not await _verify_run_exists(run_id):
+        raise HTTPException(status_code=404, detail="Run not found")
 
-    # Fallback: list files from filesystem
-    out = _run_outputs_dir(run_id)
-    artifacts: list[dict] = []
+    async with get_session() as session:
+        result = await session.execute(
+            select(AgentArtifact)
+            .where(AgentArtifact.run_id == run_id)
+            .order_by(AgentArtifact.created_at)
+        )
+        db_artifacts = result.scalars().all()
+
+        if db_artifacts:
+            return {
+                "artifacts": [
+                    {
+                        "id": a.id,
+                        "agent_name": a.agent_name,
+                        "artifact_type": a.artifact_type,
+                        "file_path": a.file_path,
+                        "path": a.file_path,
+                        "name": Path(a.file_path).name,
+                        "content_preview": a.content_preview,
+                        "created_at": _dt_str(a.created_at),
+                    }
+                    for a in db_artifacts
+                ]
+            }
+
+    # Run exists in DB but has no artifacts yet
+    artifacts = []
     for folder in ("prototype", "financial_model", "gtm", "compliance"):
-        folder_path = out / folder
+        folder_path = OUTPUTS_DIR / folder
         artifacts.extend(_list_artifact_files(folder_path))
     return {"artifacts": artifacts}
 
@@ -762,16 +780,24 @@ async def get_artifacts(run_id: str) -> dict[str, Any]:
 @app.get("/api/runs/{run_id}/board-discussion")
 async def get_board_discussion(run_id: str) -> Any:
     """Return board_discussion.json content."""
+    # Verify run exists (latest or in DB)
+    if not await _verify_run_exists(run_id):
+        raise HTTPException(status_code=404, detail="Run not found")
+
     out = _run_outputs_dir(run_id)
     discussion = _read_json_file(out / "board_discussion.json")
     if discussion is None:
-        return JSONResponse({"error": "board_discussion.json not found"}, status_code=404)
+        return {"discussion": []}
     return {"discussion": discussion}
 
 
 @app.get("/api/runs/{run_id}/simulation")
 async def get_simulation(run_id: str) -> dict[str, Any]:
     """Return simulation data. Checks DB first, falls back to JSON files."""
+    # Verify run exists (latest or in DB)
+    if not await _verify_run_exists(run_id):
+        raise HTTPException(status_code=404, detail="Run not found")
+
     if run_id != "latest":
         async with get_session() as session:
             sim_result = await session.execute(
@@ -812,7 +838,7 @@ async def get_simulation(run_id: str) -> dict[str, Any]:
                     ],
                 }
 
-    # Fallback: read from JSON files
+    # Fallback: read from JSON files (for "latest" or DB run without sim data)
     out = _run_outputs_dir(run_id)
     results = _read_json_file(out / "simulation_results.json")
     geo = _read_json_file(out / "simulation_geo.json")
@@ -898,6 +924,10 @@ async def get_stats() -> dict[str, Any]:
 @app.get("/api/runs/{run_id}/sprint-report")
 async def get_sprint_report(run_id: str) -> Any:
     """Return the sprint_report.md content."""
+    # Verify run exists (latest or in DB)
+    if not await _verify_run_exists(run_id):
+        raise HTTPException(status_code=404, detail="Run not found")
+
     out = _run_outputs_dir(run_id)
     report_path = out / "sprint_report.md"
     if report_path.exists():
@@ -908,6 +938,10 @@ async def get_sprint_report(run_id: str) -> Any:
 @app.get("/api/runs/{run_id}/summary")
 async def get_summary(run_id: str) -> Any:
     """Return sprint_summary.json content."""
+    # Verify run exists (latest or in DB)
+    if not await _verify_run_exists(run_id):
+        raise HTTPException(status_code=404, detail="Run not found")
+
     out = _run_outputs_dir(run_id)
     summary = _read_json_file(out / "sprint_summary.json")
     if summary is None:

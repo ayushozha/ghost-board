@@ -1207,7 +1207,7 @@ function useCountUp(target, duration, active, decimals = 0) {
 }
 
 // ── Sprint Report (Artifact Viewer + Cost) ──
-function SprintReport({ events }) {
+function SprintReport({ events, isLive, runId }) {
   const [tab, setTab] = useState('prototype');
   const [costActive, setCostActive] = useState(false);
   const tabs = [
@@ -1216,6 +1216,7 @@ function SprintReport({ events }) {
     { id: 'gtm', label: 'GTM', icon: '&#128640;' },
     { id: 'compliance', label: 'Compliance', icon: '&#9878;' },
     { id: 'cost', label: 'Cost', icon: '&#128176;' },
+    { id: 'fullreport', label: 'Full Report', icon: '&#128196;' },
   ];
 
   useEffect(() => {
@@ -1278,7 +1279,9 @@ function SprintReport({ events }) {
         ))}
       </div>
       <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/30 min-h-[200px]">
-        {tab === 'cost' ? (
+        {tab === 'fullreport' ? (
+          <FullReportContent isLive={isLive} runId={runId} />
+        ) : tab === 'cost' ? (
           <div>
             {/* ── Section Header ── */}
             <h3 className="text-lg font-bold text-white mb-2">Cost Comparison</h3>
@@ -1436,29 +1439,199 @@ function SprintReport({ events }) {
             </div>
           </div>
         ) : (
-          <ArtifactContent tab={tab} />
+          <ArtifactContent tab={tab} isLive={isLive} runId={runId} />
         )}
       </div>
     </div>
   );
 }
-function ArtifactContent({ tab }) {
-  const info = {
-    prototype: { title: 'CTO Prototype', desc: 'Generated FastAPI app with Pydantic models, fraud detection endpoints, and test suite. Each pivot produces a new version adapted to the updated strategy.', files: ['app.py', 'models.py', 'routes.py', 'test_app.py'] },
-    financial: { title: 'CFO Financial Model', desc: 'Three-year projections with monthly breakdown, unit economics (LTV/CAC), funding requirements, and risk analysis. Adjusted after each pivot.', files: ['model_v1.json', 'model_v1.md'] },
-    gtm: { title: 'CMO Go-to-Market', desc: 'Landing page copy, positioning statement, tagline, value propositions, competitive matrix, and launch plan. Rewritten on pivot.', files: ['landing_page_v1.md', 'launch_plan_v1.md', 'competitive_matrix_v1.md'] },
-    compliance: { title: 'Legal Compliance', desc: 'Regulatory analysis with REAL citations from CFPB, FinCEN, SEC, FTC, GDPR. Blockers include actual regulation numbers and URLs.', files: ['report_v1.md', 'report_v1.json'] },
-  };
-  const d = info[tab];
+
+function FullReportContent({ isLive, runId }) {
+  const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const loadReport = async () => {
+      setLoading(true);
+      setError(null);
+      const rid = runId || 'latest';
+      const paths = [
+        `${API_BASE}/api/runs/${rid}/sprint-report`,
+        `${API_BASE}/api/runs/latest/sprint-report`,
+      ];
+      for (const p of paths) {
+        try {
+          const res = await fetch(p, { signal: AbortSignal.timeout(5000) });
+          if (res.ok) {
+            const data = await res.json();
+            const text = data.report || data.content || (typeof data === 'string' ? data : null);
+            if (text) {
+              setReport(text);
+              setLoading(false);
+              return;
+            }
+          }
+        } catch(e) {}
+      }
+      // Try direct file fetch
+      try {
+        const res = await fetch(`${API_BASE}/api/artifacts/sprint_report.md`, { signal: AbortSignal.timeout(5000) });
+        if (res.ok) {
+          const text = await res.text();
+          if (text && text.length > 10) {
+            setReport(text);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch(e) {}
+      setError('Sprint report not available. Run a sprint first to generate the full report.');
+      setLoading(false);
+    };
+    loadReport();
+  }, [isLive, runId]);
+
+  if (loading) return <div className="text-slate-400 animate-pulse py-8 text-center">Loading full report...</div>;
+  if (error) return <div className="text-slate-500 py-8 text-center">{error}</div>;
+
   return (
     <div>
-      <h3 className="text-lg font-bold text-white mb-2">{d.title}</h3>
-      <p className="text-sm text-slate-400 mb-3">{d.desc}</p>
-      <div className="flex gap-2 flex-wrap">
-        {d.files.map(f => (
-          <span key={f} className="px-3 py-1 rounded-lg bg-slate-800 text-xs mono text-slate-300 border border-slate-700/50">{f}</span>
-        ))}
+      <h3 className="text-lg font-bold text-white mb-3">Full Sprint Report</h3>
+      <div className="bg-slate-950/60 rounded-xl border border-slate-700/20 p-5 max-h-[600px] overflow-y-auto">
+        <pre className="whitespace-pre-wrap text-sm text-slate-300 mono leading-relaxed">{report}</pre>
       </div>
+    </div>
+  );
+}
+
+function ArtifactContent({ tab, isLive, runId }) {
+  const [artifacts, setArtifacts] = useState([]);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [fileContent, setFileContent] = useState(null);
+  const [loadingList, setLoadingList] = useState(true);
+  const [loadingFile, setLoadingFile] = useState(false);
+
+  const categoryMap = {
+    prototype: { folder: 'prototype', title: 'CTO Prototype', desc: 'Generated code with Pydantic models, endpoints, and test suite. Each pivot produces a new version adapted to the updated strategy.' },
+    financial: { folder: 'financial_model', title: 'CFO Financial Model', desc: 'Multi-year projections with monthly breakdown, unit economics, funding requirements, and risk analysis. Adjusted after each pivot.' },
+    gtm: { folder: 'gtm', title: 'CMO Go-to-Market', desc: 'Landing page copy, positioning statement, tagline, value propositions, competitive matrix, and launch plan. Rewritten on pivot.' },
+    compliance: { folder: 'compliance', title: 'Legal Compliance', desc: 'Regulatory analysis with REAL citations from CFPB, FinCEN, SEC, FTC, GDPR. Blockers include actual regulation numbers and URLs.' },
+  };
+  const cat = categoryMap[tab] || categoryMap.prototype;
+
+  useEffect(() => {
+    const loadArtifacts = async () => {
+      setLoadingList(true);
+      setSelectedFile(null);
+      setFileContent(null);
+      const rid = runId || 'latest';
+      const paths = [
+        `${API_BASE}/api/runs/${rid}/artifacts`,
+        `${API_BASE}/api/runs/latest/artifacts`,
+      ];
+      for (const p of paths) {
+        try {
+          const res = await fetch(p, { signal: AbortSignal.timeout(5000) });
+          if (res.ok) {
+            const data = await res.json();
+            const allArtifacts = data.artifacts || data || [];
+            // Filter to current category folder
+            const filtered = allArtifacts.filter(a => {
+              const filePath = a.path || a.file_path || '';
+              return filePath.startsWith(cat.folder + '/') || filePath.startsWith(cat.folder + '\\');
+            });
+            if (filtered.length > 0) {
+              setArtifacts(filtered);
+              setLoadingList(false);
+              return;
+            }
+          }
+        } catch(e) {}
+      }
+      // No artifacts found from API
+      setArtifacts([]);
+      setLoadingList(false);
+    };
+    loadArtifacts();
+  }, [tab, isLive, runId]);
+
+  // Load file content when a file is selected
+  useEffect(() => {
+    if (!selectedFile) { setFileContent(null); return; }
+    const loadFile = async () => {
+      setLoadingFile(true);
+      const filePath = selectedFile.path || selectedFile.file_path || '';
+      try {
+        const res = await fetch(`${API_BASE}/api/artifacts/${filePath}`, { signal: AbortSignal.timeout(8000) });
+        if (res.ok) {
+          const text = await res.text();
+          setFileContent(text);
+          setLoadingFile(false);
+          return;
+        }
+      } catch(e) {}
+      // Try content_preview from artifact data
+      if (selectedFile.content_preview) {
+        setFileContent(selectedFile.content_preview);
+      } else {
+        setFileContent('(Could not load file content)');
+      }
+      setLoadingFile(false);
+    };
+    loadFile();
+  }, [selectedFile]);
+
+  return (
+    <div>
+      <h3 className="text-lg font-bold text-white mb-2">{cat.title}</h3>
+      <p className="text-sm text-slate-400 mb-3">{cat.desc}</p>
+      {loadingList ? (
+        <div className="text-slate-400 animate-pulse py-4">Loading artifacts...</div>
+      ) : artifacts.length === 0 ? (
+        <div className="py-2">
+          <div className="flex gap-2 flex-wrap mb-3">
+            {(({
+              prototype: ['app.py', 'models.py', 'config.py', 'routes/users.py', 'routes/analytics.py', 'routes/compliance.py', 'routes/hipaa.py', 'test_app.py', 'README.md'],
+              financial: ['financial_model.json', 'scenarios.json', 'financial_model.md'],
+              gtm: ['gtm_strategy.md', 'positioning.md', 'competitive_matrix.md', 'landing_page.html', 'taglines.json'],
+              compliance: ['report_v1.md', 'report_v1.json', 'citations.json'],
+            })[tab] || []).map(f => (
+              <span key={f} className="px-3 py-1 rounded-lg bg-slate-800 text-xs mono text-slate-400 border border-slate-700/50">{f}</span>
+            ))}
+          </div>
+          <p className="text-xs text-slate-600">Files generated during sprint. Connect to the API server or run a sprint to view contents.</p>
+        </div>
+      ) : (
+        <div>
+          <div className="flex gap-2 flex-wrap mb-4">
+            {artifacts.map(a => {
+              const name = a.name || (a.path || a.file_path || '').split('/').pop();
+              const isActive = selectedFile && (selectedFile.path || selectedFile.file_path) === (a.path || a.file_path);
+              return (
+                <button key={a.path || a.file_path} onClick={() => setSelectedFile(a)}
+                  className={`px-3 py-1.5 rounded-lg text-xs mono border transition-colors ${isActive ? 'bg-indigo-600/30 text-indigo-300 border-indigo-500/50' : 'bg-slate-800 text-slate-300 border-slate-700/50 hover:bg-slate-700/50 hover:text-white'}`}>
+                  {name}
+                  {a.size ? <span className="ml-1 text-slate-500">({(a.size / 1024).toFixed(1)}k)</span> : null}
+                </button>
+              );
+            })}
+          </div>
+          {selectedFile && (
+            <div className="bg-slate-950/60 rounded-xl border border-slate-700/20 p-4 max-h-[500px] overflow-y-auto">
+              <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-700/30">
+                <span className="text-xs mono text-indigo-400">{selectedFile.path || selectedFile.file_path}</span>
+                <button onClick={() => setSelectedFile(null)} className="text-xs text-slate-500 hover:text-slate-300">Close</button>
+              </div>
+              {loadingFile ? (
+                <div className="text-slate-400 animate-pulse py-4">Loading file...</div>
+              ) : (
+                <pre className="whitespace-pre-wrap text-xs text-slate-300 mono leading-relaxed">{fileContent}</pre>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1536,7 +1709,29 @@ function MarketArena({ events, liveSimulation, isLive, runId }) {
     });
   }
 
-  const archetypeColors = { VC: '#eab308', Journalist: '#3b82f6', 'Early Adopter': '#22c55e', Competitor: '#ef4444', Regulator: '#a855f7', User: '#06b6d4' };
+  const archetypeColors = { VC: '#eab308', vc: '#eab308', Journalist: '#3b82f6', journalist: '#3b82f6', 'Early Adopter': '#22c55e', early_adopter: '#22c55e', Competitor: '#ef4444', competitor: '#ef4444', Regulator: '#a855f7', regulator: '#a855f7', User: '#06b6d4', user: '#06b6d4', Skeptic: '#f97316', skeptic: '#f97316' };
+
+  // Build archetype sentiment data from simulation rounds (last round if available)
+  const archetypeSentiments = useMemo(() => {
+    const result = {};
+    if (simData?.rounds_data && simData.rounds_data.length > 0) {
+      const lastRound = simData.rounds_data[simData.rounds_data.length - 1];
+      if (lastRound.sentiment_by_archetype) {
+        Object.entries(lastRound.sentiment_by_archetype).forEach(([key, val]) => {
+          // Normalize key to title case for display
+          const displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+          result[displayKey] = val;
+        });
+      }
+    }
+    // Fallback: if no sim data, use zeroes
+    if (Object.keys(result).length === 0) {
+      ['VC', 'Journalist', 'Early Adopter', 'Skeptic', 'Competitor', 'Regulator'].forEach(a => {
+        result[a] = 0;
+      });
+    }
+    return result;
+  }, [simData]);
 
   return (
     <div>
@@ -1596,8 +1791,7 @@ function MarketArena({ events, liveSimulation, isLive, runId }) {
         <div className="space-y-3">
           <div className="bg-slate-900/50 rounded-xl border border-slate-700/20 p-3">
             <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">Sentiment by Archetype</h3>
-            {['VC', 'Journalist', 'Early Adopter', 'Competitor', 'Regulator'].map(arch => {
-              const val = (Math.random() * 1.6 - 0.6); // Placeholder when no real data
+            {Object.entries(archetypeSentiments).map(([arch, val]) => {
               return (
                 <div key={arch} className="flex items-center gap-2 mb-1.5">
                   <span className="text-[10px] w-20 text-slate-400 truncate">{arch}</span>
@@ -1609,6 +1803,9 @@ function MarketArena({ events, liveSimulation, isLive, runId }) {
                         marginLeft: val < 0 ? 'auto' : 0,
                       }}></div>
                   </div>
+                  <span className="text-[9px] mono w-8 text-right" style={{ color: val > 0.2 ? '#22c55e' : val > -0.2 ? '#eab308' : '#ef4444' }}>
+                    {val > 0 ? '+' : ''}{val.toFixed(1)}
+                  </span>
                 </div>
               );
             })}
@@ -1917,7 +2114,11 @@ function PivotFlow({ events }) {
       for (const p of paths) {
         try {
           const res = await fetch(p);
-          if (res.ok) { const d = await res.json(); if (d.length > 0) { setDiscussion(d); return; } }
+          if (res.ok) {
+            const raw = await res.json();
+            const d = raw.discussion || (Array.isArray(raw) ? raw : []);
+            if (d.length > 0) { setDiscussion(d); return; }
+          }
         } catch(e) {}
       }
       // Fallback to embedded demo discussion
@@ -2499,16 +2700,19 @@ function SentimentDashboard({ events }) {
       });
     }
 
-    // If no sim data, use concerns/strengths from trace
+    // If no sim data but have a sim event, use deterministic placeholder values
     const labels = Object.keys(archetypes);
     if (labels.length === 0 && latestSim) {
-      ['VC', 'Journalist', 'Early Adopter', 'Competitor', 'Regulator'].forEach(a => {
-        archetypes[a] = [Math.random() * 1.6 - 0.8];
+      const fallbackVals = { 'VC': 0.6, 'Journalist': -0.1, 'Early Adopter': 0.7, 'Skeptic': -0.3, 'Competitor': -0.5, 'Regulator': 0.1 };
+      Object.entries(fallbackVals).forEach(([a, v]) => {
+        archetypes[a] = [v];
       });
     }
 
-    const finalLabels = Object.keys(archetypes);
-    const avgSentiments = finalLabels.map(k => {
+    const rawLabels = Object.keys(archetypes);
+    // Normalize labels to title case for display (e.g., "vc" -> "Vc", "early_adopter" -> "Early Adopter")
+    const finalLabels = rawLabels.map(k => k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()));
+    const avgSentiments = rawLabels.map(k => {
       const vals = archetypes[k];
       return vals.reduce((a, b) => a + b, 0) / vals.length;
     });
@@ -2553,7 +2757,7 @@ function SentimentDashboard({ events }) {
 
       const archColors = ['#3b82f6', '#22c55e', '#eab308', '#ef4444', '#a855f7', '#06b6d4'];
       const datasets = Object.entries(archetypes).map(([name, vals], i) => ({
-        label: name,
+        label: name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
         data: vals,
         borderColor: archColors[i % archColors.length],
         backgroundColor: 'transparent',
@@ -3038,7 +3242,7 @@ function App() {
               {renderedTab === 'pivotflow' && <PivotFlow events={events} />}
               {renderedTab === 'sentiment' && <SentimentDashboard events={events} />}
               {renderedTab === 'analytics' && <AdvancedCharts events={events} />}
-              {renderedTab === 'report' && <SprintReport events={events} />}
+              {renderedTab === 'report' && <SprintReport events={events} isLive={isLive} runId={liveRunId} />}
             </div>
           </div>
 

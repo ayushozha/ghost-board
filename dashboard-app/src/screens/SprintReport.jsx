@@ -730,7 +730,6 @@ function CostTab({ runData, runId }) {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     const id = runId || 'latest';
     apiFetch(`/runs/${id}/summary`)
       .then((r) => r.json())
@@ -746,8 +745,6 @@ function CostTab({ runData, runId }) {
     return () => { cancelled = true; };
   }, [runId]);
 
-  if (loading) return <LoadingState />;
-
   const apiCost = summary?.total_cost || runData?.api_cost_usd || runData?.total_cost || 0.19;
   const consultingCost = 15000;
   const multiplier = apiCost > 0 ? Math.round(consultingCost / apiCost) : 77359;
@@ -760,6 +757,8 @@ function CostTab({ runData, runId }) {
   const wandbUrl = summary?.wandb_url || runData?.wandb_url;
 
   const animatedMultiplier = useCountUp(multiplier, 2500, animating);
+
+  if (loading) return <LoadingState />;
 
   // Dramatic bar heights: consulting bar fills the space, API bar is tiny
   const barContainerH = 300;
