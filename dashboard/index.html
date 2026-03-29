@@ -679,7 +679,7 @@ const audioManager = new AudioManager();
 window.audioManager = audioManager;
 
 // ── Live Mode: API connection + WebSocket infrastructure ──
-const API_BASE = (window.location.port === '8000' || window.location.port === '3000') ? '' : 'http://localhost:8000';
+const API_BASE = '';
 
 class LiveConnection {
   constructor() {
@@ -764,7 +764,7 @@ class LiveConnection {
     if (this.ws) { try { this.ws.close(); } catch(e) {} }
 
     const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsHost = API_BASE ? 'localhost:8000' : window.location.host;
+    const wsHost = window.location.host;
     const wsUrl = `${wsProto}//${wsHost}/ws/live/${rid}`;
 
     try {
